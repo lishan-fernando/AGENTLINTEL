@@ -58,3 +58,10 @@ CommonJS CLI), and no signing beyond provenance until adopters ask for it.
 
 Supersedes nothing; extends ADR-008 (tarball distribution) and rides the
 posture of ADR-012 (the pipeline files stay Apache-2.0 adoption surface).
+
+Amendment (2026-07-04, same day): the `NPM_PUBLISH` variable and `NPM_TOKEN`
+secret live on the `NPM` deployment environment rather than the repository —
+the release job declares `environment: NPM`, and the environment restricts
+deployments to `v*` tags, so publish credentials are unreachable from any
+other workflow or ref. The decision itself is unchanged: publishing remains
+an explicit variable flip, and trusted publishing binds to that environment.
