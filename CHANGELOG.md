@@ -1,8 +1,9 @@
 # Changelog
 
-## Unreleased
+## v2.0.0-alpha.6 — 2026-07-04
 
-Supply-chain-hardened CI/CD ahead of the public launch (ADR-013).
+The first npm release. Supply-chain-hardened CI/CD ahead of the public
+launch (ADR-013).
 
 - CI tests the support claims: ubuntu/windows/macos × Node 18/22/24 behind
   one `ci-ok` check; actions pinned to commit SHAs; installs from a
@@ -11,6 +12,8 @@ Supply-chain-hardened CI/CD ahead of the public launch (ADR-013).
 - Releases publish `@agentlintel/cli` to npm with provenance, gated by the
   explicit `NPM_PUBLISH` variable (token bootstrap → tokenless trusted
   publishing; see `docs/PUBLISHING.md`). Tarballs ship `sha256` checksums.
+- Publish credentials are scoped to the `NPM` deployment environment,
+  restricted to `v*` tag runs (ADR-013 amendment).
 
 ## v2.0.0-alpha.5 — 2026-07-04
 

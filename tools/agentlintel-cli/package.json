@@ -1,6 +1,6 @@
 {
   "name": "@agentlintel/cli",
-  "version": "2.0.0-alpha.5",
+  "version": "2.0.0-alpha.6",
   "description": "Deterministic architecture gate for AI-agent codebases: verified facts, enforceable rules, conformance fixtures, write-boundary guard.",
   "keywords": [
     "ai",

@@ -29,6 +29,9 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-latest
+    # Publish credentials are scoped to this deployment environment
+    # (restricted to v* tags), not the whole repository.
+    environment: NPM
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1

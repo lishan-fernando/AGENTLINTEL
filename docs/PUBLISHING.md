@@ -19,9 +19,9 @@ workflow, in order:
    GitHub Release under stable names (`agentlintel-cli.tgz`,
    `agentlintel-cli.tgz.sha256`).
 4. Publishes `@agentlintel/cli` to npm with provenance attestation — if and
-   only if the repository variable `NPM_PUBLISH` is `"true"`. Publishing is
-   an explicit decision, never an inference from which secrets happen to
-   exist (ADR-013).
+   only if the `NPM_PUBLISH` variable on the `NPM` deployment environment is
+   `"true"`. Publishing is an explicit decision, never an inference from
+   which secrets happen to exist (ADR-013).
 
 Adopters who never touch npm install with one line:
 
@@ -86,16 +86,17 @@ npmjs.com and in the GitHub repo settings, in this order:
    - Generate a *Granular Access Token* (account settings → Access Tokens):
      read/write, scoped to the `@agentlintel` scope only, short expiry
      (30 days — it exists for one release).
-   - GitHub repo → Settings → Secrets and variables → Actions: save it as
-     the `NPM_TOKEN` secret, and set the repository **variable**
-     `NPM_PUBLISH` to `true`.
+   - GitHub repo → Settings → Environments → `NPM` (deployments restricted
+     to `v*` tags; the release job declares `environment: NPM`): save the
+     token as the `NPM_TOKEN` environment secret, and set the environment
+     variable `NPM_PUBLISH` to `true`.
    - Push the release tag. The workflow publishes with
      `npm publish --access public --provenance`.
 4. **Switch to tokenless (trusted publishing).** On npmjs.com →
    `@agentlintel/cli` → Settings → Trusted Publisher: GitHub Actions,
    owner `lishan-fernando`, repository `AGENTLINTEL`, workflow
-   `release.yml`, environment left blank. Then:
-   - Delete the `NPM_TOKEN` repo secret and revoke the npm token.
+   `release.yml`, environment `NPM`. Then:
+   - Delete the `NPM_TOKEN` environment secret and revoke the npm token.
    - In the package's publishing access settings, require two-factor
      authentication or automation and disallow classic tokens.
    - From now on the workflow authenticates via GitHub OIDC; there is no
