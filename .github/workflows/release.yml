@@ -101,7 +101,13 @@ jobs:
             echo "Auth: GitHub OIDC trusted publishing (tokenless)."
           fi
           cd tools/agentlintel-cli
-          npm publish --access public --provenance
+          # npm refuses to let a prerelease default to the `latest` dist-tag;
+          # alpha/beta/rc publish under their prerelease identifier.
+          VERSION="$(node -p "require('./package.json').version")"
+          DIST_TAG="${VERSION#*-}"
+          if [ "$DIST_TAG" = "$VERSION" ]; then DIST_TAG="latest"; else DIST_TAG="${DIST_TAG%%.*}"; fi
+          echo "Publishing $VERSION with dist-tag $DIST_TAG"
+          npm publish --access public --provenance --tag "$DIST_TAG"
 
       - name: npm publish skipped
         if: vars.NPM_PUBLISH != 'true'

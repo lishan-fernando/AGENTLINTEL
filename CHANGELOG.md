@@ -1,9 +1,22 @@
 # Changelog
 
+## v2.0.0-alpha.7 — 2026-07-04
+
+The first npm release: `@agentlintel/cli` on the registry with provenance.
+
+- Prereleases publish under their prerelease dist-tag (`alpha`), never
+  `latest` — npm 11 enforces the explicit choice and the workflow derives it
+  from the version.
+- The CLI `bin` target dropped its `./` prefix: npm >= 11.17 treats the
+  prefixed form as invalid and strips the entry at publish, which would have
+  shipped a CLI that `npx agentlintel` cannot run. A release-surfaces test
+  now fails on any `./`-prefixed bin.
+
 ## v2.0.0-alpha.6 — 2026-07-04
 
-The first npm release. Supply-chain-hardened CI/CD ahead of the public
-launch (ADR-013).
+Supply-chain-hardened CI/CD ahead of the public launch (ADR-013).
+GitHub Release only; its npm publish was blocked by the two defects fixed
+in alpha.7.
 
 - CI tests the support claims: ubuntu/windows/macos × Node 18/22/24 behind
   one `ci-ok` check; actions pinned to commit SHAs; installs from a

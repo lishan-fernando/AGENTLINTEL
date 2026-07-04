@@ -22,7 +22,7 @@ in-house convention — in any language, through built-in rule engines plus an
 The deterministic architecture gate is the mechanism. Durable, accurate
 human–AI collaboration is the mission.
 
-**Status:** `v2.0.0-alpha.6` · **License:** Fair Source ([FSL-1.1-ALv2](LICENSE); templates and contract formats [Apache-2.0](LICENSE-APACHE)) · **Requires:** Node.js >= 18
+**Status:** `v2.0.0-alpha.7` · **License:** Fair Source ([FSL-1.1-ALv2](LICENSE); templates and contract formats [Apache-2.0](LICENSE-APACHE)) · **Requires:** Node.js >= 18
 
 ## The problem: AI coding agents drift
 
@@ -32,8 +32,6 @@ human–AI collaboration is the mission.
 > built AgentLintel after running into this many times while working on large
 > production-grade solutions. It is my way of tackling the problem, alongside
 > many others trying to solve similar issues.
->
-> — Lishan Fernando, creator of AgentLintel
 
 The failure has a pattern. Teams that pair humans with AI agents hit three
 walls:
@@ -107,7 +105,7 @@ session inherits the update.
 ## Quick start
 
 ```bash
-npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.6/agentlintel-cli.tgz
+npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.7/agentlintel-cli.tgz
 npx agentlintel init      # scaffold the contract (pick a pattern pack)
 npx agentlintel verify    # run the gate locally
 ```
@@ -288,7 +286,7 @@ runs `verify --strict` on every pull request.
 
 ## Status
 
-`v2.0.0-alpha.6`, fair source, Node.js >= 18. Free to use and to build your
+`v2.0.0-alpha.7`, fair source, Node.js >= 18. Free to use and to build your
 own software with: everything `init` scaffolds into your repo is
 [Apache-2.0](LICENSE-APACHE), and the core is [FSL-1.1-ALv2](LICENSE) — any
 use except selling AgentLintel itself, with each release becoming Apache-2.0
