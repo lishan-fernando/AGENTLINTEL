@@ -120,6 +120,6 @@ test('publishing docs match the release workflow and action coordinates', () => 
 test('adopter snippets pin the current package version where they name a release', () => {
   const version = require('../package.json').version;
   for (const rel of ['README.md', 'tools/agentlintel-cli/README.md', '.pre-commit-hooks.yaml']) {
-    assert.match(read(rel), new RegExp(`v${version.replace(/\./g, '\\.')}`), `${rel} must mention current package version`);
+    assert.ok(read(rel).includes(`v${version}`), `${rel} must mention current package version`);
   }
 });

@@ -25,16 +25,18 @@ function normalizedSize(abs) {
   return buf.length - crlf;
 }
 
-function quoteCmd(value) {
-  const s = String(value);
-  if (!/[\s"&|<>^]/.test(s)) return s;
-  return `"${s.replace(/"/g, '\\"')}"`;
+function npmCliPath() {
+  const candidates = [
+    process.env.npm_execpath,
+    path.join(path.dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+    path.join(path.dirname(process.execPath), '..', 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+  ].filter(Boolean);
+  return candidates.find((candidate) => fs.existsSync(candidate));
 }
 
 function runNpm(args, cwd) {
-  if (process.platform === 'win32') {
-    return spawnSync(process.env.ComSpec, ['/d', '/s', '/c', `npm ${args.map(quoteCmd).join(' ')}`], { cwd, encoding: 'utf8' });
-  }
+  const cli = npmCliPath();
+  if (cli) return spawnSync(process.execPath, [cli, ...args], { cwd, encoding: 'utf8' });
   return spawnSync('npm', args, { cwd, encoding: 'utf8' });
 }
 
@@ -104,7 +106,7 @@ test('npm package contains runtime files and excludes tests', () => {
 
 test('packaged README contains install, quick start, and CI anchors', () => {
   const readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8');
-  assert.match(readme, new RegExp(`releases/download/v${PKG.version.replace(/\./g, '\\.')}/agentlintel-cli\\.tgz`));
+  assert.ok(readme.includes(`releases/download/v${PKG.version}/agentlintel-cli.tgz`));
   assert.match(readme, /npm i -D @agentlintel\/cli/);
   assert.match(readme, /npx agentlintel init/);
   assert.match(readme, /npx agentlintel verify/);
