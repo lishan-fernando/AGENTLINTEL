@@ -1,0 +1,80 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# AGENTLINTEL v2 facts. LAW: every fact carries a machine check and is
+# re-verified on every `agentlintel verify` run. A fact without a passing
+# check is a build failure, not a stale comment.
+#
+# Check types:
+#   path_exists   - path must exist relative to repo root
+#   file_contains - file must match regex pattern
+#   command       - command must exit with expect_exit (default 0)
+
+version: 2
+
+facts:
+  - id: cli-entry
+    claim: "The CLI entry point is tools/agentlintel-cli/bin/agentlintel.js"
+    check: { type: path_exists, path: tools/agentlintel-cli/bin/agentlintel.js }
+
+  - id: cli-node-engine
+    claim: "The CLI requires Node >= 18, no build step"
+    check: { type: file_contains, path: tools/agentlintel-cli/package.json, pattern: "\"node\":\\s*\">=18\"" }
+
+  - id: cli-parses
+    claim: "The CLI entry point is valid JavaScript"
+    check: { type: command, run: "node --check tools/agentlintel-cli/bin/agentlintel.js" }
+
+  - id: rules-kernel
+    claim: "Deterministic rules live in .agentlintel/rules.yaml (v2 format)"
+    check: { type: file_contains, path: .agentlintel/rules.yaml, pattern: "version: 2" }
+
+  - id: conformance-fixtures
+    claim: "Every rule has pass/fail fixtures under .agentlintel/conformance/<rule-id>/"
+    check: { type: path_exists, path: .agentlintel/conformance/CONFORMANCE.md }
+
+  - id: skill-strangler-extraction
+    claim: "The monolith extraction playbook ships as a standard Agent Skill"
+    check: { type: path_exists, path: .agentlintel/skills/strangler-extraction/SKILL.md }
+
+  - id: skill-mirror-exemplar
+    claim: "Exemplar-mirroring workflow ships as a standard Agent Skill"
+    check: { type: path_exists, path: .agentlintel/skills/mirror-exemplar/SKILL.md }
+
+  - id: skill-audit-architecture
+    claim: "The architecture audit workflow ships as a standard Agent Skill"
+    check: { type: path_exists, path: .agentlintel/skills/audit-architecture/SKILL.md }
+
+  - id: spec
+    claim: "The framework spec is SPEC.md at repo root (<= 500 lines)"
+    check: { type: line_count_max, path: SPEC.md, max: 500 }
+
+  # The framework's own budgets, machine-checked ("budgets without measurement
+  # are wishes" was v1's post-mortem). ~8KB = ~2K tokens at ~4 bytes/token.
+  - id: agents-md-lines
+    claim: "AGENTS.md stays within the always-load budget (<= 150 lines)"
+    check: { type: line_count_max, path: AGENTS.md, max: 150 }
+
+  - id: agents-md-bytes
+    claim: "AGENTS.md (the dominant always-load component) stays under 8KB; skill frontmatters are the unmeasured remainder, bounded by the three-skills fact"
+    check: { type: byte_count_max, path: AGENTS.md, max: 8192 }
+
+  - id: three-skills
+    claim: "Exactly the three reference skills ship - concept creep is a bug"
+    check: { type: glob_count, pattern: ".agentlintel/skills/*/SKILL.md", min: 3, max: 3 }
+
+  - id: v1-split-doc-deleted
+    claim: "The stale v1 REPOSITORY-SPLIT.md stays deleted (verified, append-only, or deleted)"
+    check: { type: file_absent, path: REPOSITORY-SPLIT.md }
+
+  - id: exemplar-template
+    claim: "The canonical slice exemplar template lives in .agentlintel/templates/exemplar-slice/"
+    check: { type: path_exists, path: .agentlintel/templates/exemplar-slice/slice.manifest.yaml }
+
+  # The legal surface is governance too - machine-checked like everything else (ADR-012).
+  - id: license-core
+    claim: "The core is fair-source FSL-1.1-ALv2; LICENSE carries the canonical text"
+    check: { type: file_contains, path: LICENSE, pattern: "FSL-1.1-ALv2" }
+
+  - id: license-adoption-surface
+    claim: "The adoption surface (templates, .agentlintel contract, CI glue) stays Apache-2.0 via LICENSE-APACHE"
+    check: { type: file_contains, path: LICENSE-APACHE, pattern: "Apache License" }

@@ -1,0 +1,90 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# AGENTLINTEL v2 rules. LAW: a rule exists here only if `agentlintel verify`
+# can fail a PR over it deterministically. Advice lives in AGENTS.md as
+# principles, not here. Every rule has fixtures in .agentlintel/conformance/<id>/.
+#
+# Engines:
+#   regex       - forbidden patterns per line, glob-scoped
+#   error-codes - finds <SLICE>-<CATEGORY>-<NUMBER> literals, validates grammar
+#   exemptions  - AGENTLINTEL-EXEMPT blocks: required fields + expiry
+#   external    - tree-scoped command emitting JSONL {file,line,message}
+#   layers      - declarative layer boundaries: layers (path globs) + allowed map
+#
+# must_match: true  -> the rule's scope matching zero files fails the gate
+#             unset -> zero matches is a warning (fails under --strict)
+#             false -> declared fixture-carrier; zero matches is expected
+
+version: 2
+
+rules:
+  - id: slice.no-deep-imports
+    severity: error
+    engine: regex
+    applies_to: ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx", "**/*.mts", "**/*.cts"]
+    # The CLI's unit tests embed rule-matching strings as test data - same
+    # rationale as the conformance/ skip; not a scope weakening for adopters.
+    excludes: ["tools/agentlintel-cli/test/**", "tools/agentlintel-cli/templates/**"]
+    forbidden:
+      - "from\\s+['\"](?:\\.\\./)*slices/[^/'\"]+/(application|domain|infrastructure|interface|tests)\\b"
+      - "require\\(\\s*['\"](?:\\.\\./)*slices/[^/'\"]+/(application|domain|infrastructure|interface|tests)\\b"
+    message: "Deep imports forbidden. Import from 'slices/<Name>' only - slice internals are private."
+
+  - id: domain.purity
+    severity: error
+    engine: regex
+    applies_to: ["**/domain/**"]
+    excludes: ["tools/agentlintel-cli/templates/**"]  # CLI templates carry fixture data
+    must_match: false  # reference rule: this repo has no slices; adopters flip to true
+    forbidden:
+      - "(from\\s+['\"]|require\\(\\s*['\"])(axios|prisma|@prisma/[^'\"]*|fs|node:[^'\"]*|http|https|express|fastify|pg|mysql2?|mongoose|mongodb|redis|ioredis|knex|typeorm|sequelize|got|node-fetch|undici|aws-sdk|@aws-sdk/[^'\"]*)['\"/]"
+    message: "Domain is pure. No UI, framework, I/O, or external SDK imports."
+
+  - id: identity.no-auth-import
+    severity: error
+    engine: regex
+    applies_to: ["slices/**"]
+    must_match: false  # reference rule: this repo has no slices; adopters flip to true
+    excludes: ["slices/Auth/**", "tools/agentlintel-cli/templates/**"]
+    forbidden:
+      - "from\\s+['\"](?:\\.\\./)*slices/Auth(/|['\"])"
+    message: "Slices receive identity via ExecutionContext. Use AuthorizationPort instead of importing Auth."
+
+  - id: secrets.no-logging
+    severity: error
+    engine: regex
+    flags: i
+    excludes: ["**/*.test.*", "**/*.spec.*", "**/tests/**", "tools/agentlintel-cli/templates/**"]
+    forbidden:
+      - "(console\\.(log|info|warn|error|debug)|logger?\\.(log|info|warn|error|debug|trace)|_logger\\.[a-z]+)\\s*\\(\\s*(?!['\"`])(?:(?!['\"`]).)*\\b(password|passwd|[a-z0-9_]*token[a-z0-9_]*|api[_-]?key|[a-z0-9_]*secret[a-z0-9_]*|private[_-]?key|ssn|card[_-]?number|cvv)\\b"
+      - "(console\\.(log|info|warn|error|debug)|logger?\\.(log|info|warn|error|debug|trace)|_logger\\.[a-z]+)\\s*\\([^)]*['\"`][^'\"`]*['\"`]\\s*,[^)]*\\b(password|passwd|[a-z0-9_]*token[a-z0-9_]*|api[_-]?key|[a-z0-9_]*secret[a-z0-9_]*|private[_-]?key|ssn|card[_-]?number|cvv)\\b"
+    message: "Never log secrets, tokens, PII, or regulated financial data. Log identifiers, redact the rest."
+
+  - id: boundary.validation
+    severity: error
+    engine: regex
+    applies_to: ["slices/*/interface/**", "slices/*/infrastructure/**"]
+    excludes: ["tools/agentlintel-cli/templates/**"]  # CLI templates carry fixture data
+    must_match: false  # reference rule: this repo has no slices; adopters flip to true
+    forbidden:
+      - "\\b(req\\.body|rawBody|rawPayload|rawInput)\\s+as\\s+(?!Record\\b|unknown\\b)[A-Za-z]"
+    message: "Validate untrusted input before it reaches business logic. A bare type-cast is not validation."
+    note: "Heuristic check - catches raw casts of untrusted input. Parse-don't-cast: route input through a validate/parse function."
+
+  - id: error-code.format
+    severity: error
+    engine: error-codes
+    applies_to: ["**/contract/errors.*", "**/contract/**/errors.*", "**/*.errors.*"]
+    excludes: ["tools/agentlintel-cli/templates/**"]  # CLI templates carry fixture data
+    must_match: false  # reference rule: this repo has no slices; adopters flip to true
+    categories: [VAL, RULE, AUTH, API, DB, GATEWAY, STATE, CONFIG, FCN, QRY, CMD, UNKNOWN]
+    message: "Error codes follow <SLICE>-<CATEGORY>-<NUMBER>: uppercase slice, registered category, numeric suffix."
+
+  - id: exemption.audited
+    severity: error
+    engine: exemptions
+    marker: "AGENTLINTEL-EXEMPT"
+    required_fields: [Reason, Approver, Expires, Owner]
+    within_lines: 5
+    excludes: ["**/*.md", "**/*.test.*", "**/*.spec.*", ".agentlintel/**", "tools/agentlintel-cli/templates/**"]
+    message: "Exemptions must declare Reason, Approver, Expires, Owner within 5 lines. Expired exemptions block CI."

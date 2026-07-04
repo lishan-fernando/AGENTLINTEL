@@ -1,0 +1,5 @@
+violations:
+  - rule: secrets.no-logging
+    file: slices/Auth/application/login.ts
+    line: 4
+    message_contains: "Never log secrets"

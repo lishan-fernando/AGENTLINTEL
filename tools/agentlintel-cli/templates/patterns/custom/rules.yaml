@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: Apache-2.0
+# Custom architecture contract. Prefer engine: external for native analyzers or
+# tests; use engine: layers when the built-in JS/TS/Python import checker fits.
+#   - id: architecture.contract
+#     severity: error
+#     engine: external
+#     adapter: command-status
+#     scope: tree
+#     run: "npm run architecture:check"
+#     message: "Repository architecture contract must pass."
+#
+# Declarative layers: uncomment arch.layers, add fixtures, flip must_match.
+# rules:
+#   - id: arch.layers
+#     severity: error
+#     engine: layers
+#     applies_to: ["**/*.ts", "**/*.js", "**/*.py", "**/*.cs", "**/*.go", "**/*.java", "**/*.kt", "**/*.swift"]
+#     must_match: false
+#     layers:
+#       - { name: adapters, path: ["src/adapters/**"] }
+#       - { name: application, path: ["src/application/**"] }
+#       - { name: domain, path: ["src/domain/**"] }
+#     allowed:
+#       adapters: [application, domain]
+#       application: [domain]
+#       domain: []
+#     message: "Inward dependencies only."
+
+version: 2
+
+rules:
+  - id: secrets.no-logging
+    severity: error
+    engine: regex
+    flags: i
+    excludes: ["**/*.test.*", "**/*.spec.*", "**/tests/**"]
+    forbidden:
+      - "(console\\.(log|info|warn|error|debug)|logger?\\.(log|info|warn|error|debug|trace)|_logger\\.[a-z]+)\\s*\\(\\s*(?!['\"`])(?:(?!['\"`]).)*\\b(password|passwd|[a-z0-9_]*token[a-z0-9_]*|api[_-]?key|[a-z0-9_]*secret[a-z0-9_]*|private[_-]?key|ssn|card[_-]?number|cvv)\\b"
+      - "(console\\.(log|info|warn|error|debug)|logger?\\.(log|info|warn|error|debug|trace)|_logger\\.[a-z]+)\\s*\\([^)]*['\"`][^'\"`]*['\"`]\\s*,[^)]*\\b(password|passwd|[a-z0-9_]*token[a-z0-9_]*|api[_-]?key|[a-z0-9_]*secret[a-z0-9_]*|private[_-]?key|ssn|card[_-]?number|cvv)\\b"
+    message: "Never log secrets, tokens, PII, or regulated financial data. Log identifiers, redact the rest."
+
+  - id: exemption.audited
+    severity: error
+    engine: exemptions
+    marker: "AGENTLINTEL-EXEMPT"
+    required_fields: [Reason, Approver, Expires, Owner]
+    within_lines: 5
+    excludes: ["**/*.md", "**/*.test.*", "**/*.spec.*", ".agentlintel/**"]
+    message: "Exemptions must declare Reason, Approver, Expires, Owner within 5 lines. Expired exemptions block CI."

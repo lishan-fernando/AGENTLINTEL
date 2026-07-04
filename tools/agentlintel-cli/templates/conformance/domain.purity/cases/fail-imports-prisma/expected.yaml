@@ -1,0 +1,5 @@
+violations:
+  - rule: domain.purity
+    file: slices/Workflow/domain/workflowRules.ts
+    line: 1
+    message_contains: "Domain is pure"

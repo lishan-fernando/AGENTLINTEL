@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# AgentLintel hooks for the pre-commit framework (https://pre-commit.com).
+# Adopters add this to their .pre-commit-config.yaml:
+#
+#   repos:
+#     - repo: https://github.com/lishan-fernando/AGENTLINTEL
+#       rev: v2.0.0-alpha.5
+#       hooks:
+#         - id: agentlintel-verify
+#
+# Fast path: skips command-type fact checks and fixture runs locally;
+# CI runs the full gate via `agentlintel verify --strict`.
+
+- id: agentlintel-verify
+  name: AgentLintel verify (fast)
+  description: Facts fresh + rules pass + guard held + exemplars exist.
+  entry: agentlintel verify --no-run --skip-fixtures
+  language: node
+  pass_filenames: false
+  always_run: true
+  stages: [pre-commit, pre-push]

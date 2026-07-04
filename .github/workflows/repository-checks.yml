@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: Apache-2.0
+name: Repository checks
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  gate:
+    name: agentlintel gate (self-host)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install CLI dependencies
+        run: npm install --no-audit --no-fund --prefix tools/agentlintel-cli
+
+      - name: Unit + fixture tests
+        run: npm test --prefix tools/agentlintel-cli
+
+      - name: Shell scripts use LF endings
+        run: |
+          node -e "const cp=require('child_process'),fs=require('fs'); const files=cp.execSync('git ls-files -z -- *.sh',{encoding:'utf8'}).split('\0').filter(Boolean); const bad=files.filter((file)=>fs.readFileSync(file,'utf8').includes('\r\n')); if (bad.length) { console.error('Files must use LF endings:\n'+bad.join('\n')); process.exit(1); }"
+
+      - name: Verify (the gate, eating our own dog food)
+        run: node tools/agentlintel-cli/bin/agentlintel.js verify --dir . --strict
+
+      - name: GitHub Action smoke test
+        uses: ./.github/actions/agentlintel
+        with:
+          command: verify
+          strict: "true"
+          no_run: "false"

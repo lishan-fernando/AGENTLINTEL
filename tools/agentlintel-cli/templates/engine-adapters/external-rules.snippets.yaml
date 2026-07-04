@@ -1,0 +1,41 @@
+# Copy needed rules into .agentlintel/rules.yaml and tune commands.
+
+- id: architecture.contract
+  severity: error
+  engine: external
+  adapter: command-status
+  scope: tree
+  run: "npm run architecture:check"
+  message: "Repository architecture contract must pass."
+
+- id: frontend.feature-public-surface
+  severity: error
+  engine: external
+  adapter: dependency-cruiser
+  scope: tree
+  run: "npx depcruise --config .agentlintel/adapters/dependency-cruiser.frontend.cjs --output-type json src"
+  message: "Import from src/features/<feature>/index."
+
+- id: dotnet.architecture-tests
+  severity: error
+  engine: external
+  adapter: dotnet-test
+  scope: tree
+  run: "dotnet test Tests/Architecture.Tests/Architecture.Tests.csproj --no-restore"
+  message: ".NET architecture fitness tests must pass."
+
+- id: commit.message-format
+  severity: error
+  engine: external
+  adapter: command-status
+  scope: commit
+  run: "node .agentlintel/adapters/commit-message-policy.js"
+  message: "Commit messages must follow policy."
+
+- id: pr.metadata-policy
+  severity: error
+  engine: external
+  adapter: command-status
+  scope: pr
+  run: "node .agentlintel/adapters/github-pr-policy.js"
+  message: "Pull request title, description, and size must follow policy."

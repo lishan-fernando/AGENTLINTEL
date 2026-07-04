@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# AGENTLINTEL v2 exemplar registry. Agents mirror a registered exemplar
+# instead of extrapolating from training data. If no exemplar matches the
+# shape of the task, the agent must STOP and ask a human to nominate one.
+# `agentlintel verify` checks every path below exists.
+
+version: 2
+
+exemplars:
+  - id: exemplar-slice
+    shape: crud
+    path: .agentlintel/templates/exemplar-slice
+    demonstrates: >
+      Compact bootstrap exemplar for one public entry, private internals,
+      Result-based expected failures, boundary validation, slice-local error
+      codes, and tests. Replace with a real working slice in adopter repos.

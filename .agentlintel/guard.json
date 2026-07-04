@@ -1,0 +1,42 @@
+{
+  "$comment": "AGENTLINTEL v2 write-boundary guard. `agentlintel verify` checks that changed files (git diff + untracked) match an allow glob in some zone and no forbidden glob. Promoted from the GG deployment's architecture.guard.json.",
+  "version": 2,
+  "zones": [
+    {
+      "id": "governance",
+      "allow": [
+        "*.md",
+        "AGENTS.md",
+        "CLAUDE.md",
+        "SPEC.md",
+        "docs/**",
+        ".agentlintel/**"
+      ]
+    },
+    {
+      "id": "cli",
+      "allow": [
+        "tools/**"
+      ]
+    },
+    {
+      "id": "ci",
+      "allow": [
+        ".github/**",
+        ".gitattributes",
+        ".gitignore",
+        ".pre-commit-hooks.yaml",
+        "package.json",
+        "package-lock.json",
+        "LICENSE",
+        "LICENSE-APACHE",
+        "LICENSE-POLICY.md",
+        "NOTICE"
+      ]
+    }
+  ],
+  "forbidden": [
+    "**/node_modules/**",
+    "**/.git/**"
+  ]
+}

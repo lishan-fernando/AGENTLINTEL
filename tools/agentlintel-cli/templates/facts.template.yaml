@@ -1,0 +1,30 @@
+# AGENTLINTEL v2 facts. LAW: every fact carries a machine check and is
+# re-verified on every `agentlintel verify` run. If you cannot write a check
+# for a claim, it is not a fact - put it in an ADR or delete it.
+#
+# Check types:
+#   path_exists    - { type: path_exists, path: <relative path> }
+#   file_absent    - { type: file_absent, path: <path> }          retired patterns stay retired
+#   file_contains  - { type: file_contains, path: <file>, pattern: <regex> }
+#   line_count_max - { type: line_count_max, path: <file>, max: N }
+#   byte_count_max - { type: byte_count_max, path: <file>, max: N }  ~4 bytes/token for context budgets
+#   glob_count     - { type: glob_count, pattern: <glob>, min: N, max: N }
+#   command        - { type: command, run: <shell command>, expect_exit: 0 }  skipped by --no-run
+#   pending        - { type: pending, note: <what check to write> }  WARNS until replaced - for migrations
+
+version: 2
+
+facts:
+  # Examples - replace with your project's facts:
+  # - id: result-primitive
+  #   claim: "Result<T,E> lives in shared/Result.ts - import it, never redefine it"
+  #   check: { type: path_exists, path: shared/Result.ts }
+  #
+  # - id: tests-pass
+  #   claim: "The test suite passes"
+  #   check: { type: command, run: "npm test" }
+  #
+  # - id: stack-orm
+  #   claim: "Persistence uses Prisma (not raw SQL, not TypeORM)"
+  #   check: { type: file_contains, path: package.json, pattern: "\"@prisma/client\"" }
+  []

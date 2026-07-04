@@ -1,0 +1,5 @@
+violations:
+  - rule: boundary.validation
+    file: slices/Capability/interface/http/createItemHandler.ts
+    line: 10
+    message_contains: "Validate untrusted input"

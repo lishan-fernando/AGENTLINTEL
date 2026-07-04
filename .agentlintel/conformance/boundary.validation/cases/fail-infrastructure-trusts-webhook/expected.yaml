@@ -1,0 +1,5 @@
+violations:
+  - rule: boundary.validation
+    file: slices/Source/infrastructure/webhooks/eventReceived.ts
+    line: 10
+    message_contains: "Validate untrusted input"

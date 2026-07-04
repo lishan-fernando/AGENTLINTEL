@@ -1,0 +1,39 @@
+// SPDX-License-Identifier: FSL-1.1-ALv2
+'use strict';
+
+const { test } = require('node:test');
+const assert = require('node:assert');
+const fs = require('node:fs');
+const path = require('node:path');
+const { spawnSync } = require('node:child_process');
+
+const REPO = path.join(__dirname, '..', '..', '..');
+const TRACKED_BYTE_BUDGET = 381754;
+// Recalibrated for the decision-grade README (ADR-011); next change needs an ADR.
+const ELIGIBLE_TRACKED_BYTE_BUDGET = 165000;
+const DEAD_WEIGHT_EXCLUDE = /^(?:\.agentlintel\/decisions\/|LICENSE(?:-APACHE)?$|LICENSE-POLICY\.md$|NOTICE$|tools\/agentlintel-cli\/LICENSE$|tools\/agentlintel-cli\/test\/|\.agentlintel\/conformance\/.*\/cases\/|tools\/agentlintel-cli\/templates\/conformance\/.*\/cases\/|tools\/agentlintel-cli\/templates\/engine-adapters\/conformance-snippets\/.*\/cases\/)/;
+
+function trackedFiles() {
+  const git = spawnSync('git', ['ls-files', '-z'], { cwd: REPO, encoding: 'buffer' });
+  assert.strictEqual(git.status, 0, git.stderr && git.stderr.toString());
+  return git.stdout.toString('utf8').split('\0').filter(Boolean);
+}
+
+function byteTotal(files) {
+  const total = files.reduce((sum, rel) => {
+    const abs = path.join(REPO, rel);
+    return fs.existsSync(abs) ? sum + fs.statSync(abs).size : sum;
+  }, 0);
+  return total;
+}
+
+test('tracked repository bytes stay at least 25 percent below the baseline', () => {
+  const total = byteTotal(trackedFiles());
+  assert.ok(total <= TRACKED_BYTE_BUDGET, `tracked bytes ${total} exceed budget ${TRACKED_BYTE_BUDGET}`);
+});
+
+test('eligible movable payload stays within the ADR-011 byte budget', () => {
+  const files = trackedFiles().filter((rel) => !DEAD_WEIGHT_EXCLUDE.test(rel));
+  const total = byteTotal(files);
+  assert.ok(total <= ELIGIBLE_TRACKED_BYTE_BUDGET, `eligible tracked bytes ${total} exceed budget ${ELIGIBLE_TRACKED_BYTE_BUDGET}`);
+});

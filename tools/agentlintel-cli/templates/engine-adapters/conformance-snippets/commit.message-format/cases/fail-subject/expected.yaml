@@ -1,0 +1,3 @@
+violations:
+  - rule: commit.message-format
+    file: "(commit-policy)"

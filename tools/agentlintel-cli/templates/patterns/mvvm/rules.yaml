@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: Apache-2.0
+# AGENTLINTEL pattern pack: MVVM (View -> ViewModel -> Model).
+# LAW: a rule exists here only if `agentlintel verify` can fail a PR over it.
+# Every rule has fixtures in .agentlintel/conformance/<id>/.
+#
+# Adjust the layer path globs to your tree, then flip must_match to true.
+
+version: 2
+
+rules:
+  - id: arch.layers
+    severity: error
+    engine: layers
+    applies_to: ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx", "**/*.mts", "**/*.cts", "**/*.py", "**/*.cs", "**/*.go", "**/*.java", "**/*.kt", "**/*.swift"]
+    must_match: false  # flip to true once your layer paths exist
+    layers:
+      - { name: view, path: ["src/views/**", "src/components/**", "src/pages/**"] }
+      - { name: viewmodel, path: ["src/viewmodels/**", "src/stores/**", "src/state/**"] }
+      - { name: model, path: ["src/models/**", "src/services/**", "src/api/**"] }
+    allowed:
+      view: [viewmodel]
+      viewmodel: [model]
+      model: []
+    # aliases: { "@/": "src/" }   # uncomment if you use import aliases
+    message: "MVVM - Views bind ViewModels, ViewModels use Models. Views never touch Models; Models know nothing above them."
+
+  - id: secrets.no-logging
+    severity: error
+    engine: regex
+    flags: i
+    excludes: ["**/*.test.*", "**/*.spec.*", "**/tests/**"]
+    forbidden:
+      - "(console\\.(log|info|warn|error|debug)|logger?\\.(log|info|warn|error|debug|trace)|_logger\\.[a-z]+)\\s*\\(\\s*(?!['\"`])(?:(?!['\"`]).)*\\b(password|passwd|[a-z0-9_]*token[a-z0-9_]*|api[_-]?key|[a-z0-9_]*secret[a-z0-9_]*|private[_-]?key|ssn|card[_-]?number|cvv)\\b"
+      - "(console\\.(log|info|warn|error|debug)|logger?\\.(log|info|warn|error|debug|trace)|_logger\\.[a-z]+)\\s*\\([^)]*['\"`][^'\"`]*['\"`]\\s*,[^)]*\\b(password|passwd|[a-z0-9_]*token[a-z0-9_]*|api[_-]?key|[a-z0-9_]*secret[a-z0-9_]*|private[_-]?key|ssn|card[_-]?number|cvv)\\b"
+    message: "Never log secrets, tokens, PII, or regulated financial data. Log identifiers, redact the rest."
+
+  - id: exemption.audited
+    severity: error
+    engine: exemptions
+    marker: "AGENTLINTEL-EXEMPT"
+    required_fields: [Reason, Approver, Expires, Owner]
+    within_lines: 5
+    excludes: ["**/*.md", "**/*.test.*", "**/*.spec.*", ".agentlintel/**"]
+    message: "Exemptions must declare Reason, Approver, Expires, Owner within 5 lines. Expired exemptions block CI."

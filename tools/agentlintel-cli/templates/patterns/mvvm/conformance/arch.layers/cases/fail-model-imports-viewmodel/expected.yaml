@@ -1,0 +1,5 @@
+violations:
+  - rule: arch.layers
+    file: src/models/orderModel.ts
+    line: 1
+    message_contains: "'model' must not depend on layer 'viewmodel'"

@@ -1,0 +1,86 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Release pipeline: push a tag like v2.0.0-alpha.5 and adopters can install the CLI the
+# same day - no npm account required. The tarball attaches to a GitHub Release
+# under a STABLE name, so repos depend on it with one line:
+#
+#   npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/latest/download/agentlintel-cli.tgz
+#
+# (or pin a version by using /download/v2.0.0-alpha.5/agentlintel-cli.tgz)
+#
+# This replaces vendored framework clones - the mechanism that stranded both
+# production workspaces on v1. If the NPM_TOKEN secret is configured, the same
+# run also publishes @agentlintel/cli to the npm registry; if not, that step
+# skips cleanly.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install CLI dependencies
+        run: npm install --no-audit --no-fund --prefix tools/agentlintel-cli
+
+      - name: Tag must match package version
+        run: |
+          PKG="v$(node -p "require('./tools/agentlintel-cli/package.json').version")"
+          if [ "$PKG" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME != package version $PKG - bump package.json first."
+            exit 1
+          fi
+
+      - name: Gate must be green to release
+        run: |
+          npm test --prefix tools/agentlintel-cli
+          node tools/agentlintel-cli/bin/agentlintel.js verify --dir . --strict
+
+      - name: Package shape smoke test
+        working-directory: tools/agentlintel-cli
+        run: |
+          chmod +x bin/agentlintel.js
+          npm pack --dry-run --json
+
+      - name: Pack tarball
+        run: |
+          cd tools/agentlintel-cli
+          chmod +x bin/agentlintel.js
+          npm pack
+          mv agentlintel-cli-*.tgz agentlintel-cli.tgz
+
+      - name: Create GitHub Release with tarball
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            tools/agentlintel-cli/agentlintel-cli.tgz \
+            --title "AgentLintel $GITHUB_REF_NAME" \
+            --generate-notes \
+          || gh release upload "$GITHUB_REF_NAME" tools/agentlintel-cli/agentlintel-cli.tgz --clobber
+
+      - name: Publish to npm (skips cleanly without NPM_TOKEN)
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "NPM_TOKEN not configured - skipping registry publish (tarball release is live)."
+            exit 0
+          fi
+          cd tools/agentlintel-cli
+          npm publish --access public

@@ -1,0 +1,5 @@
+violations:
+  - rule: arch.layers
+    file: src/views/OrderView.tsx
+    line: 1
+    message_contains: "'view' must not depend on layer 'model'"

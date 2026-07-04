@@ -1,0 +1,82 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# AgentLintel GitHub Action - runs the deterministic architecture gate
+# against the calling repository. Three lines of YAML in any adopter workflow:
+#
+#   - uses: actions/checkout@v4
+#   - uses: lishan-fernando/AGENTLINTEL/.github/actions/agentlintel@v2
+#     with:
+#       strict: "true"
+#
+# The CLI runs from this action's own checkout, so the gate works without any
+# npm publish in the loop. On pull_request events the guard automatically
+# diffs against the PR base (GITHUB_BASE_REF).
+
+name: AgentLintel
+description: Deterministic architecture gate - verified facts, enforceable rules, fixtures, write-boundary guard.
+author: AgentLintel Maintainers
+branding:
+  icon: shield
+  color: blue
+
+inputs:
+  command:
+    description: CLI command to run. Use verify for the blocking gate or report for PR markdown.
+    required: false
+    default: "verify"
+  dir:
+    description: Repo root containing .agentlintel/ and AGENTS.md.
+    required: false
+    default: "."
+  strict:
+    description: Warnings also fail the gate. (true|false)
+    required: false
+    default: "true"
+  no_run:
+    description: Skip command-type facts and external engines, since command checks execute shell declared in facts.yaml. (auto|true|false; auto skips them on fork PRs)
+    required: false
+    default: "auto"
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: "22"
+    - name: Install CLI dependencies
+      shell: bash
+      run: npm install --no-audit --no-fund --prefix "${{ github.action_path }}/../../../tools/agentlintel-cli"
+    - name: Run agentlintel verify
+      shell: bash
+      env:
+        # fork PRs must not gain CI code execution via facts.yaml command checks
+        IS_FORK: ${{ github.event.pull_request.head.repo.full_name != github.repository && github.event_name == 'pull_request' }}
+      run: |
+        set -euo pipefail
+        command="${{ inputs.command }}"
+        case "$command" in
+          verify|report) ;;
+          *) echo "Unsupported agentlintel command: $command" >&2; exit 2 ;;
+        esac
+
+        args=(node "${{ github.action_path }}/../../../tools/agentlintel-cli/bin/agentlintel.js" "$command" --dir "${{ inputs.dir }}")
+        if [ "${{ inputs.strict }}" = "true" ]; then args+=(--strict); fi
+        if [ "${{ inputs.no_run }}" = "true" ]; then args+=(--no-run); fi
+        if [ "${{ inputs.no_run }}" = "auto" ] && [ "$IS_FORK" = "true" ]; then args+=(--no-run); fi
+
+        if [ "$command" = "report" ]; then
+          set +e
+          output="$("${args[@]}" 2>&1)"
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            {
+              printf '## AgentLintel report\n\n'
+              printf '%s\n' "$output"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$status"
+        fi
+
+        "${args[@]}"

@@ -1,0 +1,11 @@
+{
+  "$comment": "Write-boundary guard. `agentlintel verify` fails if changed files (git diff + untracked) fall outside every allow zone or touch a forbidden glob. Tighten zones per repo.",
+  "version": 2,
+  "zones": [
+    {
+      "id": "default",
+      "allow": ["**/*"]
+    }
+  ],
+  "forbidden": ["**/node_modules/**", "**/.git/**", "**/*.generated.*"]
+}

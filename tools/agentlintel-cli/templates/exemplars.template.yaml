@@ -1,0 +1,12 @@
+# AGENTLINTEL v2 exemplar registry. Agents copy a registered exemplar's
+# structure instead of extrapolating from training data. Register at least
+# one before generating code. `agentlintel verify` checks every path exists.
+
+version: 2
+
+exemplars:
+  # - id: <name>
+  #   shape: crud | saga | platform | adapter-heavy | read-model | ui-screen | ui-flow
+  #   path: <relative path to the canonical slice/feature>
+  #   demonstrates: <one sentence: what to copy from it>
+  []

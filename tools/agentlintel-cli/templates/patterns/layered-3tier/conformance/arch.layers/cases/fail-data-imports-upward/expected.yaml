@@ -1,0 +1,5 @@
+violations:
+  - rule: arch.layers
+    file: src/data/orderRepo.ts
+    line: 1
+    message_contains: "'data' must not depend on layer 'business'"

@@ -1,0 +1,23 @@
+AgentLintel
+Copyright 2026 Muthuthanthrige Lishan Waruna Pramodh Fernando
+
+AgentLintel is fair-source software. The core — CLI source, spec, and
+documentation — is licensed under the Functional Source License, Version 1.1,
+with an irrevocable Apache License 2.0 grant effective two years after each
+version is made available (SPDX: FSL-1.1-ALv2). See LICENSE.
+
+The adoption surface — scaffolding templates, contract formats, conformance
+fixtures, this repository's own .agentlintel/ contract, and CI glue — is
+licensed under the Apache License, Version 2.0. See LICENSE-APACHE, and
+LICENSE-POLICY.md for the exact boundary. Releases up to and including
+v2.0.0-alpha.4 were published under Apache-2.0 and have since been
+withdrawn; copies obtained while they were available keep that license.
+
+Neither license grants rights to the AgentLintel name, logos, badges,
+compatibility marks, certification marks, or other brand identifiers. See
+TRADEMARKS.md.
+
+Hosted services, enterprise verifiers, private packs, marketplace services,
+certification programs, commercial support, warranty, indemnity, and
+client-specific deliverables are not included in this repository and are not
+licensed by it.

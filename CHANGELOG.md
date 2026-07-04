@@ -1,0 +1,104 @@
+# Changelog
+
+## v2.0.0-alpha.5 — 2026-07-04
+
+The fair-source release.
+
+- Relicensed ahead of the public announcement (ADR-012). The core — CLI
+  source, spec, docs — moves from Apache-2.0 to fair-source `FSL-1.1-ALv2`:
+  free for any use except selling AgentLintel itself; each release converts
+  to Apache-2.0 two years after publication. The adoption surface (templates,
+  `.agentlintel/**` contract formats, CI glue) stays Apache-2.0, so nothing
+  fair-source-licensed enters adopter repos. `LICENSE-POLICY.md` is the map;
+  the posture is machine-enforced (license facts, claims tests, packaged
+  `LICENSE`), and `CODE_OF_CONDUCT.md` lands alongside.
+- Withdrawn: releases `v2.0.0-alpha.1`–`v2.0.0-alpha.4` and their tags
+  (published under Apache-2.0; copies already obtained keep that license).
+  Public history restarts at this baseline; the `v2` action tag follows it.
+- README upgraded to decision-grade: problem statement, instruct-once vision,
+  process diagrams, adopt/don't-adopt criteria (ADR-011). The tracked-byte
+  budget is recalibrated 148K → 165K and stays machine-enforced.
+
+## v2.0.0-alpha.4 — 2026-07-04
+
+Closed the remaining adoption blockers.
+
+- Engine-adapter templates ship recorded conformance snippets
+  (`commit.message-format`, `pr.metadata-policy`) — the JSONL output-mapping
+  contract is fixture-backed out of the box.
+- `init` and `verify` hardening; facts, external-engine, and workspace test
+  coverage extended.
+
+## v2.0.0-alpha.3 — 2026-07-04
+
+The repo dogfoods its own delivery surfaces.
+
+- Installed here: the agent hook (`.agentlintel/hooks/verify-hook.sh`) and the
+  Copilot instructions adapter
+  (`.github/instructions/agentlintel.instructions.md`).
+- Hook template simplified; release workflow and pre-commit metadata updated.
+
+## v2.0.0-alpha.2 — 2026-07-04
+
+Language-agnostic contracts and commit/PR policy support.
+
+- `secrets.no-logging` now uses the CLI default text-extension scan — coverage
+  extends to Rust, Kotlin, Swift, C/C++, Scala, and Elixir-style sources
+  through one machine-tested extension list (ADR-010).
+- New `engine: external` templates: commit-message policy and GitHub PR
+  metadata policy, with matching rule snippets.
+- SPEC and templates updated for language-agnostic contract surfaces; pattern
+  packs tightened; governance and external-engine tests expanded.
+
+## v2.0.0-alpha.1 — 2026-06-10
+
+The lean restructure. Design rationale: `docs/V2-LEAN-SPEC.md`; evidence:
+`docs/V2-EVALUATION-2026-06.md`. One law now governs the repo: **every
+artifact is machine-verified, append-only, or deleted.**
+
+### Added
+
+- `facts.yaml` — machine-checked project facts (`path_exists`, `file_contains`,
+  `command`). Stale facts fail the gate; this kills the
+  metadata-says-MediatR-while-code-uses-Wolverine class of drift.
+- `guard.json` — write-boundary zones checked against git diff (promoted from
+  the Workspace Alpha deployment's `architecture.guard.json`).
+- `exemplars.yaml` — exemplar registry with existence checks.
+- Rewritten CLI (`@agentlintel/cli` 2.0.0-alpha.1): three commands
+  (`init`, `verify`, `report`), modular source, 13 tests, one dependency.
+- Three Agent Skills (standard SKILL.md): `strangler-extraction`,
+  `mirror-exemplar`, `audit-architecture`.
+- `SPEC.md` — the complete adopter-facing spec (≤ 500 lines).
+- `boundary.validation` is now deterministically enforced (raw-cast heuristic)
+  and fixture-backed; previously instruction-only.
+- CI runs the gate against this repo itself (`verify --strict`).
+
+### Removed (the diet)
+
+- All compile targets (Cursor/Copilot×3/Codex/agents-md/skills) — AGENTS.md
+  and SKILL.md are read natively by the tools that matter; nothing to compile.
+- `index.yaml` router, `modes.yaml` — hosts do progressive disclosure via
+  skills now.
+- `context.yaml`, `manifest.yaml` + 670-line schema, `packs.yaml`,
+  `features.yaml`, `orchestrator-policy.yaml`, `worker-registry.yaml`,
+  `thinking-modes.yaml` and their schemas — hand-maintained code mirrors and
+  executor-less orchestration metadata.
+- The 5,133-line single-file CLI and its 14 commands.
+- `AGENTLINTEL.md` (16K), `AGENTS-EXTENDED.md`, `AGENTLINTEL-CONTEXT.md`,
+  twelve v1 docs, the metadata-only example packs, PowerShell smoke gates.
+- 18 instruction-only "rules" — demoted to one-line principles in AGENTS.md.
+  A rule is only a rule if a machine can fail a PR over it.
+
+### Counts
+
+- Concepts: ~40 → 6. Schemas: 10 → 0 (formats documented in SPEC.md).
+- Rules: 27 declared / 7 enforced → 7 declared / 7 enforced.
+- Always-load: ~21K tokens measured in Workspace Alpha → ≤ 2K target.
+
+## v0.3.0 — 2026-05
+
+Last v1 release. See `docs/RELEASE-NOTES-v0.3.md`.
+
+## v0.2.0
+
+See `docs/RELEASE-NOTES-v0.2.md`.

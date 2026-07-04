@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentlintel.dev/conformance.fixtures.schema.json",
+  "title": "AgentLintel Conformance Fixture Expected Output",
+  "description": "Declares the violations a AgentLintel-compatible verifier should produce for a fixture case.",
+  "type": "object",
+  "required": ["violations"],
+  "properties": {
+    "violations": {
+      "type": "array",
+      "description": "Empty array means the case must produce no violations for the rule under test.",
+      "items": {
+        "type": "object",
+        "required": ["rule", "file"],
+        "properties": {
+          "rule": {
+            "type": "string",
+            "description": "Rule id from .agentlintel/rules.yaml (e.g., slice.no-deep-imports).",
+            "pattern": "^[a-z][a-z0-9.-]+$"
+          },
+          "file": {
+            "type": "string",
+            "description": "Path relative to the case root, using forward slashes."
+          },
+          "line": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Optional 1-based line number. Omit for line-agnostic checks."
+          },
+          "message_contains": {
+            "type": "string",
+            "description": "Optional substring the verifier's message must contain. Case-sensitive."
+          }
+        }
+      }
+    }
+  }
+}

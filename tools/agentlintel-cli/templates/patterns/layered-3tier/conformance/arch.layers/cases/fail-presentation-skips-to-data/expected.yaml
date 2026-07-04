@@ -1,0 +1,5 @@
+violations:
+  - rule: arch.layers
+    file: src/presentation/page.ts
+    line: 1
+    message_contains: "'presentation' must not depend on layer 'data'"
