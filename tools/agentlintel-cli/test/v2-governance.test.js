@@ -10,6 +10,11 @@ const { execSync } = require('node:child_process');
 const { verify, verifyFacts, detectRuleWeakening } = require('../src/lib/verify');
 const REPO = path.join(__dirname, '..', '..', '..');
 
+// Hermetic: on pull_request events the engine's resolveBase falls back to
+// origin/$GITHUB_BASE_REF (a feature for adopter CI), but these temp repos
+// have no origin - the leaked ref degrades the ratchet to a warning.
+delete process.env.GITHUB_BASE_REF;
+
 function tmpDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'agentlintel-'));
 }
