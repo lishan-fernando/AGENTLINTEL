@@ -20,10 +20,21 @@ function trackedFiles() {
   return git.stdout.toString('utf8').split('\0').filter(Boolean);
 }
 
+// Budgets measure normalized (LF) content so the number is identical on
+// every checkout; Windows runners materialize text files with CRLF.
+function normalizedSize(abs) {
+  const buf = fs.readFileSync(abs);
+  let crlf = 0;
+  for (let i = 1; i < buf.length; i++) {
+    if (buf[i] === 10 && buf[i - 1] === 13) crlf++;
+  }
+  return buf.length - crlf;
+}
+
 function byteTotal(files) {
   const total = files.reduce((sum, rel) => {
     const abs = path.join(REPO, rel);
-    return fs.existsSync(abs) ? sum + fs.statSync(abs).size : sum;
+    return fs.existsSync(abs) ? sum + normalizedSize(abs) : sum;
   }, 0);
   return total;
 }

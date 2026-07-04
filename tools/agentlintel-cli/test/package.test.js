@@ -15,6 +15,16 @@ const NPM_UNPACKED_BYTE_BUDGET = 102552;
 
 let packCache = null;
 
+// LF-normalized byte count; CRLF checkouts must not move the budget (see budget.test.js).
+function normalizedSize(abs) {
+  const buf = fs.readFileSync(abs);
+  let crlf = 0;
+  for (let i = 1; i < buf.length; i++) {
+    if (buf[i] === 10 && buf[i - 1] === 13) crlf++;
+  }
+  return buf.length - crlf;
+}
+
 function quoteCmd(value) {
   const s = String(value);
   if (!/[\s"&|<>^]/.test(s)) return s;
@@ -79,7 +89,10 @@ test('npm package contains runtime files and excludes tests', () => {
   }
 
   assert.ok(![...files].some((f) => f.startsWith('test/')), 'tests should not ship in the runtime package');
-  assert.ok(meta.unpackedSize <= NPM_UNPACKED_BYTE_BUDGET, `unpacked package bytes ${meta.unpackedSize} exceed budget ${NPM_UNPACKED_BYTE_BUDGET}`);
+  // npm's unpackedSize stats the checkout, so CRLF working trees inflate it;
+  // measure the packed file list normalized to LF for an OS-stable number.
+  const unpacked = meta.files.reduce((sum, f) => sum + normalizedSize(path.join(ROOT, f.path)), 0);
+  assert.ok(unpacked <= NPM_UNPACKED_BYTE_BUDGET, `unpacked package bytes ${unpacked} exceed budget ${NPM_UNPACKED_BYTE_BUDGET}`);
   if (process.platform === 'win32') {
     const git = spawnSync('git', ['ls-files', '--stage', 'tools/agentlintel-cli/bin/agentlintel.js'], { cwd: REPO, encoding: 'utf8' });
     assert.strictEqual(git.status, 0, git.stderr);
