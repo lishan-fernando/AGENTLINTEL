@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+Supply-chain-hardened CI/CD ahead of the public launch (ADR-013).
+
+- CI tests the support claims: ubuntu/windows/macos × Node 18/22/24 behind
+  one `ci-ok` check; actions pinned to commit SHAs; installs from a
+  committed lockfile; weekly grouped Dependabot — all machine-enforced by
+  the release-surfaces tests.
+- Releases publish `@agentlintel/cli` to npm with provenance, gated by the
+  explicit `NPM_PUBLISH` variable (token bootstrap → tokenless trusted
+  publishing; see `docs/PUBLISHING.md`). Tarballs ship `sha256` checksums.
+
 ## v2.0.0-alpha.5 — 2026-07-04
 
 The fair-source release.

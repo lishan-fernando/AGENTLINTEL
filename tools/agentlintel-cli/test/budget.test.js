@@ -9,9 +9,10 @@ const { spawnSync } = require('node:child_process');
 
 const REPO = path.join(__dirname, '..', '..', '..');
 const TRACKED_BYTE_BUDGET = 381754;
-// Recalibrated for the decision-grade README (ADR-011); next change needs an ADR.
-const ELIGIBLE_TRACKED_BYTE_BUDGET = 165000;
-const DEAD_WEIGHT_EXCLUDE = /^(?:\.agentlintel\/decisions\/|LICENSE(?:-APACHE)?$|LICENSE-POLICY\.md$|NOTICE$|tools\/agentlintel-cli\/LICENSE$|tools\/agentlintel-cli\/test\/|\.agentlintel\/conformance\/.*\/cases\/|tools\/agentlintel-cli\/templates\/conformance\/.*\/cases\/|tools\/agentlintel-cli\/templates\/engine-adapters\/conformance-snippets\/.*\/cases\/)/;
+// Recalibrated for the supply-chain-hardened pipeline (ADR-013, was 165000
+// per ADR-011); next change needs an ADR.
+const ELIGIBLE_TRACKED_BYTE_BUDGET = 174000;
+const DEAD_WEIGHT_EXCLUDE = /^(?:\.agentlintel\/decisions\/|LICENSE(?:-APACHE)?$|LICENSE-POLICY\.md$|NOTICE$|tools\/agentlintel-cli\/LICENSE$|tools\/agentlintel-cli\/package-lock\.json$|tools\/agentlintel-cli\/test\/|\.agentlintel\/conformance\/.*\/cases\/|tools\/agentlintel-cli\/templates\/conformance\/.*\/cases\/|tools\/agentlintel-cli\/templates\/engine-adapters\/conformance-snippets\/.*\/cases\/)/;
 
 function trackedFiles() {
   const git = spawnSync('git', ['ls-files', '-z'], { cwd: REPO, encoding: 'buffer' });
@@ -19,10 +20,21 @@ function trackedFiles() {
   return git.stdout.toString('utf8').split('\0').filter(Boolean);
 }
 
+// Budgets measure normalized (LF) content so the number is identical on
+// every checkout; Windows runners materialize text files with CRLF.
+function normalizedSize(abs) {
+  const buf = fs.readFileSync(abs);
+  let crlf = 0;
+  for (let i = 1; i < buf.length; i++) {
+    if (buf[i] === 10 && buf[i - 1] === 13) crlf++;
+  }
+  return buf.length - crlf;
+}
+
 function byteTotal(files) {
   const total = files.reduce((sum, rel) => {
     const abs = path.join(REPO, rel);
-    return fs.existsSync(abs) ? sum + fs.statSync(abs).size : sum;
+    return fs.existsSync(abs) ? sum + normalizedSize(abs) : sum;
   }, 0);
   return total;
 }

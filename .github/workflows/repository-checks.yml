@@ -1,4 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
+#
+# The merge gate (ADR-013): the CLI suite across every OS/Node line we claim
+# to support, plus AgentLintel verifying this repo with its own rules.
+# `ci-ok` aggregates both so branch protection requires exactly one check.
+# Actions pin commit SHAs; the release-surfaces tests fail floating tags.
+
 name: Repository checks
 
 on:
@@ -7,23 +13,52 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
+concurrency:
+  group: repository-checks-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  test:
+    name: tests / node ${{ matrix.node }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        node: ["18", "22", "24"]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install CLI dependencies (from lockfile)
+        run: npm ci --no-audit --no-fund --prefix tools/agentlintel-cli
+
+      - name: CLI entry point parses
+        run: npm run check --prefix tools/agentlintel-cli
+
+      - name: Unit + fixture tests
+        run: npm test --prefix tools/agentlintel-cli
+
   gate:
     name: agentlintel gate (self-host)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22"
 
-      - name: Install CLI dependencies
-        run: npm install --no-audit --no-fund --prefix tools/agentlintel-cli
-
-      - name: Unit + fixture tests
-        run: npm test --prefix tools/agentlintel-cli
+      - name: Install CLI dependencies (from lockfile)
+        run: npm ci --no-audit --no-fund --prefix tools/agentlintel-cli
 
       - name: Shell scripts use LF endings
         run: |
@@ -38,3 +73,22 @@ jobs:
           command: verify
           strict: "true"
           no_run: "false"
+
+  ci-ok:
+    name: ci-ok
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [test, gate]
+    if: always()
+    steps:
+      - name: Every required job succeeded
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "needs results: $RESULTS"
+          for r in $RESULTS; do
+            if [ "$r" != "success" ]; then
+              echo "A required job finished with '$r'."
+              exit 1
+            fi
+          done

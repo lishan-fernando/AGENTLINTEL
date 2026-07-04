@@ -19,6 +19,14 @@ test('release workflow preserves the tested tarball distribution path', () => {
   assert.match(yml, /npm publish --access public/);
 });
 
+test('release workflow publishes deliberately and with provenance (ADR-013)', () => {
+  const yml = read('.github/workflows/release.yml');
+  assert.match(yml, /id-token: write/, 'OIDC permission is required for provenance and trusted publishing');
+  assert.match(yml, /vars\.NPM_PUBLISH == 'true'/, 'npm publishing must be an explicit repository-variable decision');
+  assert.match(yml, /npm publish --access public --provenance/, 'every registry publish carries provenance attestation');
+  assert.match(yml, /sha256sum agentlintel-cli\.tgz/, 'release assets ship checksums');
+});
+
 test('repository CI keeps the strict AgentLintel merge gate', () => {
   const yml = read('.github/workflows/repository-checks.yml');
   assert.match(yml, /pull_request:/);
@@ -27,6 +35,45 @@ test('repository CI keeps the strict AgentLintel merge gate', () => {
   assert.match(yml, /git ls-files -z -- \*\.sh/);
   assert.doesNotMatch(yml, /\.agentlintel\/templates\/agents-verify\.sh/);
   assert.doesNotMatch(yml, /exemplar-slice\/agents\/verify/);
+});
+
+test('repository CI tests the support claims, not just the happy path (ADR-013)', () => {
+  const yml = read('.github/workflows/repository-checks.yml');
+  assert.match(yml, /windows-latest/, 'the CLI is developed on Windows; CI must test it');
+  assert.match(yml, /macos-latest/);
+  assert.match(yml, /"18"/, 'engines says node >=18, so 18 is tested, not asserted');
+  assert.match(yml, /ci-ok/, 'branch protection targets the single aggregation check');
+  assert.match(yml, /permissions:\s*\n\s*contents: read/, 'CI runs with a read-only token');
+});
+
+test('CI surfaces pin third-party actions to commit SHAs (ADR-013)', () => {
+  const surfaces = [
+    '.github/workflows/release.yml',
+    '.github/workflows/repository-checks.yml',
+    '.github/actions/agentlintel/action.yml',
+  ];
+  for (const rel of surfaces) {
+    const uses = read(rel)
+      .split('\n')
+      .filter((line) => !line.trim().startsWith('#')) // usage examples in comments are adopter docs
+      .flatMap((line) => [...line.matchAll(/uses:\s*(\S+)/g)])
+      .map((m) => m[1]);
+    assert.ok(uses.length > 0, `${rel} must reference at least one action`);
+    for (const ref of uses) {
+      if (ref.startsWith('./')) continue; // this repo's own composite action
+      assert.match(ref, /@[0-9a-f]{40}$/, `${rel}: "${ref}" must pin a 40-char commit SHA, not a floating tag`);
+    }
+  }
+});
+
+test('CLI dependencies install from the committed lockfile in CI (ADR-013)', () => {
+  assert.ok(
+    fs.existsSync(path.join(REPO, 'tools/agentlintel-cli/package-lock.json')),
+    'tools/agentlintel-cli/package-lock.json must be committed'
+  );
+  for (const rel of ['.github/workflows/release.yml', '.github/workflows/repository-checks.yml', '.github/actions/agentlintel/action.yml']) {
+    assert.match(read(rel), /npm ci /, `${rel} must install with npm ci (lockfile), not npm install`);
+  }
 });
 
 test('GitHub Action remains fork-safe and command-bounded', () => {
