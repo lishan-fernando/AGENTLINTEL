@@ -22,9 +22,19 @@ test('release workflow preserves the tested tarball distribution path', () => {
 test('release workflow publishes deliberately and with provenance (ADR-013)', () => {
   const yml = read('.github/workflows/release.yml');
   assert.match(yml, /id-token: write/, 'OIDC permission is required for provenance and trusted publishing');
-  assert.match(yml, /vars\.NPM_PUBLISH == 'true'/, 'npm publishing must be an explicit repository-variable decision');
-  assert.match(yml, /npm publish --access public --provenance/, 'every registry publish carries provenance attestation');
+  assert.match(yml, /environment: NPM/, 'publish credentials are scoped to the tag-restricted NPM environment');
+  assert.match(yml, /vars\.NPM_PUBLISH == 'true'/, 'npm publishing must be an explicit variable decision');
+  assert.match(yml, /npm publish --access public --provenance --tag "\$DIST_TAG"/, 'publishes carry provenance and an explicit dist-tag (prereleases must not land on latest)');
   assert.match(yml, /sha256sum agentlintel-cli\.tgz/, 'release assets ship checksums');
+});
+
+test('CLI bin entries survive npm publish normalization', () => {
+  const bin = require('../package.json').bin;
+  assert.ok(bin && Object.keys(bin).length > 0, 'the CLI must expose a bin');
+  for (const [name, target] of Object.entries(bin)) {
+    assert.ok(!target.startsWith('./'), `bin["${name}"]: npm >= 11.17 treats "./"-prefixed targets as invalid and strips the entry at publish`);
+    assert.ok(fs.existsSync(path.join(__dirname, '..', target)), `bin["${name}"] target ${target} must exist`);
+  }
 });
 
 test('repository CI keeps the strict AgentLintel merge gate', () => {

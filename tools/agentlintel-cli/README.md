@@ -11,7 +11,7 @@ exemplars, skills, and append-only decisions.
 Pinned GitHub Release tarball:
 
 ```bash
-npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.6/agentlintel-cli.tgz
+npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.7/agentlintel-cli.tgz
 ```
 
 Registry install, once npm publishing is configured:
