@@ -53,6 +53,15 @@ test('next steps call out warning-only strict-mode risks', () => {
   assert.ok(steps.some((s) => s.includes('fail under `--strict`')), steps.join('\n'));
 });
 
+test('dormant rules are counted in the Rules row and get a next step', () => {
+  const markdown = renderReport(result({
+    ok: true,
+    dormant_rules: ['domain.purity', 'boundary.validation'],
+  }));
+  assert.match(markdown, /0 violation\(s\), 2 dormant/);
+  assert.match(markdown, /Dormant rules \(`must_match: false`/);
+});
+
 test('report does not suggest fixing already exempted rule violations', () => {
   const markdown = renderReport(result({
     ok: true,

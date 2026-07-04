@@ -1,2 +1,1266 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
-"use strict";const fs=require("node:fs"),path=require("node:path"),{spawnSync:spawnSync}=require("node:child_process"),YAML=require("yaml"),{readYaml:readYaml,readJson:readJson,walk:walk,matchAny:matchAny}=require("./io"),{runRule:runRule,prepareRule:prepareRule,collectExemptionSpans:collectExemptionSpans,layerOfPath:layerOfPath,validateLayersRule:validateLayersRule}=require("./engines"),KERNEL_DIR=".agentlintel",SKIP_PREFIXES=[`${KERNEL_DIR}/conformance`,`${KERNEL_DIR}/reports`];function kernelShape(e,t,n){const s=[];return!e||"object"!=typeof e||Array.isArray(e)?s.push(`KERNEL-SCHEMA [${t}] expected YAML object`):(2!==e.version&&s.push(`KERNEL-SCHEMA [${t}] version must be 2`),Array.isArray(e[n])||s.push(`KERNEL-SCHEMA [${t}] ${n} must be an array`)),s}function loadKernel(e){const t=path.join(e,KERNEL_DIR),n={facts:null,rules:null,guard:null,exemplars:null,schemaErrors:[]},s=path.join(t,"facts.yaml"),r=path.join(t,"rules.yaml"),i=path.join(t,"guard.json"),l=path.join(t,"exemplars.yaml");return fs.existsSync(s)&&(n.facts=readYaml(s),n.schemaErrors.push(...kernelShape(n.facts,`${KERNEL_DIR}/facts.yaml`,"facts"))),fs.existsSync(r)&&(n.rules=readYaml(r),n.schemaErrors.push(...kernelShape(n.rules,`${KERNEL_DIR}/rules.yaml`,"rules"))),fs.existsSync(i)&&(n.guard=readJson(i)),fs.existsSync(l)&&(n.exemplars=readYaml(l),n.schemaErrors.push(...kernelShape(n.exemplars,`${KERNEL_DIR}/exemplars.yaml`,"exemplars"))),n}function isSkippedPrefix(e){return SKIP_PREFIXES.some(t=>e===t||e.startsWith(t+"/"))}function firstGlobIndex(e){const t=["*","?","[","{"].map(t=>e.indexOf(t)).filter(e=>-1!==e);return t.length?Math.min(...t):-1}function filesForGlob(e,t,n){if(n)return n;const s=String(t||"").replace(/\\/g,"/"),r=firstGlobIndex(s);if(-1===r)return fs.existsSync(path.join(e,s))&&!isSkippedPrefix(s)?[s]:[];const i=s.slice(0,r).lastIndexOf("/"),l=-1===i?"":s.slice(0,i);if(l&&isSkippedPrefix(l))return[];const o=l?path.join(e,l):e;return fs.existsSync(o)?walk(o,{skipPrefixes:l?[]:SKIP_PREFIXES}).map(e=>l?`${l}/${e}`:e).filter(e=>!isSkippedPrefix(e)):[]}function verifyFacts(e,t,{run:n=!0,treeFiles:s=null}={}){const r=[],c=Array.isArray(t&&t.facts)?t.facts:[];for(const i of c){const t=i.check||{};let l=!1,o=!1,a="",u=!1;try{if("path_exists"===t.type)l=fs.existsSync(path.join(e,t.path)),a=l?"":`missing: ${t.path}`;else if("file_absent"===t.type)l=!fs.existsSync(path.join(e,t.path)),a=l?"":`must not exist, but does: ${t.path}`;else if("file_contains"===t.type){const n=path.join(e,t.path);fs.existsSync(n)?(l=new RegExp(t.pattern).test(fs.readFileSync(n,"utf8")),a=l?"":`pattern not found in ${t.path}: ${t.pattern}`):a=`missing: ${t.path}`}else if("line_count_max"===t.type){const n=path.join(e,t.path);if(fs.existsSync(n)){const e=fs.readFileSync(n,"utf8"),s=""===e?0:e.replace(/\r?\n$/,"").split(/\r?\n/).length;l=s<=t.max,a=l?"":`${t.path} has ${s} lines, budget is ${t.max}`}else a=`missing: ${t.path}`}else if("byte_count_max"===t.type){const n=path.join(e,t.path);if(fs.existsSync(n)){const e=fs.statSync(n).size;l=e<=t.max,a=l?"":`${t.path} is ${e} bytes, budget is ${t.max}`}else a=`missing: ${t.path}`}else if("glob_count"===t.type){const n=filesForGlob(e,t.pattern,s).filter(e=>matchAny([t.pattern],e)).length,r=t.min??0,i=t.max??1/0;l=n>=r&&n<=i,a=l?"":`glob '${t.pattern}' matched ${n} file(s), expected ${null!=t.min?`>= ${t.min}`:""}${null!=t.min&&null!=t.max?" and ":""}${null!=t.max?`<= ${t.max}`:""}`}else if("command"===t.type)if(n){const n=spawnSync(t.run,{cwd:e,shell:!0,timeout:t.timeout_ms||12e4,encoding:"utf8"}),s=t.expect_exit??0;l=n.status===s,a=l?"":`'${t.run}' exited ${n.status}, expected ${s}`}else l=!0,u=!0,a="skipped (--no-run)";else"pending"===t.type?(o=!0,a=t.note||"no machine check yet - write one or move the claim to an ADR"):a=`unknown check type '${t.type}'`}catch(e){a=String(e.message||e)}r.push({id:i.id,claim:i.claim,ok:l,pending:o,skipped:u,detail:a})}return r}const TEXT_EXT=/\.(ts|tsx|js|jsx|mts|cts|cs|py|go|java|rb|php|rs|kt|swift|c|cc|cpp|cxx|h|hh|hpp|hxx|scala|ex|exs|sql|yaml|yml|json|md|sh|ps1)$/i,MAX_SCAN_BYTES=2097152;function ruleApplies(e,t){const n=e._appliesTo||(e.applies_to&&e.applies_to.length?e.applies_to:["**/*"]);if(!matchAny(n,t))return!1;const s=e._excludes||e.excludes;return!s||!matchAny(s,t)}function preparedRuleSet(e){const t=(e&&Array.isArray(e.rules)?e.rules:[]).map(prepareRule);return{all:t,fileRules:t.filter(e=>"external"!==e.engine),externalRules:t.filter(e=>"external"===e.engine)}}function runRulesOnFiles(e,t,n,s={}){const r=[],i=[],l=s.rules||preparedRuleSet(t).fileRules,o=l.find(e=>"exemptions"===e.engine),a=l.filter(e=>e.applies_to&&e.applies_to.length).flatMap(e=>e._appliesTo),u=new Map(l.map(e=>[e.id,0]));if(!l.length)return{violations:r,spans:i,ruleFileCounts:u};for(const t of n){if(!TEXT_EXT.test(t)&&!matchAny(a,t))continue;if(/(^|\/)\.agentlintel\/conformance\//.test(t))continue;const n=l.filter(e=>ruleApplies(e,t));if(!n.length)continue;let s;try{if(fs.statSync(path.join(e,t)).size>2097152)continue;s=fs.readFileSync(path.join(e,t),"utf8")}catch{continue}for(const e of n)("layers"!==e.engine||layerOfPath(e.layers||[],t))&&u.set(e.id,u.get(e.id)+1),r.push(...runRule(e,t,s,{skipApplies:!0}));o&&s.includes(o._marker)&&ruleApplies(o,t)&&i.push(...collectExemptionSpans(o,t,s,{skipApplies:!0}))}return{violations:r,spans:i,ruleFileCounts:u}}function runExternalRules(e,t,{run:n=!0,rules:s=null}={}){const r=[],i=[],l=s||preparedRuleSet(t).externalRules;for(const t of l){if(!n){i.push({rule:t.id,status:"skipped (--no-run)"});continue}const s=spawnSync(t.run,{cwd:e,shell:!0,timeout:t.timeout_ms||3e5,encoding:"utf8",maxBuffer:16777216}),l=parseExternalOutput(t,s.stdout||"",{status:s.status,stderr:s.stderr||""}),o=t.ok_exits||[0,1];if(s.error||null===s.status||!o.includes(s.status)||0!==s.status&&0===l.length){const e=(s.stderr||"").split(/\r?\n/).filter(Boolean).slice(0,2).join(" | "),n=s.error?String(s.error):null===s.status?"timeout":`exit ${s.status}${0===l.length?", no violations parsed":""}`;i.push({rule:t.id,status:`engine failed: ${n}${e?` - ${e}`:""}`}),r.push({rule:t.id,file:"(engine)",line:0,message:`external engine did not run cleanly (${n}): ${t.run}`,severity:t.severity});continue}r.push(...l),i.push({rule:t.id,status:"ran"})}return{violations:r,statuses:i}}function parseExternalOutput(e,t,n={}){const s=e.adapter||e.format||"jsonl";if("dependency-cruiser"===s)return parseDependencyCruiserOutput(e,t);if("dotnet-test"===s)return parseDotnetTestOutput(e,t,n);if("command-status"===s||"status"===s)return parseCommandStatusOutput(e,t,n);const r=[];for(const n of t.split(/\r?\n/)){const t=n.trim();if(t&&t.startsWith("{"))try{const n=JSON.parse(t);n.file&&r.push({rule:e.id,file:String(n.file).replace(/\\/g,"/"),line:n.line??0,message:n.message||e.message||"external engine violation",severity:e.severity})}catch{}}return r}function parseCommandStatusOutput(e,t,{status:n=0,stderr:s=""}={}){if(0===n)return[];const r=String((t||"")+"\n"+(s||"")).split(/\r?\n/).map(e=>e.trim()).filter(Boolean),i=r.find(e=>!/^npm (ERR|WARN)!?/i.test(e))||r[0]||"command exited "+n,l=e.file||("pr"===e.scope?"(pr-policy)":"commit"===e.scope?"(commit-policy)":"(command-status)");return[{rule:e.id,file:l,line:0,message:(e.message||"external command failed")+": "+i,severity:e.severity}]}function jsonFromOutput(e){const t=String(e||"").trim();if(!t)return null;try{return JSON.parse(t)}catch{const e=t.indexOf("{"),n=t.lastIndexOf("}");if(-1===e||n<=e)return null;try{return JSON.parse(t.slice(e,n+1))}catch{return null}}}function ruleNameOf(e){return e?"string"==typeof e?e:e.name||e.rule||e.id||e.description||null:null}function depCruiserViolation(e,t,n,s,r,i,l,o){const a=r&&i?`${r} -> ${i}`:r||i||t,u=[s||e.message||"dependency-cruiser violation",a,l].filter(Boolean).join(": ");return{rule:e.id,file:t||r||"(dependency-cruiser)",line:n||0,message:u,severity:o||e.severity}}function parseDependencyCruiserOutput(e,t){const n=jsonFromOutput(t);if(!n)return[];const s=[],r=[...n.summary&&n.summary.violations||[],...n.violations||[],...n.validation&&n.validation.violations||[]];for(const t of r){const n=t.from||t.source||t.module||t.file,r=t.to||t.resolved||t.target||t.dependency,i=ruleNameOf(t.rule)||t.ruleName||t.name;s.push(depCruiserViolation(e,n,t.line||t.fromLine,i,n,r,t.comment||t.message,t.severity||t.rule&&t.rule.severity))}for(const t of n.modules||[]){const n=t.source||t.sourceFile||t.path||t.name;for(const r of t.dependencies||[]){const t=r.resolved||r.module||r.dependency||r.target;for(const i of r.rules||r.violations||[])s.push(depCruiserViolation(e,n,r.line||r.lineNumber,ruleNameOf(i),n,t,i.comment||i.message,i.severity))}for(const r of t.rules||t.violations||[])s.push(depCruiserViolation(e,n,t.line||t.lineNumber,ruleNameOf(r),n,null,r.comment||r.message,r.severity))}return s}function parseDotnetTestOutput(e,t,{status:n=0,stderr:s=""}={}){const r=String(`${t||""}\n${s||""}`).split(/\r?\n/).map(e=>e.trim()).filter(Boolean),i=r.find(e=>/^Failed\s/.test(e))||r.find(e=>/Test Run Failed|Error Message|Failed!/i.test(e))||r.find(e=>/failed/i.test(e)&&!/Failed:\s*0\b/i.test(e)&&!/^Passed!/i.test(e));if(0===n&&!i)return[];const l=i||r.slice(-1)[0]||`dotnet test exited ${n}`;return[{rule:e.id,file:"(dotnet-test)",line:0,message:`dotnet test failed: ${l}`,severity:e.severity}]}function applySuppression(e,t){for(const n of e){if("exemption.audited"===n.rule)continue;t.some(e=>e.file===n.file&&e.rules.includes(n.rule)&&n.line>=e.fromLine&&n.line<=e.toLine)&&(n.exempted=!0)}return e}function runFixtures(e,t,n={}){const s=[],r=n.rules||preparedRuleSet(t).all;for(const t of r){const n=path.join(e,KERNEL_DIR,"conformance",t.id,"cases");if(fs.existsSync(n))for(const e of fs.readdirSync(n).sort()){const r=path.join(n,e);if(!fs.statSync(r).isDirectory())continue;const i=path.join(r,"expected.yaml"),l=fs.existsSync(i)&&readYaml(i)?.violations||[];let o=[];if("external"===t.engine){const e=path.join(r,"output.jsonl"),n=path.join(r,"status.txt"),s=fs.existsSync(n)?Number(fs.readFileSync(n,"utf8").trim()):0;o=fs.existsSync(e)?parseExternalOutput(t,fs.readFileSync(e,"utf8"),{status:Number.isFinite(s)?s:0}):[]}else{const e=walk(r).filter(e=>"expected.yaml"!==e);for(const n of e){const e=fs.readFileSync(path.join(r,n),"utf8");o.push(...runRule(t,n,e))}}const a=[],u=new Set;for(const e of l){const t=o.findIndex((t,n)=>!u.has(n)&&t.file===e.file&&(null==e.line||t.line===e.line)&&(null==e.message_contains||t.message.includes(e.message_contains)));-1===t?a.push(`expected violation not produced: ${e.file}${e.line?":"+e.line:""}`):u.add(t)}o.forEach((e,t)=>{u.has(t)||a.push(`unexpected violation: ${e.file}:${e.line}`)}),s.push({rule:t.id,case:e,ok:0===a.length,detail:a.join("; ")})}else s.push({rule:t.id,case:"(none)",ok:!1,detail:"LAW VIOLATION: rule has no fixtures"})}return s}const SAFE_REF=/^[A-Za-z0-9._][A-Za-z0-9._/-]*$/;function gitOutput(e,t){const n=spawnSync("git",t,{cwd:e,encoding:"utf8",stdio:["ignore","pipe","ignore"]});return 0===n.status?n.stdout:null}function hasOriginRemote(e){return null!=gitOutput(e,["remote","get-url","origin"])}function parseStatusZ(e){const t=[],n=String(e||"").split("\0").filter(Boolean);for(let e=0;e<n.length;e++){const s=n[e],r=s.slice(0,2),i=s.slice(3).replace(/\\/g,"/");i&&t.push(i),/[RC]/.test(r)&&n[e+1]&&t.push(n[++e].replace(/\\/g,"/"))}return t}function changedFiles(e,t){const n={files:null,note:"",baseResolved:!t},s=gitOutput(e,["status","--porcelain=v1","-z","--untracked-files=all"]);if(null==s)return{files:null,note:"no git",baseResolved:!1};const r=[parseStatusZ(s)];if(t){if(!SAFE_REF.test(t))return{files:null,note:`unsafe base ref '${t}'`,baseResolved:!1};const s=[()=>gitOutput(e,["diff","--relative","--name-only","--end-of-options",`${t}...HEAD`]),()=>{if(t.startsWith("origin/")&&!hasOriginRemote(e))return null;const n=t.replace(/^origin\//,"");return 0!==spawnSync("git",["fetch","--no-tags","--depth=1","origin",`+refs/heads/${n}:refs/remotes/origin/${n}`],{cwd:e,encoding:"utf8",stdio:["ignore","ignore","ignore"]}).status?null:gitOutput(e,["diff","--relative","--name-only","--end-of-options",`origin/${n}...HEAD`])},()=>gitOutput(e,["diff","--relative","--name-only","FETCH_HEAD","HEAD"])];let i=!1;for(let e=0;e<s.length&&!i;e++){const l=s[e]();null!=l&&(r.push(l.split("\n").map(e=>e.trim()).filter(Boolean)),n.note=0===e?`base ${t}`:1===e?`base origin/${t.replace(/^origin\//,"")} (fetched)`:`base ${t} (tree diff vs FETCH_HEAD)`,n.baseResolved=!0,i=!0)}i||(n.note=`base '${t}' unavailable - checked working tree only`)}return n.files=[...new Set(r.flat().map(e=>e.trim()).filter(Boolean))],n}function resolveBase(e){return e||(process.env.GITHUB_BASE_REF?`origin/${process.env.GITHUB_BASE_REF}`:null)}function checkGuard(e,t,{base:n=null,treeFiles:s=null,changed:r=null}={}){if(!t)return{status:"absent",violations:[],warnings:[]};if(r||(r=changedFiles(e,n)),null===r.files)return{status:`skipped (${r.note})`,violations:[],warnings:[]};const i=[];n&&!r.baseResolved&&i.push(`GUARD-BASE base '${n}' could not be resolved - guard checked the working tree only (set fetch-depth: 0 or fetch the base ref)`);const l=(t.zones||[]).flatMap(e=>e.allow||[]),o=[];for(const e of r.files)matchAny(t.forbidden||[],e)?o.push({rule:"guard.forbidden",file:e,message:"Change touches a forbidden path."}):l.length&&!matchAny(l,e)&&o.push({rule:"guard.zone",file:e,message:"Change is outside every declared write zone."});if(s)for(const e of t.zones||[]){const t=e.allow||[];t.length&&!s.some(e=>matchAny(t,e))&&i.push(`GUARD-SCOPE zone '${e.id}' matches no files in the tree`)}return{status:`checked ${r.files.length} changed file(s)${r.note?` (${r.note})`:""}`,violations:o,warnings:i}}function checkExemplars(e,t){const n=[];for(const s of Array.isArray(t&&t.exemplars)?t.exemplars:[]){const t=fs.existsSync(path.join(e,s.path));n.push({id:s.id,path:s.path,ok:t,detail:t?"":"path does not exist"})}return n}const ADAPTERS=[{file:".cursor/rules/agentlintel.mdc",template:"adapters/cursor.mdc",regen:"agentlintel init --adapters --force"},{file:".windsurf/rules/agentlintel.md",template:"adapters/windsurf.md",regen:"agentlintel init --adapters --force"},{file:".github/instructions/agentlintel.instructions.md",template:"adapters/copilot.instructions.md",regen:"agentlintel init --adapters --force"},{file:".agentlintel/hooks/verify-hook.sh",template:"hooks/verify-hook.sh",regen:"agentlintel init --hooks --force"}];function checkAdapters(e){const t=path.join(__dirname,"..","..","templates"),n=[];for(const s of ADAPTERS){const r=path.join(e,s.file);if(!fs.existsSync(r))continue;const i=path.join(t,s.template);if(!fs.existsSync(i)){n.push({file:s.file,ok:!0,warn:"generated file present but this CLI has no template to compare - upgrade or reinstall the CLI",detail:""});continue}const l=fs.readFileSync(r,"utf8").replace(/\r\n/g,"\n")===fs.readFileSync(i,"utf8").replace(/\r\n/g,"\n");n.push({file:s.file,ok:l,detail:l?"":`generated file drifted from its template - regenerate with: ${s.regen}`})}return n}function gitShow(e,t,n){if(!t||!SAFE_REF.test(t))return null;const s=spawnSync("git",["show",`${t}:${n}`],{cwd:e,encoding:"utf8",stdio:["ignore","pipe","ignore"]});return 0===s.status?s.stdout:null}function sortedArray(e){return null==e?[]:(Array.isArray(e)?e:[e]).map(e=>JSON.stringify(e)).sort()}function missingFromNew(e,t){const n=new Set(sortedArray(t));return sortedArray(e).filter(e=>!n.has(e)).map(e=>JSON.parse(e))}function addedToNew(e,t){const n=new Set(sortedArray(e));return sortedArray(t).filter(e=>!n.has(e)).map(e=>JSON.parse(e))}function severityRank(e){return{off:0,none:0,info:0,warn:1,warning:1,error:2}[String(e||"error").toLowerCase()]??2}function rulesById(e){return new Map((e&&Array.isArray(e.rules)?e.rules:[]).map(e=>[e.id,e]))}function describeAllowedExpansion(e,t){const n=[],s=e.allowed||{},r=t.allowed||{};for(const[e,t]of Object.entries(r))for(const r of addedToNew(s[e]||[],t||[]))n.push(`${e} -> ${r}`);return n}function detectRuleWeakening(e,t){const n=[],s=rulesById(e),r=rulesById(t);for(const[e,t]of s){const s=r.get(e);if(!s){n.push(`rule '${e}' was deleted`);continue}t.engine&&s.engine&&t.engine!==s.engine&&n.push(`rule '${e}' changed engine from '${t.engine}' to '${s.engine}'`),severityRank(s.severity)<severityRank(t.severity)&&n.push(`rule '${e}' severity was downgraded from '${t.severity||"error"}' to '${s.severity||"error"}'`),!0!==t.advisory&&!0===s.advisory&&n.push(`rule '${e}' was made advisory`),!0===t.must_match&&!0!==s.must_match&&n.push(`rule '${e}' no longer requires a non-empty scope`);for(const r of missingFromNew(t.forbidden||[],s.forbidden||[]))n.push(`rule '${e}' removed forbidden pattern ${JSON.stringify(r)}`);for(const r of addedToNew(t.excludes||[],s.excludes||[]))n.push(`rule '${e}' added exclude ${JSON.stringify(r)}`);for(const r of missingFromNew(t.applies_to||["**/*"],s.applies_to||["**/*"]))n.push(`rule '${e}' narrowed applies_to by removing ${JSON.stringify(r)}`);"external"===t.engine&&t.run&&s.run&&t.run!==s.run&&n.push(`rule '${e}' changed external command`);const i=new Map((t.layers||[]).map(e=>[e.name,e])),l=new Map((s.layers||[]).map(e=>[e.name,e]));for(const[t,s]of i){const r=l.get(t);if(r)for(const i of missingFromNew(s.path||[],r.path||[]))n.push(`rule '${e}' narrowed layer '${t}' by removing ${JSON.stringify(i)}`);else n.push(`rule '${e}' removed layer '${t}'`)}for(const r of describeAllowedExpansion(t,s))n.push(`rule '${e}' expanded allowed dependency ${r}`)}return n}function changedAdrFiles(e){return(e||[]).filter(e=>/^\.agentlintel\/decisions\/ADR-[^/]+\.md$/i.test(e.replace(/\\/g,"/")))}function checkRuleRatcheting(e,t,{base:n=null,changed:s=null}={}){if(!s||null===s.files)return{status:`skipped (${s?s.note:"no git"})`,findings:[],ok:!0};if(!s.files.includes(`${KERNEL_DIR}/rules.yaml`))return{status:"unchanged",findings:[],ok:!0};const r=n||"HEAD",i=gitShow(e,r,`${KERNEL_DIR}/rules.yaml`);if(null==i)return{status:`no baseline rules at ${r}`,findings:[],ok:!0};let l;try{l=YAML.parse(i)}catch(e){return{status:`baseline rules at ${r} could not be parsed: ${e.message}`,findings:[],ok:!0}}const o=detectRuleWeakening(l,t||{rules:[]}),a=changedAdrFiles(s.files);return{status:o.length?`checked ${o.length} rule-set weakening(s)`:"checked, no weakening",findings:o,adrFiles:a,ok:0===o.length||a.length>0}}function verify(e,t={}){const n=loadKernel(e),s=resolveBase(t.base),r=Boolean(t.diff);let i=null;if(t.bail&&n.facts){const s=verifyFacts(e,n.facts,{run:!1!==t.run});i=s;const r=s.filter(e=>!e.ok&&!e.pending);if(r.length)return{root:path.resolve(e),mode:"bail",kernel_present:!0,facts:s,rule_violations:[],external_engines:[],fixtures:[],guard:{status:"skipped (--bail)",violations:[],warnings:[]},ratchet:{status:"skipped (--bail)",findings:[],ok:!0},exemplars:[],adapters:[],exempted_count:0,errors:r.map(e=>`STALE FACT [${e.id}] ${e.claim} -> ${e.detail}`),warnings:[],ok:!1}}const l=n.rules?preparedRuleSet(n.rules):null,o=l?new Map(l.all.map(e=>[e.id,e])):new Map,a=changedFiles(e,s);let u,c=null;r?u=(a.files||[]).filter(t=>fs.existsSync(path.join(e,t))):(c=walk(e,{skipPrefixes:SKIP_PREFIXES}),u=c);const{violations:f,spans:p,ruleFileCounts:d}=n.rules?runRulesOnFiles(e,n.rules,u,{rules:l.fileRules}):{violations:[],spans:[],ruleFileCounts:new Map},h=n.rules&&!r?runExternalRules(e,n.rules,{run:!1!==t.run,rules:l.externalRules}):{violations:[],statuses:[]},m=[...f,...h.violations];applySuppression(m,p);const g={root:path.resolve(e),mode:r?"diff":"tree",kernel_present:Boolean(n.facts||n.rules),facts:i||(n.facts?verifyFacts(e,n.facts,{run:!1!==t.run,treeFiles:c}):[]),rule_violations:m,external_engines:h.statuses,fixtures:n.rules&&!t.skipFixtures?runFixtures(e,n.rules,{rules:l.all}):[],guard:checkGuard(e,n.guard,{base:s,treeFiles:c,changed:a}),ratchet:checkRuleRatcheting(e,n.rules,{base:s,changed:a}),exemplars:n.exemplars?checkExemplars(e,n.exemplars):[],adapters:checkAdapters(e),kernel_schema:n.schemaErrors||[]},y=[...g.kernel_schema],$=[];g.kernel_present||y.push("No .agentlintel kernel found (facts.yaml / rules.yaml). Run: agentlintel init");for(const e of g.facts)e.skipped?$.push(`NO-RUN FACT [${e.id}] ${e.claim} -> ${e.detail}`):e.pending?$.push(`PENDING FACT [${e.id}] ${e.claim} -> ${e.detail}`):e.ok||y.push(`STALE FACT [${e.id}] ${e.claim} -> ${e.detail}`);for(const e of g.rule_violations)e.exempted||("warn"===e.severity?$:y).push(`RULE [${e.rule}] ${e.file}:${e.line} ${e.message}`);for(const e of g.external_engines)e.status&&e.status.startsWith("skipped")&&$.push(`NO-RUN RULE [${e.rule}] ${e.status}`);for(const e of l&&l.all||[])if("layers"===e.engine)for(const t of validateLayersRule(e))y.push(`RULE-CONFIG [${e.id}] ${t}`);if(!r&&n.rules){for(const[e,t]of d){if(t>0)continue;const n=o.get(e);if(n&&!1===n.must_match)continue;const s=n&&"layers"===n.engine?`RULE-SCOPE [${e}] no file lands in any declared layer - the rule cannot fire`:`RULE-SCOPE [${e}] applies_to matched 0 files - the rule cannot fire`;(n&&!0===n.must_match?y:$).push(s)}for(const e of l.all)if("layers"===e.engine&&!1!==e.must_match&&c)for(const t of e.layers||[])if(!c.some(e=>layerOfPath([t],e))){const n=`LAYER-SCOPE [${e.id}] layer '${t.name}' matches no files in the tree`;(!0===e.must_match?y:$).push(n)}}for(const e of g.fixtures)e.ok||y.push(`FIXTURE [${e.rule}/${e.case}] ${e.detail}`);if(n.rules&&!t.skipFixtures){const t=path.join(e,KERNEL_DIR,"conformance");if(fs.existsSync(t)){const e=new Set((Array.isArray(n.rules.rules)?n.rules.rules:[]).map(e=>e.id));for(const n of fs.readdirSync(t,{withFileTypes:!0}))n.isDirectory()&&!e.has(n.name)&&$.push(`ORPHAN-FIXTURE [${n.name}] fixtures exist but no such rule - delete the directory or restore the rule`)}}for(const e of g.guard.violations)y.push(`GUARD [${e.rule}] ${e.file} ${e.message}`);if($.push(...g.guard.warnings||[]),g.ratchet&&!g.ratchet.ok){const e="add/update .agentlintel/decisions/ADR-*.md in the same diff";for(const t of g.ratchet.findings)y.push(`RATCHET [rules.yaml] ${t}; ${e}`)}for(const e of g.exemplars)e.ok||y.push(`EXEMPLAR [${e.id}] ${e.path} ${e.detail}`);for(const e of g.adapters)e.ok?e.warn&&$.push(`ADAPTER [${e.file}] ${e.warn}`):y.push(`ADAPTER [${e.file}] ${e.detail}`);return g.exempted_count=g.rule_violations.filter(e=>e.exempted).length,g.errors=y,g.warnings=$,g.ok=0===y.length&&(!t.strict||0===$.length),g}module.exports={verify:verify,loadKernel:loadKernel,verifyFacts:verifyFacts,runRulesOnFiles:runRulesOnFiles,runExternalRules:runExternalRules,applySuppression:applySuppression,runFixtures:runFixtures,checkGuard:checkGuard,checkExemplars:checkExemplars,checkAdapters:checkAdapters,checkRuleRatcheting:checkRuleRatcheting,detectRuleWeakening:detectRuleWeakening,resolveBase:resolveBase};
+"use strict";
+
+const fs = require("node:fs");
+const path = require("node:path");
+const { spawnSync } = require("node:child_process");
+const YAML = require("yaml");
+const { readYaml, readJson, walk, matchAny } = require("./io");
+const {
+  runRule,
+  prepareRule,
+  collectExemptionSpans,
+  layerOfPath,
+  validateLayersRule,
+} = require("./engines");
+
+const KERNEL_DIR = ".agentlintel";
+const SKIP_PREFIXES = [`${KERNEL_DIR}/conformance`, `${KERNEL_DIR}/reports`];
+
+function kernelShape(doc, label, collection) {
+  const problems = [];
+  if (!doc || typeof doc !== "object" || Array.isArray(doc)) {
+    problems.push(`KERNEL-SCHEMA [${label}] expected YAML object`);
+  } else {
+    if (doc.version !== 2)
+      problems.push(`KERNEL-SCHEMA [${label}] version must be 2`);
+    if (!Array.isArray(doc[collection]))
+      problems.push(`KERNEL-SCHEMA [${label}] ${collection} must be an array`);
+  }
+  return problems;
+}
+
+function loadKernel(root) {
+  const kernelDir = path.join(root, KERNEL_DIR);
+  const kernel = {
+    facts: null,
+    rules: null,
+    guard: null,
+    exemplars: null,
+    schemaErrors: [],
+  };
+
+  const factsPath = path.join(kernelDir, "facts.yaml");
+  const rulesPath = path.join(kernelDir, "rules.yaml");
+  const guardPath = path.join(kernelDir, "guard.json");
+  const exemplarsPath = path.join(kernelDir, "exemplars.yaml");
+
+  if (fs.existsSync(factsPath)) {
+    kernel.facts = readYaml(factsPath);
+    kernel.schemaErrors.push(
+      ...kernelShape(kernel.facts, `${KERNEL_DIR}/facts.yaml`, "facts"),
+    );
+  }
+  if (fs.existsSync(rulesPath)) {
+    kernel.rules = readYaml(rulesPath);
+    kernel.schemaErrors.push(
+      ...kernelShape(kernel.rules, `${KERNEL_DIR}/rules.yaml`, "rules"),
+    );
+  }
+  if (fs.existsSync(guardPath)) kernel.guard = readJson(guardPath);
+  if (fs.existsSync(exemplarsPath)) {
+    kernel.exemplars = readYaml(exemplarsPath);
+    kernel.schemaErrors.push(
+      ...kernelShape(
+        kernel.exemplars,
+        `${KERNEL_DIR}/exemplars.yaml`,
+        "exemplars",
+      ),
+    );
+  }
+
+  return kernel;
+}
+
+function isSkippedPrefix(relPath) {
+  return SKIP_PREFIXES.some(
+    (prefix) => relPath === prefix || relPath.startsWith(prefix + "/"),
+  );
+}
+
+function firstGlobIndex(pattern) {
+  const indexes = ["*", "?", "[", "{"]
+    .map((char) => pattern.indexOf(char))
+    .filter((index) => index !== -1);
+  return indexes.length ? Math.min(...indexes) : -1;
+}
+
+function filesForGlob(root, pattern, treeFiles) {
+  if (treeFiles) return treeFiles;
+
+  const normalized = String(pattern || "").replace(/\\/g, "/");
+  const globIndex = firstGlobIndex(normalized);
+  if (globIndex === -1) {
+    return fs.existsSync(path.join(root, normalized)) &&
+      !isSkippedPrefix(normalized)
+      ? [normalized]
+      : [];
+  }
+
+  const lastSlash = normalized.slice(0, globIndex).lastIndexOf("/");
+  const baseDir = lastSlash === -1 ? "" : normalized.slice(0, lastSlash);
+  if (baseDir && isSkippedPrefix(baseDir)) return [];
+
+  const walkRoot = baseDir ? path.join(root, baseDir) : root;
+  if (!fs.existsSync(walkRoot)) return [];
+  return walk(walkRoot, { skipPrefixes: baseDir ? [] : SKIP_PREFIXES })
+    .map((file) => (baseDir ? `${baseDir}/${file}` : file))
+    .filter((file) => !isSkippedPrefix(file));
+}
+
+function verifyFacts(root, factsDoc, { run = true, treeFiles = null } = {}) {
+  const results = [];
+  const facts = Array.isArray(factsDoc && factsDoc.facts) ? factsDoc.facts : [];
+
+  for (const fact of facts) {
+    const check = fact.check || {};
+    let ok = false;
+    let pending = false;
+    let detail = "";
+    let skipped = false;
+
+    try {
+      if (check.type === "path_exists") {
+        ok = fs.existsSync(path.join(root, check.path));
+        detail = ok ? "" : `missing: ${check.path}`;
+      } else if (check.type === "file_absent") {
+        ok = !fs.existsSync(path.join(root, check.path));
+        detail = ok ? "" : `must not exist, but does: ${check.path}`;
+      } else if (check.type === "file_contains") {
+        const filePath = path.join(root, check.path);
+        if (fs.existsSync(filePath)) {
+          ok = new RegExp(check.pattern).test(fs.readFileSync(filePath, "utf8"));
+          detail = ok ? "" : `pattern not found in ${check.path}: ${check.pattern}`;
+        } else {
+          detail = `missing: ${check.path}`;
+        }
+      } else if (check.type === "line_count_max") {
+        const filePath = path.join(root, check.path);
+        if (fs.existsSync(filePath)) {
+          const text = fs.readFileSync(filePath, "utf8");
+          // wc -l semantics: a trailing newline does not start a new line.
+          const lineCount =
+            text === "" ? 0 : text.replace(/\r?\n$/, "").split(/\r?\n/).length;
+          ok = lineCount <= check.max;
+          detail = ok
+            ? ""
+            : `${check.path} has ${lineCount} lines, budget is ${check.max}`;
+        } else {
+          detail = `missing: ${check.path}`;
+        }
+      } else if (check.type === "byte_count_max") {
+        const filePath = path.join(root, check.path);
+        if (fs.existsSync(filePath)) {
+          const byteCount = fs.statSync(filePath).size;
+          ok = byteCount <= check.max;
+          detail = ok
+            ? ""
+            : `${check.path} is ${byteCount} bytes, budget is ${check.max}`;
+        } else {
+          detail = `missing: ${check.path}`;
+        }
+      } else if (check.type === "glob_count") {
+        const count = filesForGlob(root, check.pattern, treeFiles).filter(
+          (file) => matchAny([check.pattern], file),
+        ).length;
+        const min = check.min ?? 0;
+        const max = check.max ?? Infinity;
+        ok = count >= min && count <= max;
+        detail = ok
+          ? ""
+          : `glob '${check.pattern}' matched ${count} file(s), expected ${check.min != null ? `>= ${check.min}` : ""}${check.min != null && check.max != null ? " and " : ""}${check.max != null ? `<= ${check.max}` : ""}`;
+      } else if (check.type === "command") {
+        if (run) {
+          const spawned = spawnSync(check.run, {
+            cwd: root,
+            shell: true,
+            timeout: check.timeout_ms || 120000,
+            encoding: "utf8",
+          });
+          const expected = check.expect_exit ?? 0;
+          ok = spawned.status === expected;
+          detail = ok
+            ? ""
+            : `'${check.run}' exited ${spawned.status}, expected ${expected}`;
+        } else {
+          ok = true;
+          skipped = true;
+          detail = "skipped (--no-run)";
+        }
+      } else if (check.type === "pending") {
+        pending = true;
+        detail =
+          check.note ||
+          "no machine check yet - write one or move the claim to an ADR";
+      } else {
+        detail = `unknown check type '${check.type}'`;
+      }
+    } catch (error) {
+      detail = String(error.message || error);
+    }
+
+    results.push({
+      id: fact.id,
+      claim: fact.claim,
+      ok,
+      pending,
+      skipped,
+      detail,
+    });
+  }
+
+  return results;
+}
+
+const TEXT_EXT =
+  /\.(ts|tsx|js|jsx|mts|cts|cs|py|go|java|rb|php|rs|kt|swift|c|cc|cpp|cxx|h|hh|hpp|hxx|scala|ex|exs|sql|yaml|yml|json|md|sh|ps1)$/i;
+const MAX_SCAN_BYTES = 2097152;
+
+function ruleApplies(rule, filePath) {
+  const appliesTo =
+    rule._appliesTo ||
+    (rule.applies_to && rule.applies_to.length ? rule.applies_to : ["**/*"]);
+  if (!matchAny(appliesTo, filePath)) return false;
+  const excludes = rule._excludes || rule.excludes;
+  return !excludes || !matchAny(excludes, filePath);
+}
+
+function preparedRuleSet(rulesDoc) {
+  const all = (
+    rulesDoc && Array.isArray(rulesDoc.rules) ? rulesDoc.rules : []
+  ).map(prepareRule);
+  return {
+    all,
+    fileRules: all.filter((rule) => rule.engine !== "external"),
+    externalRules: all.filter((rule) => rule.engine === "external"),
+  };
+}
+
+function runRulesOnFiles(root, rulesDoc, files, options = {}) {
+  const violations = [];
+  const spans = [];
+  const rules = options.rules || preparedRuleSet(rulesDoc).fileRules;
+  const exemptionRule = rules.find((rule) => rule.engine === "exemptions");
+  const explicitGlobs = rules
+    .filter((rule) => rule.applies_to && rule.applies_to.length)
+    .flatMap((rule) => rule._appliesTo);
+  const ruleFileCounts = new Map(rules.map((rule) => [rule.id, 0]));
+
+  if (!rules.length) return { violations, spans, ruleFileCounts };
+
+  for (const filePath of files) {
+    if (!TEXT_EXT.test(filePath) && !matchAny(explicitGlobs, filePath))
+      continue;
+    if (/(^|\/)\.agentlintel\/conformance\//.test(filePath)) continue;
+
+    const applicable = rules.filter((rule) => ruleApplies(rule, filePath));
+    if (!applicable.length) continue;
+
+    let content;
+    try {
+      if (fs.statSync(path.join(root, filePath)).size > MAX_SCAN_BYTES)
+        continue;
+      content = fs.readFileSync(path.join(root, filePath), "utf8");
+    } catch {
+      continue;
+    }
+
+    for (const rule of applicable) {
+      // A layers rule only "covers" a file that lands in a declared layer.
+      if (rule.engine !== "layers" || layerOfPath(rule.layers || [], filePath))
+        ruleFileCounts.set(rule.id, ruleFileCounts.get(rule.id) + 1);
+      violations.push(...runRule(rule, filePath, content, { skipApplies: true }));
+    }
+
+    if (
+      exemptionRule &&
+      content.includes(exemptionRule._marker) &&
+      ruleApplies(exemptionRule, filePath)
+    )
+      spans.push(
+        ...collectExemptionSpans(exemptionRule, filePath, content, {
+          skipApplies: true,
+        }),
+      );
+  }
+
+  return { violations, spans, ruleFileCounts };
+}
+
+function runExternalRules(root, rulesDoc, { run = true, rules = null } = {}) {
+  const violations = [];
+  const statuses = [];
+  const externalRules = rules || preparedRuleSet(rulesDoc).externalRules;
+
+  for (const rule of externalRules) {
+    if (!run) {
+      statuses.push({ rule: rule.id, status: "skipped (--no-run)" });
+      continue;
+    }
+
+    const spawned = spawnSync(rule.run, {
+      cwd: root,
+      shell: true,
+      timeout: rule.timeout_ms || 300000,
+      encoding: "utf8",
+      maxBuffer: 16777216,
+    });
+    const parsed = parseExternalOutput(rule, spawned.stdout || "", {
+      status: spawned.status,
+      stderr: spawned.stderr || "",
+    });
+    const okExits = rule.ok_exits || [0, 1];
+
+    // Fail closed: a crash, timeout, unexpected exit code, or a non-zero exit
+    // that produced no parseable findings is an engine failure, not a pass.
+    if (
+      spawned.error ||
+      spawned.status === null ||
+      !okExits.includes(spawned.status) ||
+      (spawned.status !== 0 && parsed.length === 0)
+    ) {
+      const stderrSummary = (spawned.stderr || "")
+        .split(/\r?\n/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .join(" | ");
+      const reason = spawned.error
+        ? String(spawned.error)
+        : spawned.status === null
+          ? "timeout"
+          : `exit ${spawned.status}${parsed.length === 0 ? ", no violations parsed" : ""}`;
+      statuses.push({
+        rule: rule.id,
+        status: `engine failed: ${reason}${stderrSummary ? ` - ${stderrSummary}` : ""}`,
+      });
+      violations.push({
+        rule: rule.id,
+        file: "(engine)",
+        line: 0,
+        message: `external engine did not run cleanly (${reason}): ${rule.run}`,
+        severity: rule.severity,
+      });
+      continue;
+    }
+
+    violations.push(...parsed);
+    statuses.push({ rule: rule.id, status: "ran" });
+  }
+
+  return { violations, statuses };
+}
+
+function parseExternalOutput(rule, stdout, meta = {}) {
+  const adapter = rule.adapter || rule.format || "jsonl";
+  if (adapter === "dependency-cruiser")
+    return parseDependencyCruiserOutput(rule, stdout);
+  if (adapter === "dotnet-test") return parseDotnetTestOutput(rule, stdout, meta);
+  if (adapter === "command-status" || adapter === "status")
+    return parseCommandStatusOutput(rule, stdout, meta);
+
+  const violations = [];
+  for (const line of stdout.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || !trimmed.startsWith("{")) continue;
+    try {
+      const entry = JSON.parse(trimmed);
+      if (entry.file)
+        violations.push({
+          rule: rule.id,
+          file: String(entry.file).replace(/\\/g, "/"),
+          line: entry.line ?? 0,
+          message: entry.message || rule.message || "external engine violation",
+          severity: rule.severity,
+        });
+    } catch {}
+  }
+  return violations;
+}
+
+function parseCommandStatusOutput(rule, stdout, { status = 0, stderr = "" } = {}) {
+  if (status === 0) return [];
+
+  const lines = String((stdout || "") + "\n" + (stderr || ""))
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const summary =
+    lines.find((line) => !/^npm (ERR|WARN)!?/i.test(line)) ||
+    lines[0] ||
+    "command exited " + status;
+  const file =
+    rule.file ||
+    (rule.scope === "pr"
+      ? "(pr-policy)"
+      : rule.scope === "commit"
+        ? "(commit-policy)"
+        : "(command-status)");
+
+  return [
+    {
+      rule: rule.id,
+      file,
+      line: 0,
+      message: (rule.message || "external command failed") + ": " + summary,
+      severity: rule.severity,
+    },
+  ];
+}
+
+function jsonFromOutput(output) {
+  const trimmed = String(output || "").trim();
+  if (!trimmed) return null;
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    const start = trimmed.indexOf("{");
+    const end = trimmed.lastIndexOf("}");
+    if (start === -1 || end <= start) return null;
+    try {
+      return JSON.parse(trimmed.slice(start, end + 1));
+    } catch {
+      return null;
+    }
+  }
+}
+
+function ruleNameOf(value) {
+  if (!value) return null;
+  if (typeof value === "string") return value;
+  return value.name || value.rule || value.id || value.description || null;
+}
+
+function depCruiserViolation(rule, file, line, ruleName, from, to, comment, severity) {
+  const edge = from && to ? `${from} -> ${to}` : from || to || file;
+  const message = [ruleName || rule.message || "dependency-cruiser violation", edge, comment]
+    .filter(Boolean)
+    .join(": ");
+  return {
+    rule: rule.id,
+    file: file || from || "(dependency-cruiser)",
+    line: line || 0,
+    message,
+    severity: severity || rule.severity,
+  };
+}
+
+function parseDependencyCruiserOutput(rule, stdout) {
+  const doc = jsonFromOutput(stdout);
+  if (!doc) return [];
+
+  const violations = [];
+  const reported = [
+    ...((doc.summary && doc.summary.violations) || []),
+    ...(doc.violations || []),
+    ...((doc.validation && doc.validation.violations) || []),
+  ];
+
+  for (const entry of reported) {
+    const from = entry.from || entry.source || entry.module || entry.file;
+    const to = entry.to || entry.resolved || entry.target || entry.dependency;
+    const name = ruleNameOf(entry.rule) || entry.ruleName || entry.name;
+    violations.push(
+      depCruiserViolation(
+        rule,
+        from,
+        entry.line || entry.fromLine,
+        name,
+        from,
+        to,
+        entry.comment || entry.message,
+        entry.severity || (entry.rule && entry.rule.severity),
+      ),
+    );
+  }
+
+  for (const module of doc.modules || []) {
+    const source = module.source || module.sourceFile || module.path || module.name;
+    for (const dependency of module.dependencies || []) {
+      const target =
+        dependency.resolved ||
+        dependency.module ||
+        dependency.dependency ||
+        dependency.target;
+      for (const ruleEntry of dependency.rules || dependency.violations || [])
+        violations.push(
+          depCruiserViolation(
+            rule,
+            source,
+            dependency.line || dependency.lineNumber,
+            ruleNameOf(ruleEntry),
+            source,
+            target,
+            ruleEntry.comment || ruleEntry.message,
+            ruleEntry.severity,
+          ),
+        );
+    }
+    for (const ruleEntry of module.rules || module.violations || [])
+      violations.push(
+        depCruiserViolation(
+          rule,
+          source,
+          module.line || module.lineNumber,
+          ruleNameOf(ruleEntry),
+          source,
+          null,
+          ruleEntry.comment || ruleEntry.message,
+          ruleEntry.severity,
+        ),
+      );
+  }
+
+  return violations;
+}
+
+function parseDotnetTestOutput(rule, stdout, { status = 0, stderr = "" } = {}) {
+  const lines = String(`${stdout || ""}\n${stderr || ""}`)
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const failureLine =
+    lines.find((line) => /^Failed\s/.test(line)) ||
+    lines.find((line) => /Test Run Failed|Error Message|Failed!/i.test(line)) ||
+    lines.find(
+      (line) =>
+        /failed/i.test(line) &&
+        !/Failed:\s*0\b/i.test(line) &&
+        !/^Passed!/i.test(line),
+    );
+
+  if (status === 0 && !failureLine) return [];
+
+  const summary = failureLine || lines.slice(-1)[0] || `dotnet test exited ${status}`;
+  return [
+    {
+      rule: rule.id,
+      file: "(dotnet-test)",
+      line: 0,
+      message: `dotnet test failed: ${summary}`,
+      severity: rule.severity,
+    },
+  ];
+}
+
+function applySuppression(violations, spans) {
+  for (const violation of violations) {
+    if (violation.rule === "exemption.audited") continue;
+    const covered = spans.some(
+      (span) =>
+        span.file === violation.file &&
+        span.rules.includes(violation.rule) &&
+        violation.line >= span.fromLine &&
+        violation.line <= span.toLine,
+    );
+    if (covered) violation.exempted = true;
+  }
+  return violations;
+}
+
+function runFixtures(root, rulesDoc, options = {}) {
+  const results = [];
+  const rules = options.rules || preparedRuleSet(rulesDoc).all;
+
+  for (const rule of rules) {
+    const casesDir = path.join(root, KERNEL_DIR, "conformance", rule.id, "cases");
+    if (!fs.existsSync(casesDir)) {
+      results.push({
+        rule: rule.id,
+        case: "(none)",
+        ok: false,
+        detail: "LAW VIOLATION: rule has no fixtures",
+      });
+      continue;
+    }
+
+    for (const caseName of fs.readdirSync(casesDir).sort()) {
+      const caseDir = path.join(casesDir, caseName);
+      if (!fs.statSync(caseDir).isDirectory()) continue;
+
+      const expectedPath = path.join(caseDir, "expected.yaml");
+      const expected =
+        (fs.existsSync(expectedPath) && readYaml(expectedPath)?.violations) || [];
+
+      let actual = [];
+      if (rule.engine === "external") {
+        // External fixtures replay recorded output instead of running commands.
+        const outputPath = path.join(caseDir, "output.jsonl");
+        const statusPath = path.join(caseDir, "status.txt");
+        const recordedStatus = fs.existsSync(statusPath)
+          ? Number(fs.readFileSync(statusPath, "utf8").trim())
+          : 0;
+        actual = fs.existsSync(outputPath)
+          ? parseExternalOutput(rule, fs.readFileSync(outputPath, "utf8"), {
+              status: Number.isFinite(recordedStatus) ? recordedStatus : 0,
+            })
+          : [];
+      } else {
+        const caseFiles = walk(caseDir).filter((file) => file !== "expected.yaml");
+        for (const file of caseFiles) {
+          const content = fs.readFileSync(path.join(caseDir, file), "utf8");
+          actual.push(...runRule(rule, file, content));
+        }
+      }
+
+      const problems = [];
+      const matched = new Set();
+      for (const expectation of expected) {
+        const index = actual.findIndex(
+          (violation, i) =>
+            !matched.has(i) &&
+            violation.file === expectation.file &&
+            (expectation.line == null || violation.line === expectation.line) &&
+            (expectation.message_contains == null ||
+              violation.message.includes(expectation.message_contains)),
+        );
+        if (index === -1)
+          problems.push(
+            `expected violation not produced: ${expectation.file}${expectation.line ? ":" + expectation.line : ""}`,
+          );
+        else matched.add(index);
+      }
+      actual.forEach((violation, index) => {
+        if (!matched.has(index))
+          problems.push(`unexpected violation: ${violation.file}:${violation.line}`);
+      });
+
+      results.push({
+        rule: rule.id,
+        case: caseName,
+        ok: problems.length === 0,
+        detail: problems.join("; "),
+      });
+    }
+  }
+
+  return results;
+}
+
+const SAFE_REF = /^[A-Za-z0-9._][A-Za-z0-9._/-]*$/;
+
+function gitOutput(root, args) {
+  const spawned = spawnSync("git", args, {
+    cwd: root,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  return spawned.status === 0 ? spawned.stdout : null;
+}
+
+function hasOriginRemote(root) {
+  return gitOutput(root, ["remote", "get-url", "origin"]) != null;
+}
+
+function parseStatusZ(output) {
+  const files = [];
+  const entries = String(output || "")
+    .split("\0")
+    .filter(Boolean);
+
+  for (let index = 0; index < entries.length; index++) {
+    const entry = entries[index];
+    const statusCode = entry.slice(0, 2);
+    const filePath = entry.slice(3).replace(/\\/g, "/");
+    if (filePath) files.push(filePath);
+    // Renames and copies carry the source path as the next NUL-separated entry.
+    if (/[RC]/.test(statusCode) && entries[index + 1])
+      files.push(entries[++index].replace(/\\/g, "/"));
+  }
+
+  return files;
+}
+
+function changedFiles(root, base) {
+  const result = { files: null, note: "", baseResolved: !base };
+  const statusOutput = gitOutput(root, [
+    "status",
+    "--porcelain=v1",
+    "-z",
+    "--untracked-files=all",
+  ]);
+  if (statusOutput == null)
+    return { files: null, note: "no git", baseResolved: false };
+
+  const fileSets = [parseStatusZ(statusOutput)];
+
+  if (base) {
+    if (!SAFE_REF.test(base))
+      return { files: null, note: `unsafe base ref '${base}'`, baseResolved: false };
+
+    const strategies = [
+      () =>
+        gitOutput(root, [
+          "diff",
+          "--relative",
+          "--name-only",
+          "--end-of-options",
+          `${base}...HEAD`,
+        ]),
+      () => {
+        if (base.startsWith("origin/") && !hasOriginRemote(root)) return null;
+        const branch = base.replace(/^origin\//, "");
+        const fetched = spawnSync(
+          "git",
+          [
+            "fetch",
+            "--no-tags",
+            "--depth=1",
+            "origin",
+            `+refs/heads/${branch}:refs/remotes/origin/${branch}`,
+          ],
+          { cwd: root, encoding: "utf8", stdio: ["ignore", "ignore", "ignore"] },
+        );
+        if (fetched.status !== 0) return null;
+        return gitOutput(root, [
+          "diff",
+          "--relative",
+          "--name-only",
+          "--end-of-options",
+          `origin/${branch}...HEAD`,
+        ]);
+      },
+      () =>
+        gitOutput(root, [
+          "diff",
+          "--relative",
+          "--name-only",
+          "FETCH_HEAD",
+          "HEAD",
+        ]),
+    ];
+
+    let resolved = false;
+    for (let index = 0; index < strategies.length && !resolved; index++) {
+      const output = strategies[index]();
+      if (output == null) continue;
+      fileSets.push(
+        output
+          .split("\n")
+          .map((line) => line.trim())
+          .filter(Boolean),
+      );
+      result.note =
+        index === 0
+          ? `base ${base}`
+          : index === 1
+            ? `base origin/${base.replace(/^origin\//, "")} (fetched)`
+            : `base ${base} (tree diff vs FETCH_HEAD)`;
+      result.baseResolved = true;
+      resolved = true;
+    }
+    if (!resolved) result.note = `base '${base}' unavailable - checked working tree only`;
+  }
+
+  result.files = [
+    ...new Set(
+      fileSets
+        .flat()
+        .map((file) => file.trim())
+        .filter(Boolean),
+    ),
+  ];
+  return result;
+}
+
+function resolveBase(base) {
+  return (
+    base ||
+    (process.env.GITHUB_BASE_REF ? `origin/${process.env.GITHUB_BASE_REF}` : null)
+  );
+}
+
+function checkGuard(root, guard, { base = null, treeFiles = null, changed = null } = {}) {
+  if (!guard) return { status: "absent", violations: [], warnings: [] };
+
+  if (!changed) changed = changedFiles(root, base);
+  if (changed.files === null)
+    return { status: `skipped (${changed.note})`, violations: [], warnings: [] };
+
+  const warnings = [];
+  if (base && !changed.baseResolved)
+    warnings.push(
+      `GUARD-BASE base '${base}' could not be resolved - guard checked the working tree only (set fetch-depth: 0 or fetch the base ref)`,
+    );
+
+  const allowGlobs = (guard.zones || []).flatMap((zone) => zone.allow || []);
+  const violations = [];
+  for (const file of changed.files) {
+    if (matchAny(guard.forbidden || [], file))
+      violations.push({
+        rule: "guard.forbidden",
+        file,
+        message: "Change touches a forbidden path.",
+      });
+    else if (allowGlobs.length && !matchAny(allowGlobs, file))
+      violations.push({
+        rule: "guard.zone",
+        file,
+        message: "Change is outside every declared write zone.",
+      });
+  }
+
+  if (treeFiles)
+    for (const zone of guard.zones || []) {
+      const allow = zone.allow || [];
+      if (allow.length && !treeFiles.some((file) => matchAny(allow, file)))
+        warnings.push(`GUARD-SCOPE zone '${zone.id}' matches no files in the tree`);
+    }
+
+  return {
+    status: `checked ${changed.files.length} changed file(s)${changed.note ? ` (${changed.note})` : ""}`,
+    violations,
+    warnings,
+  };
+}
+
+function checkExemplars(root, exemplarsDoc) {
+  const results = [];
+  const exemplars = Array.isArray(exemplarsDoc && exemplarsDoc.exemplars)
+    ? exemplarsDoc.exemplars
+    : [];
+  for (const exemplar of exemplars) {
+    const present = fs.existsSync(path.join(root, exemplar.path));
+    results.push({
+      id: exemplar.id,
+      path: exemplar.path,
+      ok: present,
+      detail: present ? "" : "path does not exist",
+    });
+  }
+  return results;
+}
+
+const ADAPTERS = [
+  {
+    file: ".cursor/rules/agentlintel.mdc",
+    template: "adapters/cursor.mdc",
+    regen: "agentlintel init --adapters --force",
+  },
+  {
+    file: ".windsurf/rules/agentlintel.md",
+    template: "adapters/windsurf.md",
+    regen: "agentlintel init --adapters --force",
+  },
+  {
+    file: ".github/instructions/agentlintel.instructions.md",
+    template: "adapters/copilot.instructions.md",
+    regen: "agentlintel init --adapters --force",
+  },
+  {
+    file: ".agentlintel/hooks/verify-hook.sh",
+    template: "hooks/verify-hook.sh",
+    regen: "agentlintel init --hooks --force",
+  },
+];
+
+function checkAdapters(root) {
+  const templatesDir = path.join(__dirname, "..", "..", "templates");
+  const results = [];
+
+  for (const adapter of ADAPTERS) {
+    const generatedPath = path.join(root, adapter.file);
+    if (!fs.existsSync(generatedPath)) continue;
+
+    const templatePath = path.join(templatesDir, adapter.template);
+    if (!fs.existsSync(templatePath)) {
+      results.push({
+        file: adapter.file,
+        ok: true,
+        warn: "generated file present but this CLI has no template to compare - upgrade or reinstall the CLI",
+        detail: "",
+      });
+      continue;
+    }
+
+    const inSync =
+      fs.readFileSync(generatedPath, "utf8").replace(/\r\n/g, "\n") ===
+      fs.readFileSync(templatePath, "utf8").replace(/\r\n/g, "\n");
+    results.push({
+      file: adapter.file,
+      ok: inSync,
+      detail: inSync
+        ? ""
+        : `generated file drifted from its template - regenerate with: ${adapter.regen}`,
+    });
+  }
+
+  return results;
+}
+
+function gitShow(root, ref, filePath) {
+  if (!ref || !SAFE_REF.test(ref)) return null;
+  const spawned = spawnSync("git", ["show", `${ref}:${filePath}`], {
+    cwd: root,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  return spawned.status === 0 ? spawned.stdout : null;
+}
+
+function sortedArray(value) {
+  if (value == null) return [];
+  return (Array.isArray(value) ? value : [value])
+    .map((entry) => JSON.stringify(entry))
+    .sort();
+}
+
+function missingFromNew(oldValue, newValue) {
+  const kept = new Set(sortedArray(newValue));
+  return sortedArray(oldValue)
+    .filter((entry) => !kept.has(entry))
+    .map((entry) => JSON.parse(entry));
+}
+
+function addedToNew(oldValue, newValue) {
+  const had = new Set(sortedArray(oldValue));
+  return sortedArray(newValue)
+    .filter((entry) => !had.has(entry))
+    .map((entry) => JSON.parse(entry));
+}
+
+function severityRank(severity) {
+  return (
+    { off: 0, none: 0, info: 0, warn: 1, warning: 1, error: 2 }[
+      String(severity || "error").toLowerCase()
+    ] ?? 2
+  );
+}
+
+function rulesById(rulesDoc) {
+  return new Map(
+    (rulesDoc && Array.isArray(rulesDoc.rules) ? rulesDoc.rules : []).map(
+      (rule) => [rule.id, rule],
+    ),
+  );
+}
+
+function describeAllowedExpansion(oldRule, newRule) {
+  const expansions = [];
+  const oldAllowed = oldRule.allowed || {};
+  const newAllowed = newRule.allowed || {};
+  for (const [layerName, targets] of Object.entries(newAllowed))
+    for (const added of addedToNew(oldAllowed[layerName] || [], targets || []))
+      expansions.push(`${layerName} -> ${added}`);
+  return expansions;
+}
+
+function detectRuleWeakening(oldDoc, newDoc) {
+  const findings = [];
+  const oldRules = rulesById(oldDoc);
+  const newRules = rulesById(newDoc);
+
+  for (const [id, oldRule] of oldRules) {
+    const newRule = newRules.get(id);
+    if (!newRule) {
+      findings.push(`rule '${id}' was deleted`);
+      continue;
+    }
+
+    if (oldRule.engine && newRule.engine && oldRule.engine !== newRule.engine)
+      findings.push(
+        `rule '${id}' changed engine from '${oldRule.engine}' to '${newRule.engine}'`,
+      );
+    if (severityRank(newRule.severity) < severityRank(oldRule.severity))
+      findings.push(
+        `rule '${id}' severity was downgraded from '${oldRule.severity || "error"}' to '${newRule.severity || "error"}'`,
+      );
+    if (oldRule.advisory !== true && newRule.advisory === true)
+      findings.push(`rule '${id}' was made advisory`);
+    if (oldRule.must_match === true && newRule.must_match !== true)
+      findings.push(`rule '${id}' no longer requires a non-empty scope`);
+
+    for (const removed of missingFromNew(oldRule.forbidden || [], newRule.forbidden || []))
+      findings.push(`rule '${id}' removed forbidden pattern ${JSON.stringify(removed)}`);
+    for (const added of addedToNew(oldRule.excludes || [], newRule.excludes || []))
+      findings.push(`rule '${id}' added exclude ${JSON.stringify(added)}`);
+    for (const removed of missingFromNew(
+      oldRule.applies_to || ["**/*"],
+      newRule.applies_to || ["**/*"],
+    ))
+      findings.push(
+        `rule '${id}' narrowed applies_to by removing ${JSON.stringify(removed)}`,
+      );
+    if (
+      oldRule.engine === "external" &&
+      oldRule.run &&
+      newRule.run &&
+      oldRule.run !== newRule.run
+    )
+      findings.push(`rule '${id}' changed external command`);
+
+    const oldLayers = new Map((oldRule.layers || []).map((layer) => [layer.name, layer]));
+    const newLayers = new Map((newRule.layers || []).map((layer) => [layer.name, layer]));
+    for (const [layerName, oldLayer] of oldLayers) {
+      const newLayer = newLayers.get(layerName);
+      if (newLayer) {
+        for (const removed of missingFromNew(oldLayer.path || [], newLayer.path || []))
+          findings.push(
+            `rule '${id}' narrowed layer '${layerName}' by removing ${JSON.stringify(removed)}`,
+          );
+      } else {
+        findings.push(`rule '${id}' removed layer '${layerName}'`);
+      }
+    }
+    for (const expansion of describeAllowedExpansion(oldRule, newRule))
+      findings.push(`rule '${id}' expanded allowed dependency ${expansion}`);
+  }
+
+  return findings;
+}
+
+function changedAdrFiles(files) {
+  return (files || []).filter((file) =>
+    /^\.agentlintel\/decisions\/ADR-[^/]+\.md$/i.test(file.replace(/\\/g, "/")),
+  );
+}
+
+function checkRuleRatcheting(root, rulesDoc, { base = null, changed = null } = {}) {
+  if (!changed || changed.files === null)
+    return {
+      status: `skipped (${changed ? changed.note : "no git"})`,
+      findings: [],
+      ok: true,
+    };
+  if (!changed.files.includes(`${KERNEL_DIR}/rules.yaml`))
+    return { status: "unchanged", findings: [], ok: true };
+
+  const baselineRef = base || "HEAD";
+  const baselineText = gitShow(root, baselineRef, `${KERNEL_DIR}/rules.yaml`);
+  if (baselineText == null)
+    return { status: `no baseline rules at ${baselineRef}`, findings: [], ok: true };
+
+  let baseline;
+  try {
+    baseline = YAML.parse(baselineText);
+  } catch (error) {
+    return {
+      status: `baseline rules at ${baselineRef} could not be parsed: ${error.message}`,
+      findings: [],
+      ok: true,
+    };
+  }
+
+  const findings = detectRuleWeakening(baseline, rulesDoc || { rules: [] });
+  const adrFiles = changedAdrFiles(changed.files);
+  return {
+    status: findings.length
+      ? `checked ${findings.length} rule-set weakening(s)`
+      : "checked, no weakening",
+    findings,
+    adrFiles,
+    ok: findings.length === 0 || adrFiles.length > 0,
+  };
+}
+
+function verify(root, options = {}) {
+  const kernel = loadKernel(root);
+  const base = resolveBase(options.base);
+  const diffMode = Boolean(options.diff);
+
+  let bailFacts = null;
+  if (options.bail && kernel.facts) {
+    const facts = verifyFacts(root, kernel.facts, { run: options.run !== false });
+    bailFacts = facts;
+    const stale = facts.filter((fact) => !fact.ok && !fact.pending);
+    if (stale.length)
+      return {
+        root: path.resolve(root),
+        mode: "bail",
+        kernel_present: true,
+        facts,
+        rule_violations: [],
+        external_engines: [],
+        fixtures: [],
+        guard: { status: "skipped (--bail)", violations: [], warnings: [] },
+        ratchet: { status: "skipped (--bail)", findings: [], ok: true },
+        exemplars: [],
+        adapters: [],
+        dormant_rules: [],
+        exempted_count: 0,
+        errors: stale.map(
+          (fact) => `STALE FACT [${fact.id}] ${fact.claim} -> ${fact.detail}`,
+        ),
+        warnings: [],
+        ok: false,
+      };
+  }
+
+  const ruleSet = kernel.rules ? preparedRuleSet(kernel.rules) : null;
+  const ruleIndex = ruleSet
+    ? new Map(ruleSet.all.map((rule) => [rule.id, rule]))
+    : new Map();
+  const changed = changedFiles(root, base);
+
+  let scanFiles;
+  let treeFiles = null;
+  if (diffMode) {
+    scanFiles = (changed.files || []).filter((file) =>
+      fs.existsSync(path.join(root, file)),
+    );
+  } else {
+    treeFiles = walk(root, { skipPrefixes: SKIP_PREFIXES });
+    scanFiles = treeFiles;
+  }
+
+  const { violations: fileViolations, spans, ruleFileCounts } = kernel.rules
+    ? runRulesOnFiles(root, kernel.rules, scanFiles, { rules: ruleSet.fileRules })
+    : { violations: [], spans: [], ruleFileCounts: new Map() };
+  const external =
+    kernel.rules && !diffMode
+      ? runExternalRules(root, kernel.rules, {
+          run: options.run !== false,
+          rules: ruleSet.externalRules,
+        })
+      : { violations: [], statuses: [] };
+
+  const allViolations = [...fileViolations, ...external.violations];
+  applySuppression(allViolations, spans);
+
+  const result = {
+    root: path.resolve(root),
+    mode: diffMode ? "diff" : "tree",
+    kernel_present: Boolean(kernel.facts || kernel.rules),
+    facts:
+      bailFacts ||
+      (kernel.facts
+        ? verifyFacts(root, kernel.facts, { run: options.run !== false, treeFiles })
+        : []),
+    rule_violations: allViolations,
+    external_engines: external.statuses,
+    fixtures:
+      kernel.rules && !options.skipFixtures
+        ? runFixtures(root, kernel.rules, { rules: ruleSet.all })
+        : [],
+    guard: checkGuard(root, kernel.guard, { base, treeFiles, changed }),
+    ratchet: checkRuleRatcheting(root, kernel.rules, { base, changed }),
+    exemplars: kernel.exemplars ? checkExemplars(root, kernel.exemplars) : [],
+    adapters: checkAdapters(root),
+    kernel_schema: kernel.schemaErrors || [],
+  };
+
+  const errors = [...result.kernel_schema];
+  const warnings = [];
+
+  if (!result.kernel_present)
+    errors.push(
+      "No .agentlintel kernel found (facts.yaml / rules.yaml). Run: agentlintel init",
+    );
+
+  for (const fact of result.facts) {
+    if (fact.skipped)
+      warnings.push(`NO-RUN FACT [${fact.id}] ${fact.claim} -> ${fact.detail}`);
+    else if (fact.pending)
+      warnings.push(`PENDING FACT [${fact.id}] ${fact.claim} -> ${fact.detail}`);
+    else if (!fact.ok)
+      errors.push(`STALE FACT [${fact.id}] ${fact.claim} -> ${fact.detail}`);
+  }
+
+  for (const violation of result.rule_violations) {
+    if (violation.exempted) continue;
+    (violation.severity === "warn" ? warnings : errors).push(
+      `RULE [${violation.rule}] ${violation.file}:${violation.line} ${violation.message}`,
+    );
+  }
+
+  for (const engine of result.external_engines)
+    if (engine.status && engine.status.startsWith("skipped"))
+      warnings.push(`NO-RUN RULE [${engine.rule}] ${engine.status}`);
+
+  for (const rule of (ruleSet && ruleSet.all) || [])
+    if (rule.engine === "layers")
+      for (const problem of validateLayersRule(rule))
+        errors.push(`RULE-CONFIG [${rule.id}] ${problem}`);
+
+  // Rules whose scope matches nothing cannot fire. Unset must_match warns
+  // (fails --strict), true fails, false is a declared fixture-carrier and is
+  // reported as dormant instead of silently passing.
+  const dormantRules = [];
+  if (!diffMode && kernel.rules) {
+    for (const [ruleId, fileCount] of ruleFileCounts) {
+      if (fileCount > 0) continue;
+      const rule = ruleIndex.get(ruleId);
+      if (rule && rule.must_match === false) {
+        dormantRules.push(ruleId);
+        continue;
+      }
+      const message =
+        rule && rule.engine === "layers"
+          ? `RULE-SCOPE [${ruleId}] no file lands in any declared layer - the rule cannot fire`
+          : `RULE-SCOPE [${ruleId}] applies_to matched 0 files - the rule cannot fire`;
+      (rule && rule.must_match === true ? errors : warnings).push(message);
+    }
+    for (const rule of ruleSet.all)
+      if (rule.engine === "layers" && rule.must_match !== false && treeFiles)
+        for (const layer of rule.layers || [])
+          if (!treeFiles.some((file) => layerOfPath([layer], file))) {
+            const message = `LAYER-SCOPE [${rule.id}] layer '${layer.name}' matches no files in the tree`;
+            (rule.must_match === true ? errors : warnings).push(message);
+          }
+  }
+  result.dormant_rules = dormantRules;
+
+  for (const fixture of result.fixtures)
+    if (!fixture.ok) errors.push(`FIXTURE [${fixture.rule}/${fixture.case}] ${fixture.detail}`);
+
+  if (kernel.rules && !options.skipFixtures) {
+    const conformanceDir = path.join(root, KERNEL_DIR, "conformance");
+    if (fs.existsSync(conformanceDir)) {
+      const ruleIds = new Set(
+        (Array.isArray(kernel.rules.rules) ? kernel.rules.rules : []).map(
+          (rule) => rule.id,
+        ),
+      );
+      for (const entry of fs.readdirSync(conformanceDir, { withFileTypes: true }))
+        if (entry.isDirectory() && !ruleIds.has(entry.name))
+          warnings.push(
+            `ORPHAN-FIXTURE [${entry.name}] fixtures exist but no such rule - delete the directory or restore the rule`,
+          );
+    }
+  }
+
+  for (const violation of result.guard.violations)
+    errors.push(`GUARD [${violation.rule}] ${violation.file} ${violation.message}`);
+  warnings.push(...(result.guard.warnings || []));
+
+  if (result.ratchet && !result.ratchet.ok) {
+    const remedy = "add/update .agentlintel/decisions/ADR-*.md in the same diff";
+    for (const finding of result.ratchet.findings)
+      errors.push(`RATCHET [rules.yaml] ${finding}; ${remedy}`);
+  }
+
+  for (const exemplar of result.exemplars)
+    if (!exemplar.ok)
+      errors.push(`EXEMPLAR [${exemplar.id}] ${exemplar.path} ${exemplar.detail}`);
+
+  for (const adapter of result.adapters) {
+    if (adapter.ok) {
+      if (adapter.warn) warnings.push(`ADAPTER [${adapter.file}] ${adapter.warn}`);
+    } else {
+      errors.push(`ADAPTER [${adapter.file}] ${adapter.detail}`);
+    }
+  }
+
+  result.exempted_count = result.rule_violations.filter(
+    (violation) => violation.exempted,
+  ).length;
+  result.errors = errors;
+  result.warnings = warnings;
+  result.ok = errors.length === 0 && (!options.strict || warnings.length === 0);
+  return result;
+}
+
+module.exports = {
+  verify,
+  loadKernel,
+  verifyFacts,
+  runRulesOnFiles,
+  runExternalRules,
+  applySuppression,
+  runFixtures,
+  checkGuard,
+  checkExemplars,
+  checkAdapters,
+  checkRuleRatcheting,
+  detectRuleWeakening,
+  resolveBase,
+};

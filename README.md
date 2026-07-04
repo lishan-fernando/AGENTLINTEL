@@ -7,8 +7,9 @@ AgentLintel is a fair-source framework for repositories where humans and AI
 coding agents work together. You state your architecture one time, as a small
 machine-verified contract inside the repo. Agents read it, mirror it, and get
 deterministic feedback in seconds; CI fails any pull request that violates it.
-The result is agent output that stays accurate to your intent across prompts,
-sessions, models, and context windows — without you repeating yourself.
+The result is a reproducible merge gate for architectural drift across prompts,
+sessions, models, and context windows — without you repeating yourself in
+every review.
 
 It rides the open standards agents already read — `AGENTS.md` for always-load
 guidance, `SKILL.md` for on-demand workflows — and adds the missing half:
@@ -16,8 +17,9 @@ enforcement. It works with Claude Code, Cursor, Codex, GitHub Copilot, and any
 other AI coding agent that honors `AGENTS.md` or a one-line pointer from its
 native instruction file. And it is deliberately unopinionated: AgentLintel
 enforces *your* architecture — vertical slices, layers, MVVM, or your own
-in-house convention — in any language, through built-in rule engines plus an
-`external` engine that wraps the checkers your stack already trusts.
+in-house convention — in any language. Built-in engines provide a deterministic
+syntactic floor; the `external` engine is the primary path for semantic,
+AST-aware, or stack-native checks from tools your team already trusts.
 
 The deterministic architecture gate is the mechanism. Durable, accurate
 human–AI collaboration is the mission.
@@ -188,8 +190,10 @@ Engines: `regex`, `layers` (declarative dependency boundaries),
 `error-codes`, `exemptions` (audited escape hatches with approver, owner, and
 expiry), and `external` — which wraps any repo-native checker (architecture
 tests, dependency-cruiser, `dotnet test`, commit and PR policies) behind the
-same gate. `external` is the language-agnostic path: if your stack can check
-it, AgentLintel can enforce it and surface it to agents.
+same gate. Treat `regex` and `layers` as a portable starter floor, not a type
+system or security scanner. `external` is the language-agnostic path for deep
+checks: if your stack can check it, AgentLintel can enforce it and surface it to
+agents under stable rule ids.
 
 Rule changes are ratcheted: tightening is free, but deleting, weakening, or
 narrowing a rule requires an ADR in the same diff. Guardrails cannot erode
@@ -281,8 +285,12 @@ durable, visible to agents, and enforceable in CI.
 | [tools/agentlintel-cli/](tools/agentlintel-cli/) | The CLI: `init`, `verify`, `report` — plain Node.js, one dependency |
 | [docs/](docs/) | Adoption playbook, design rationale, evaluations |
 
-This repository dogfoods itself: the six concepts above are live here, and CI
-runs `verify --strict` on every pull request.
+This repository dogfoods the governance mechanics: the six concepts above are
+live here, the CLI is fixture-tested, and CI runs `verify --strict` on every
+pull request. It is not itself a production vertical-slice application; the
+slice-shaped reference rules stay as conformance-backed starter rules —
+reported as dormant by `verify` on every run — until an adopter repo flips
+them to `must_match: true`.
 
 ## Status
 

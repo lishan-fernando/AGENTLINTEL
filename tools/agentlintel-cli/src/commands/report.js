@@ -1,2 +1,194 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
-"use strict";function renderReport(e){const t=[];t.push("# agentlintel report"),t.push(""),t.push(`Root: \`${e.root}\` - **${e.ok?"GATE PASSED":"GATE FAILED"}**`),t.push(""),t.push("| Section | Result |"),t.push("|---|---|"),t.push(`| Facts | ${e.facts.filter(e=>e.ok).length}/${e.facts.length} fresh |`),t.push(`| Rules | ${e.rule_violations.filter(e=>!e.exempted).length} violation(s)${e.exempted_count?` (+${e.exempted_count} exempted)`:""} |`),t.push(`| Fixtures | ${e.fixtures.filter(e=>e.ok).length}/${e.fixtures.length} green |`),t.push(`| Guard | ${e.guard.status}${e.guard.violations.length?`, ${e.guard.violations.length} violation(s)`:""} |`),e.ratchet&&t.push(`| Ratchet | ${e.ratchet.status}${e.ratchet.ok?"":", ADR required"} |`),t.push(`| Exemplars | ${e.exemplars.filter(e=>e.ok).length}/${e.exemplars.length} present |`);const n=nextSteps(e);if(n.length){t.push(""),t.push("## Next Steps"),t.push("");for(const e of n)t.push(`- ${e}`)}if(e.errors.length){t.push(""),t.push("## Failures"),t.push("");for(const n of e.errors)t.push(`- ${n}`)}if(e.warnings.length){t.push(""),t.push("## Warnings"),t.push("");for(const n of e.warnings)t.push(`- ${n}`)}if(e.facts.length){t.push(""),t.push("## Facts"),t.push(""),t.push("| Fact | Status |"),t.push("|---|---|");for(const n of e.facts)t.push(`| ${tableCell(n.claim)} | ${tableCell(n.ok?"fresh":n.pending?`PENDING - ${n.detail}`:`STALE - ${n.detail}`)} |`)}return t.join("\n")}function tableCell(e){return String(null==e?"":e).replace(/\r?\n/g,"<br>").replace(/\|/g,"\\|")}function nextSteps(e){const t=[],n=e=>{t.includes(e)||t.push(e)},s=e.facts||[],r=e.errors||[],a=e.warnings||[],o=e.fixtures||[],i=e.guard||{violations:[]},l=e.rule_violations||[];return!1===e.kernel_present&&n("Run `agentlintel init`, then commit the generated `.agentlintel/` kernel."),s.some(e=>!e.ok&&!e.pending)&&n("Refresh stale facts: make the checked claim true, update its machine check, move intent to an ADR, or delete the claim."),s.some(e=>e.pending)&&n("Resolve pending facts before strict CI: replace `type: pending` with a machine check, move the claim to an ADR, or delete it."),l.some(e=>!e.exempted)&&n("Fix rule violations in code, or add a bounded `AGENTLINTEL-EXEMPT` block with Reason, Approver, Expires, and Owner."),o.some(e=>!e.ok)&&n("Repair conformance fixtures with the rule change; every rule needs passing and failing evidence."),(i.violations||[]).length&&n("Keep the diff inside `guard.json` write zones, or change the guard through the normal reviewed governance path."),e.ratchet&&!e.ratchet.ok&&n("Rule weakening requires an append-only ADR in `.agentlintel/decisions/` in the same diff."),(e.exemplars||[]).some(e=>!e.ok)&&n("Restore missing exemplar paths or update `exemplars.yaml` to point at a real canonical implementation."),((e.adapters||[]).some(e=>!e.ok)||r.some(e=>e.includes("ADAPTER")))&&n("Regenerate drifted adapter or hook pointer files with `agentlintel init --adapters --hooks --force`; keep them content-free."),r.some(e=>e.includes("ENGINE"))&&n("Install or repair the external engine command; AgentLintel fails closed when an engine cannot run cleanly."),a.some(e=>e.includes("GUARD-BASE"))&&n("CI should pass `--base <ref>` or use a checkout with enough history so guard checks the actual PR diff."),a.some(e=>e.includes("RULE-SCOPE"))&&n("Fix empty rule scopes, set `must_match: true` once paths exist, or declare scaffold-only rules with `must_match: false`."),a.length&&!r.length&&n("Warnings pass locally but fail under `--strict`; clear them before enabling the merge gate."),t}module.exports={renderReport:renderReport,nextSteps:nextSteps,tableCell:tableCell};
+"use strict";
+
+function renderReport(result) {
+  const lines = [];
+  const freshFacts = result.facts.filter((fact) => fact.ok).length;
+  const activeViolations = result.rule_violations.filter(
+    (violation) => !violation.exempted,
+  ).length;
+  const greenFixtures = result.fixtures.filter((fixture) => fixture.ok).length;
+  const presentExemplars = result.exemplars.filter(
+    (exemplar) => exemplar.ok,
+  ).length;
+  const dormantRules = (result.dormant_rules || []).length;
+
+  lines.push("# agentlintel report");
+  lines.push("");
+  lines.push(
+    `Root: \`${result.root}\` - **${result.ok ? "GATE PASSED" : "GATE FAILED"}**`,
+  );
+  lines.push("");
+  lines.push("| Section | Result |");
+  lines.push("|---|---|");
+  lines.push(`| Facts | ${freshFacts}/${result.facts.length} fresh |`);
+  lines.push(
+    `| Rules | ${activeViolations} violation(s)${result.exempted_count ? ` (+${result.exempted_count} exempted)` : ""}${dormantRules ? `, ${dormantRules} dormant` : ""} |`,
+  );
+  lines.push(`| Fixtures | ${greenFixtures}/${result.fixtures.length} green |`);
+  lines.push(
+    `| Guard | ${result.guard.status}${result.guard.violations.length ? `, ${result.guard.violations.length} violation(s)` : ""} |`,
+  );
+  if (result.ratchet)
+    lines.push(
+      `| Ratchet | ${result.ratchet.status}${result.ratchet.ok ? "" : ", ADR required"} |`,
+    );
+  lines.push(
+    `| Exemplars | ${presentExemplars}/${result.exemplars.length} present |`,
+  );
+
+  const steps = nextSteps(result);
+  if (steps.length) {
+    lines.push("");
+    lines.push("## Next Steps");
+    lines.push("");
+    for (const step of steps) lines.push(`- ${step}`);
+  }
+
+  if (result.errors.length) {
+    lines.push("");
+    lines.push("## Failures");
+    lines.push("");
+    for (const error of result.errors) lines.push(`- ${error}`);
+  }
+
+  if (result.warnings.length) {
+    lines.push("");
+    lines.push("## Warnings");
+    lines.push("");
+    for (const warning of result.warnings) lines.push(`- ${warning}`);
+  }
+
+  if (result.facts.length) {
+    lines.push("");
+    lines.push("## Facts");
+    lines.push("");
+    lines.push("| Fact | Status |");
+    lines.push("|---|---|");
+    for (const fact of result.facts) {
+      const status = fact.ok
+        ? "fresh"
+        : fact.pending
+          ? `PENDING - ${fact.detail}`
+          : `STALE - ${fact.detail}`;
+      lines.push(`| ${tableCell(fact.claim)} | ${tableCell(status)} |`);
+    }
+  }
+
+  return lines.join("\n");
+}
+
+function tableCell(value) {
+  return String(value == null ? "" : value)
+    .replace(/\r?\n/g, "<br>")
+    .replace(/\|/g, "\\|");
+}
+
+function nextSteps(result) {
+  const steps = [];
+  const addStep = (step) => {
+    if (!steps.includes(step)) steps.push(step);
+  };
+
+  const facts = result.facts || [];
+  const errors = result.errors || [];
+  const warnings = result.warnings || [];
+  const fixtures = result.fixtures || [];
+  const guard = result.guard || { violations: [] };
+  const violations = result.rule_violations || [];
+
+  if (result.kernel_present === false) {
+    addStep(
+      "Run `agentlintel init`, then commit the generated `.agentlintel/` kernel.",
+    );
+  }
+
+  if (facts.some((fact) => !fact.ok && !fact.pending)) {
+    addStep(
+      "Refresh stale facts: make the checked claim true, update its machine check, move intent to an ADR, or delete the claim.",
+    );
+  }
+
+  if (facts.some((fact) => fact.pending)) {
+    addStep(
+      "Resolve pending facts before strict CI: replace `type: pending` with a machine check, move the claim to an ADR, or delete it.",
+    );
+  }
+
+  if (violations.some((violation) => !violation.exempted)) {
+    addStep(
+      "Fix rule violations in code, or add a bounded `AGENTLINTEL-EXEMPT` block with Reason, Approver, Expires, and Owner.",
+    );
+  }
+
+  if (fixtures.some((fixture) => !fixture.ok)) {
+    addStep(
+      "Repair conformance fixtures with the rule change; every rule needs passing and failing evidence.",
+    );
+  }
+
+  if ((guard.violations || []).length) {
+    addStep(
+      "Keep the diff inside `guard.json` write zones, or change the guard through the normal reviewed governance path.",
+    );
+  }
+
+  if (result.ratchet && !result.ratchet.ok) {
+    addStep(
+      "Rule weakening requires an append-only ADR in `.agentlintel/decisions/` in the same diff.",
+    );
+  }
+
+  if ((result.exemplars || []).some((exemplar) => !exemplar.ok)) {
+    addStep(
+      "Restore missing exemplar paths or update `exemplars.yaml` to point at a real canonical implementation.",
+    );
+  }
+
+  if (
+    (result.adapters || []).some((adapter) => !adapter.ok) ||
+    errors.some((error) => error.includes("ADAPTER"))
+  ) {
+    addStep(
+      "Regenerate drifted adapter or hook pointer files with `agentlintel init --adapters --hooks --force`; keep them content-free.",
+    );
+  }
+
+  if (errors.some((error) => error.includes("ENGINE"))) {
+    addStep(
+      "Install or repair the external engine command; AgentLintel fails closed when an engine cannot run cleanly.",
+    );
+  }
+
+  if (warnings.some((warning) => warning.includes("GUARD-BASE"))) {
+    addStep(
+      "CI should pass `--base <ref>` or use a checkout with enough history so guard checks the actual PR diff.",
+    );
+  }
+
+  if (warnings.some((warning) => warning.includes("RULE-SCOPE"))) {
+    addStep(
+      "Fix empty rule scopes, set `must_match: true` once paths exist, or declare scaffold-only rules with `must_match: false`.",
+    );
+  }
+
+  if ((result.dormant_rules || []).length) {
+    addStep(
+      "Dormant rules (`must_match: false`, zero scope matches) enforce nothing yet: flip them to `must_match: true` once their paths exist in the tree.",
+    );
+  }
+
+  if (warnings.length && !errors.length) {
+    addStep(
+      "Warnings pass locally but fail under `--strict`; clear them before enabling the merge gate.",
+    );
+  }
+
+  return steps;
+}
+
+module.exports = {
+  renderReport,
+  nextSteps,
+  tableCell,
+};

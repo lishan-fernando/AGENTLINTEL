@@ -56,6 +56,24 @@ test('quiet strict failures include the warning that caused the block', () => {
   assert.match(r.stdout, /GATE FAILED/);
 });
 
+test('dormant must_match: false rules pass the gate but are visible in output', () => {
+  const root = tmpDir();
+  write(root, '.agentlintel/rules.yaml', [
+    'version: 2',
+    'rules:',
+    '  - id: ghost.rule',
+    '    severity: error',
+    '    engine: regex',
+    '    applies_to: ["missing/**/*.ts"]',
+    '    must_match: false',
+    '    forbidden: ["boom"]',
+    '    message: never fires',
+  ].join('\n'));
+  const r = run(['verify', '--dir', root, '--strict', '--skip-fixtures']);
+  assert.strictEqual(r.status, 0);
+  assert.match(r.stdout, /1 dormant \(must_match: false\)/);
+});
+
 test('report --json emits parseable JSON and preserves gate exit code', () => {
   const root = tmpDir();
   write(root, '.agentlintel/rules.yaml', 'version: 2\nrules: []\n');

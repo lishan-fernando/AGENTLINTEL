@@ -1,2 +1,137 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
-"use strict";const fs=require("node:fs"),path=require("node:path"),YAML=require("yaml"),DEFAULT_SKIP=new Set(["node_modules",".git","dist","build","bin-cache",".venv","venv","target","vendor"]);function readYaml(e){return YAML.parse(fs.readFileSync(e,"utf8"))}function readJson(e){return JSON.parse(fs.readFileSync(e,"utf8"))}function toPosix(e){return e.split(path.sep).join("/")}function walk(e,{skipDirs:t=DEFAULT_SKIP,skipPrefixes:o=[]}={}){const n=[],s=[""];for(;s.length;){const r=s.pop(),i=r?path.join(e,r):e;let a;try{a=fs.readdirSync(i,{withFileTypes:!0})}catch{continue}for(const e of a){const i=r?`${r}/${e.name}`:e.name;if(e.isDirectory()){if(t.has(e.name))continue;if(o.some(e=>i===e||i.startsWith(e+"/")))continue;s.push(i)}else if(e.isFile()){if(o.some(e=>i.startsWith(e+"/")))continue;n.push(i)}}}return n.sort()}function globToRegex(e){let t="",o=0;for(;o<e.length;){const n=e[o];"*"===n?"*"===e[o+1]?"/"===e[o+2]?(t+="(?:[^/]+/)*",o+=3):(t+=".*",o+=2):(t+="[^/]*",o+=1):"?"===n?(t+="[^/]",o+=1):(t+=n.replace(/[.+^${}()|[\]\\]/g,"\\$&"),o+=1)}return new RegExp("^"+t+"$")}const globCache=new Map;function matchGlob(e,t){let o=globCache.get(e);return o||(o=globToRegex(e),globCache.set(e,o)),o.test(t)}function matchAny(e,t){return(e||[]).some(e=>matchGlob(e,t))}module.exports={readYaml:readYaml,readJson:readJson,walk:walk,globToRegex:globToRegex,matchGlob:matchGlob,matchAny:matchAny,toPosix:toPosix};
+"use strict";
+
+const fs = require("node:fs");
+const path = require("node:path");
+const YAML = require("yaml");
+
+const DEFAULT_SKIP = new Set([
+  "node_modules",
+  ".git",
+  "dist",
+  "build",
+  "bin-cache",
+  ".venv",
+  "venv",
+  "target",
+  "vendor",
+]);
+
+function readYaml(filePath) {
+  return YAML.parse(fs.readFileSync(filePath, "utf8"));
+}
+
+function readJson(filePath) {
+  return JSON.parse(fs.readFileSync(filePath, "utf8"));
+}
+
+function toPosix(filePath) {
+  return filePath.split(path.sep).join("/");
+}
+
+function walk(root, { skipDirs = DEFAULT_SKIP, skipPrefixes = [] } = {}) {
+  const files = [];
+  const stack = [""];
+
+  while (stack.length) {
+    const relativeDir = stack.pop();
+    const absoluteDir = relativeDir ? path.join(root, relativeDir) : root;
+    let entries;
+
+    try {
+      entries = fs.readdirSync(absoluteDir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+
+    for (const entry of entries) {
+      const relativePath = relativeDir
+        ? `${relativeDir}/${entry.name}`
+        : entry.name;
+
+      if (entry.isDirectory()) {
+        if (skipDirs.has(entry.name)) continue;
+        if (matchesSkipPrefix(relativePath, skipPrefixes, true)) continue;
+        stack.push(relativePath);
+        continue;
+      }
+
+      if (
+        entry.isFile() &&
+        !matchesSkipPrefix(relativePath, skipPrefixes, false)
+      )
+        files.push(relativePath);
+    }
+  }
+
+  return files.sort();
+}
+
+function matchesSkipPrefix(relativePath, skipPrefixes, includeExact) {
+  return skipPrefixes.some(
+    (prefix) =>
+      relativePath.startsWith(`${prefix}/`) ||
+      (includeExact && relativePath === prefix),
+  );
+}
+
+function globToRegex(glob) {
+  let pattern = "";
+  let index = 0;
+
+  while (index < glob.length) {
+    const char = glob[index];
+
+    if (char === "*") {
+      if (glob[index + 1] === "*") {
+        if (glob[index + 2] === "/") {
+          pattern += "(?:[^/]+/)*";
+          index += 3;
+        } else {
+          pattern += ".*";
+          index += 2;
+        }
+      } else {
+        pattern += "[^/]*";
+        index += 1;
+      }
+      continue;
+    }
+
+    if (char === "?") {
+      pattern += "[^/]";
+      index += 1;
+      continue;
+    }
+
+    pattern += char.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+    index += 1;
+  }
+
+  return new RegExp(`^${pattern}$`);
+}
+
+const globCache = new Map();
+
+function matchGlob(glob, value) {
+  let regex = globCache.get(glob);
+  if (!regex) {
+    regex = globToRegex(glob);
+    globCache.set(glob, regex);
+  }
+  return regex.test(value);
+}
+
+function matchAny(globs, value) {
+  return (globs || []).some((glob) => matchGlob(glob, value));
+}
+
+module.exports = {
+  readYaml,
+  readJson,
+  walk,
+  globToRegex,
+  matchGlob,
+  matchAny,
+  toPosix,
+};

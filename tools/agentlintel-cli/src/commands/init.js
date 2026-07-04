@@ -1,2 +1,300 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
-"use strict";const fs=require("node:fs"),path=require("node:path"),{migrate:migrate}=require("./migrate"),TEMPLATES=path.join(__dirname,"..","..","templates"),FILES=[{from:"AGENTS.template.md",to:"AGENTS.md"},{from:"CLAUDE.template.md",to:"CLAUDE.md"},{from:"facts.template.yaml",to:".agentlintel/facts.yaml"},{from:"guard.template.json",to:".agentlintel/guard.json"},{from:"exemplars.template.yaml",to:".agentlintel/exemplars.yaml"}],DEFAULT_PATTERN="vertical-slice",UNIVERSAL_FIXTURES=["secrets.no-logging","exemption.audited"];function availablePatterns(){const e=path.join(TEMPLATES,"patterns"),t=fs.existsSync(e)?fs.readdirSync(e).filter(t=>fs.statSync(path.join(e,t)).isDirectory()):[];return[DEFAULT_PATTERN,...t].sort()}const ADAPTER_FILES=[{from:"adapters/cursor.mdc",to:".cursor/rules/agentlintel.mdc"},{from:"adapters/windsurf.md",to:".windsurf/rules/agentlintel.md"},{from:"adapters/copilot.instructions.md",to:".github/instructions/agentlintel.instructions.md"}],ENGINE_ADAPTER_FILES=[{from:"engine-adapters/dependency-cruiser.frontend.cjs",to:".agentlintel/adapters/dependency-cruiser.frontend.cjs"},{from:"engine-adapters/commit-message-policy.js",to:".agentlintel/adapters/commit-message-policy.js"},{from:"engine-adapters/github-pr-policy.js",to:".agentlintel/adapters/github-pr-policy.js"},{from:"engine-adapters/external-rules.snippets.yaml",to:".agentlintel/adapters/external-rules.snippets.yaml"},{from:"engine-adapters/README.md",to:".agentlintel/adapters/README.md"}];function copyDirInto(e,t,{force:n=!1,log:o,prefix:s}){if(!fs.existsSync(e))return o.push(`ERROR template dir missing: ${e}`),!1;for(const r of fs.readdirSync(e,{withFileTypes:!0})){const i=path.join(e,r.name),a=path.join(t,r.name);r.isDirectory()?(fs.mkdirSync(a,{recursive:!0}),copyDirInto(i,a,{force:n,log:o,prefix:`${s}/${r.name}`})):fs.existsSync(a)&&!n||(fs.mkdirSync(path.dirname(a),{recursive:!0}),fs.copyFileSync(i,a))}return!0}function copyFile(e,t,{force:n,log:o}){const s=path.join(TEMPLATES,e.from),r=path.join(t,e.to);return fs.existsSync(s)?fs.existsSync(r)&&!n?(o.push(`skip  ${e.to} (exists; use --force to overwrite)`),!0):(fs.mkdirSync(path.dirname(r),{recursive:!0}),fs.copyFileSync(s,r),o.push(`write ${e.to}`),!0):(o.push(`ERROR template missing: ${e.from}`),!1)}function init(e,{force:t=!1,fromV1:n=!1,adapters:o=!1,hooks:s=!1,engineAdapters:r=!1,pattern:i=DEFAULT_PATTERN}={}){const a=[];let l=!0;if(!availablePatterns().includes(i))return{ok:!1,log:[`ERROR unknown pattern '${i}'. Available: ${availablePatterns().join(", ")}`]};fs.mkdirSync(path.join(e,".agentlintel","decisions"),{recursive:!0});let c=new Set;if(n){const n=migrate(e);if(a.push(...n.log),!n.ok)return{ok:!1,log:a};for(const[o,s]of Object.entries(n.files)){const n=path.join(e,o);!fs.existsSync(n)||t||o.endsWith("MIGRATION.md")?(fs.mkdirSync(path.dirname(n),{recursive:!0}),fs.writeFileSync(n,s),a.push(`write ${o} (migrated from v1)`)):a.push(`skip  ${o} (exists; use --force to overwrite with the migrated draft)`),c.add(o)}}for(const n of FILES)c.has(n.to)||(l=copyFile(n,e,{force:t,log:a})&&l);let p=!1,f=!1;if(!c.has(".agentlintel/rules.yaml")){const n=path.join(e,".agentlintel","rules.yaml");if(fs.existsSync(n)&&!t)f=!0,a.push(`note  pattern '${i}' NOT applied - .agentlintel/rules.yaml exists (use --force to replace it)`);else{l=copyFile({from:i===DEFAULT_PATTERN?"rules.template.yaml":`patterns/${i}/rules.yaml`,to:".agentlintel/rules.yaml"},e,{force:t,log:a})&&l,p=!0,a.push(`note  architecture pattern: ${i} (see .agentlintel/rules.yaml; other packs: ${availablePatterns().join(", ")})`)}}const m=path.join(e,".agentlintel","conformance");if(!f&&(p||!fs.existsSync(m))){if(i===DEFAULT_PATTERN)l=copyDirInto(path.join(TEMPLATES,"conformance"),m,{force:t,log:a,prefix:"conformance"})&&l;else{const e=path.join(TEMPLATES,"patterns",i,"conformance"),n=fs.existsSync(e)?fs.readdirSync(e):[];n.length&&(l=copyDirInto(e,m,{force:t,log:a,prefix:"conformance"})&&l);for(const e of UNIVERSAL_FIXTURES)n.includes(e)||(l=copyDirInto(path.join(TEMPLATES,"conformance",e),path.join(m,e),{force:t,log:a,prefix:`conformance/${e}`})&&l)}a.push("write .agentlintel/conformance/ (fixtures for the starter rules)")}if(l=copyDirInto(path.join(TEMPLATES,"skills"),path.join(e,".agentlintel","skills"),{force:t,log:a,prefix:"skills"})&&l,a.push("write .agentlintel/skills/ (strangler-extraction, mirror-exemplar, audit-architecture)"),o){for(const n of ADAPTER_FILES)l=copyFile(n,e,{force:t,log:a})&&l;a.push("note  adapters are content-free pointers; verify fails them if they drift from the template")}if(r){for(const n of ENGINE_ADAPTER_FILES)l=copyFile(n,e,{force:t,log:a})&&l;l=copyDirInto(path.join(TEMPLATES,"engine-adapters","conformance-snippets"),path.join(e,".agentlintel","adapters","conformance-snippets"),{force:t,log:a,prefix:"adapters/conformance-snippets"})&&l;a.push("note  engine adapters are starter glue; copy snippets plus matching fixture dirs when enabling rules.")}if(s){l=copyFile({from:"hooks/verify-hook.sh",to:".agentlintel/hooks/verify-hook.sh"},e,{force:t,log:a})&&l;try{fs.chmodSync(path.join(e,".agentlintel","hooks","verify-hook.sh"),493)}catch{}a.push("note  register the hook (Claude Code .claude/settings.json, Stop or PostToolUse)."),a.push("      Invoke via the interpreter - exec bits do not survive Windows checkouts:"),a.push('        {"hooks":{"Stop":[{"hooks":[{"type":"command","command":"sh .agentlintel/hooks/verify-hook.sh"}]}]}}')}return fs.existsSync(path.join(e,".git"))||(a.push(""),a.push("WARNING: this directory is not a git repository. Governance must live in git -"),a.push("         unversioned governance has no audit trail and per-repo CI cannot see it.")),a.push(""),a.push("Next steps:"),a.push("  1. Run `agentlintel verify` - it should pass out of the box."),a.push("  2. Fill in .agentlintel/facts.yaml - every fact needs a passing machine check."),a.push("  3. Register one canonical exemplar in .agentlintel/exemplars.yaml."),a.push("  4. Edit AGENTS.md - keep it under 150 lines; it is the only always-load."),a.push("  5. Trim .agentlintel/rules.yaml; set must_match: true on rules once their paths exist."),a.push("  6. Wire CI: `agentlintel verify --strict` on every PR. A rule that does not run in CI does not exist."),{ok:l,log:a}}module.exports={init:init};
+"use strict";
+
+const fs = require("node:fs");
+const path = require("node:path");
+const { migrate } = require("./migrate");
+
+const TEMPLATES = path.join(__dirname, "..", "..", "templates");
+const FILES = [
+  { from: "AGENTS.template.md", to: "AGENTS.md" },
+  { from: "CLAUDE.template.md", to: "CLAUDE.md" },
+  { from: "facts.template.yaml", to: ".agentlintel/facts.yaml" },
+  { from: "guard.template.json", to: ".agentlintel/guard.json" },
+  { from: "exemplars.template.yaml", to: ".agentlintel/exemplars.yaml" },
+];
+const DEFAULT_PATTERN = "vertical-slice";
+const UNIVERSAL_FIXTURES = ["secrets.no-logging", "exemption.audited"];
+
+function availablePatterns() {
+  const patternsDir = path.join(TEMPLATES, "patterns");
+  const packs = fs.existsSync(patternsDir)
+    ? fs
+        .readdirSync(patternsDir)
+        .filter((name) => fs.statSync(path.join(patternsDir, name)).isDirectory())
+    : [];
+  return [DEFAULT_PATTERN, ...packs].sort();
+}
+
+const ADAPTER_FILES = [
+  { from: "adapters/cursor.mdc", to: ".cursor/rules/agentlintel.mdc" },
+  { from: "adapters/windsurf.md", to: ".windsurf/rules/agentlintel.md" },
+  {
+    from: "adapters/copilot.instructions.md",
+    to: ".github/instructions/agentlintel.instructions.md",
+  },
+];
+const ENGINE_ADAPTER_FILES = [
+  {
+    from: "engine-adapters/dependency-cruiser.frontend.cjs",
+    to: ".agentlintel/adapters/dependency-cruiser.frontend.cjs",
+  },
+  {
+    from: "engine-adapters/commit-message-policy.js",
+    to: ".agentlintel/adapters/commit-message-policy.js",
+  },
+  {
+    from: "engine-adapters/github-pr-policy.js",
+    to: ".agentlintel/adapters/github-pr-policy.js",
+  },
+  {
+    from: "engine-adapters/external-rules.snippets.yaml",
+    to: ".agentlintel/adapters/external-rules.snippets.yaml",
+  },
+  {
+    from: "engine-adapters/README.md",
+    to: ".agentlintel/adapters/README.md",
+  },
+];
+
+function copyDirInto(sourceDir, targetDir, { force = false, log, prefix }) {
+  if (!fs.existsSync(sourceDir)) {
+    log.push(`ERROR template dir missing: ${sourceDir}`);
+    return false;
+  }
+
+  for (const entry of fs.readdirSync(sourceDir, { withFileTypes: true })) {
+    const sourcePath = path.join(sourceDir, entry.name);
+    const targetPath = path.join(targetDir, entry.name);
+    if (entry.isDirectory()) {
+      fs.mkdirSync(targetPath, { recursive: true });
+      copyDirInto(sourcePath, targetPath, {
+        force,
+        log,
+        prefix: `${prefix}/${entry.name}`,
+      });
+    } else if (!fs.existsSync(targetPath) || force) {
+      fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+      fs.copyFileSync(sourcePath, targetPath);
+    }
+  }
+
+  return true;
+}
+
+function copyFile(mapping, root, { force, log }) {
+  const sourcePath = path.join(TEMPLATES, mapping.from);
+  const targetPath = path.join(root, mapping.to);
+
+  if (!fs.existsSync(sourcePath)) {
+    log.push(`ERROR template missing: ${mapping.from}`);
+    return false;
+  }
+  if (fs.existsSync(targetPath) && !force) {
+    log.push(`skip  ${mapping.to} (exists; use --force to overwrite)`);
+    return true;
+  }
+
+  fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+  fs.copyFileSync(sourcePath, targetPath);
+  log.push(`write ${mapping.to}`);
+  return true;
+}
+
+function init(
+  root,
+  {
+    force = false,
+    fromV1 = false,
+    adapters = false,
+    hooks = false,
+    engineAdapters = false,
+    pattern = DEFAULT_PATTERN,
+  } = {},
+) {
+  const log = [];
+  let ok = true;
+
+  if (!availablePatterns().includes(pattern))
+    return {
+      ok: false,
+      log: [
+        `ERROR unknown pattern '${pattern}'. Available: ${availablePatterns().join(", ")}`,
+      ],
+    };
+
+  fs.mkdirSync(path.join(root, ".agentlintel", "decisions"), { recursive: true });
+
+  const migratedTargets = new Set();
+  if (fromV1) {
+    const migration = migrate(root);
+    log.push(...migration.log);
+    if (!migration.ok) return { ok: false, log };
+
+    for (const [target, content] of Object.entries(migration.files)) {
+      const targetPath = path.join(root, target);
+      if (!fs.existsSync(targetPath) || force || target.endsWith("MIGRATION.md")) {
+        fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+        fs.writeFileSync(targetPath, content);
+        log.push(`write ${target} (migrated from v1)`);
+      } else {
+        log.push(
+          `skip  ${target} (exists; use --force to overwrite with the migrated draft)`,
+        );
+      }
+      migratedTargets.add(target);
+    }
+  }
+
+  for (const mapping of FILES)
+    if (!migratedTargets.has(mapping.to))
+      ok = copyFile(mapping, root, { force, log }) && ok;
+
+  let wrotePattern = false;
+  let patternRefused = false;
+  if (!migratedTargets.has(".agentlintel/rules.yaml")) {
+    const rulesPath = path.join(root, ".agentlintel", "rules.yaml");
+    if (fs.existsSync(rulesPath) && !force) {
+      patternRefused = true;
+      log.push(
+        `note  pattern '${pattern}' NOT applied - .agentlintel/rules.yaml exists (use --force to replace it)`,
+      );
+    } else {
+      ok =
+        copyFile(
+          {
+            from:
+              pattern === DEFAULT_PATTERN
+                ? "rules.template.yaml"
+                : `patterns/${pattern}/rules.yaml`,
+            to: ".agentlintel/rules.yaml",
+          },
+          root,
+          { force, log },
+        ) && ok;
+      wrotePattern = true;
+      log.push(
+        `note  architecture pattern: ${pattern} (see .agentlintel/rules.yaml; other packs: ${availablePatterns().join(", ")})`,
+      );
+    }
+  }
+
+  // Fixtures follow the rule set: never copy a pattern's fixtures beside a
+  // rules.yaml the pattern was refused permission to replace.
+  const conformanceDir = path.join(root, ".agentlintel", "conformance");
+  if (!patternRefused && (wrotePattern || !fs.existsSync(conformanceDir))) {
+    if (pattern === DEFAULT_PATTERN) {
+      ok =
+        copyDirInto(path.join(TEMPLATES, "conformance"), conformanceDir, {
+          force,
+          log,
+          prefix: "conformance",
+        }) && ok;
+    } else {
+      const packConformance = path.join(TEMPLATES, "patterns", pattern, "conformance");
+      const packFixtures = fs.existsSync(packConformance)
+        ? fs.readdirSync(packConformance)
+        : [];
+      if (packFixtures.length)
+        ok =
+          copyDirInto(packConformance, conformanceDir, {
+            force,
+            log,
+            prefix: "conformance",
+          }) && ok;
+      for (const fixture of UNIVERSAL_FIXTURES)
+        if (!packFixtures.includes(fixture))
+          ok =
+            copyDirInto(
+              path.join(TEMPLATES, "conformance", fixture),
+              path.join(conformanceDir, fixture),
+              { force, log, prefix: `conformance/${fixture}` },
+            ) && ok;
+    }
+    log.push("write .agentlintel/conformance/ (fixtures for the starter rules)");
+  }
+
+  ok =
+    copyDirInto(
+      path.join(TEMPLATES, "skills"),
+      path.join(root, ".agentlintel", "skills"),
+      { force, log, prefix: "skills" },
+    ) && ok;
+  log.push(
+    "write .agentlintel/skills/ (strangler-extraction, mirror-exemplar, audit-architecture)",
+  );
+
+  if (adapters) {
+    for (const mapping of ADAPTER_FILES)
+      ok = copyFile(mapping, root, { force, log }) && ok;
+    log.push(
+      "note  adapters are content-free pointers; verify fails them if they drift from the template",
+    );
+  }
+
+  if (engineAdapters) {
+    for (const mapping of ENGINE_ADAPTER_FILES)
+      ok = copyFile(mapping, root, { force, log }) && ok;
+    ok =
+      copyDirInto(
+        path.join(TEMPLATES, "engine-adapters", "conformance-snippets"),
+        path.join(root, ".agentlintel", "adapters", "conformance-snippets"),
+        { force, log, prefix: "adapters/conformance-snippets" },
+      ) && ok;
+    log.push(
+      "note  engine adapters are starter glue; copy snippets plus matching fixture dirs when enabling rules.",
+    );
+  }
+
+  if (hooks) {
+    ok =
+      copyFile(
+        { from: "hooks/verify-hook.sh", to: ".agentlintel/hooks/verify-hook.sh" },
+        root,
+        { force, log },
+      ) && ok;
+    try {
+      fs.chmodSync(path.join(root, ".agentlintel", "hooks", "verify-hook.sh"), 0o755);
+    } catch {}
+    log.push(
+      "note  register the hook (Claude Code .claude/settings.json, Stop or PostToolUse).",
+    );
+    log.push(
+      "      Invoke via the interpreter - exec bits do not survive Windows checkouts:",
+    );
+    log.push(
+      '        {"hooks":{"Stop":[{"hooks":[{"type":"command","command":"sh .agentlintel/hooks/verify-hook.sh"}]}]}}',
+    );
+  }
+
+  if (!fs.existsSync(path.join(root, ".git"))) {
+    log.push("");
+    log.push(
+      "WARNING: this directory is not a git repository. Governance must live in git -",
+    );
+    log.push(
+      "         unversioned governance has no audit trail and per-repo CI cannot see it.",
+    );
+  }
+
+  log.push("");
+  log.push("Next steps:");
+  log.push("  1. Run `agentlintel verify` - it should pass out of the box.");
+  log.push(
+    "  2. Fill in .agentlintel/facts.yaml - every fact needs a passing machine check.",
+  );
+  log.push("  3. Register one canonical exemplar in .agentlintel/exemplars.yaml.");
+  log.push(
+    "  4. Edit AGENTS.md - keep it under 150 lines; it is the only always-load.",
+  );
+  log.push(
+    "  5. Trim .agentlintel/rules.yaml; set must_match: true on rules once their paths exist.",
+  );
+  log.push(
+    "  6. Wire CI: `agentlintel verify --strict` on every PR. A rule that does not run in CI does not exist.",
+  );
+
+  return { ok, log };
+}
+
+module.exports = { init };

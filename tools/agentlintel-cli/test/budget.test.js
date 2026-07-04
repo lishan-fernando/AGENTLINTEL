@@ -9,9 +9,9 @@ const { spawnSync } = require('node:child_process');
 
 const REPO = path.join(__dirname, '..', '..', '..');
 const TRACKED_BYTE_BUDGET = 381754;
-// Recalibrated for the supply-chain-hardened pipeline (ADR-013, was 165000
-// per ADR-011); next change needs an ADR.
-const ELIGIBLE_TRACKED_BYTE_BUDGET = 174000;
+// Recalibrated for readable shipped CLI source with meaningful identifiers
+// (ADR-014, was 174000 per ADR-013); next change needs an ADR.
+const ELIGIBLE_TRACKED_BYTE_BUDGET = 207000;
 const DEAD_WEIGHT_EXCLUDE = /^(?:\.agentlintel\/decisions\/|LICENSE(?:-APACHE)?$|LICENSE-POLICY\.md$|NOTICE$|tools\/agentlintel-cli\/LICENSE$|tools\/agentlintel-cli\/package-lock\.json$|tools\/agentlintel-cli\/test\/|\.agentlintel\/conformance\/.*\/cases\/|tools\/agentlintel-cli\/templates\/conformance\/.*\/cases\/|tools\/agentlintel-cli\/templates\/engine-adapters\/conformance-snippets\/.*\/cases\/)/;
 
 function trackedFiles() {
