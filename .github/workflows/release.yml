@@ -1,17 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# Release pipeline: push a tag like v2.0.0-alpha.5 and adopters can install the CLI the
-# same day - no npm account required. The tarball attaches to a GitHub Release
-# under a STABLE name, so repos depend on it with one line:
+# Release pipeline (ADR-013): push a tag like v2.0.0-alpha.5 and adopters can
+# install the CLI the same day - no npm account required. The tarball (plus
+# sha256) attaches to the GitHub Release under a STABLE name:
 #
 #   npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/latest/download/agentlintel-cli.tgz
 #
-# (or pin a version by using /download/v2.0.0-alpha.5/agentlintel-cli.tgz)
-#
 # This replaces vendored framework clones - the mechanism that stranded both
-# production workspaces on v1. If the NPM_TOKEN secret is configured, the same
-# run also publishes @agentlintel/cli to the npm registry; if not, that step
-# skips cleanly.
+# production workspaces on v1. npm publishing is an explicit decision: it
+# runs iff the repository variable NPM_PUBLISH is "true", always with
+# provenance. Auth: NPM_TOKEN secret (first-publish bootstrap) or GitHub
+# OIDC trusted publishing (tokenless). Runbook: docs/PUBLISHING.md.
 
 name: Release
 
@@ -22,21 +21,24 @@ on:
 
 permissions:
   contents: write
+  id-token: write # npm provenance + tokenless trusted publishing (OIDC)
+
+concurrency:
+  group: release-${{ github.ref }}
 
 jobs:
   release:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: "22"
-          registry-url: "https://registry.npmjs.org"
+          node-version: "24"
 
-      - name: Install CLI dependencies
-        run: npm install --no-audit --no-fund --prefix tools/agentlintel-cli
+      - name: Install CLI dependencies (from lockfile)
+        run: npm ci --no-audit --no-fund --prefix tools/agentlintel-cli
 
       - name: Tag must match package version
         run: |
@@ -57,12 +59,14 @@ jobs:
           chmod +x bin/agentlintel.js
           npm pack --dry-run --json
 
-      - name: Pack tarball
+      - name: Pack tarball + checksum
         run: |
           cd tools/agentlintel-cli
           chmod +x bin/agentlintel.js
           npm pack
           mv agentlintel-cli-*.tgz agentlintel-cli.tgz
+          sha256sum agentlintel-cli.tgz > agentlintel-cli.tgz.sha256
+          cat agentlintel-cli.tgz.sha256
 
       - name: Create GitHub Release with tarball
         env:
@@ -70,17 +74,34 @@ jobs:
         run: |
           gh release create "$GITHUB_REF_NAME" \
             tools/agentlintel-cli/agentlintel-cli.tgz \
+            tools/agentlintel-cli/agentlintel-cli.tgz.sha256 \
             --title "AgentLintel $GITHUB_REF_NAME" \
             --generate-notes \
-          || gh release upload "$GITHUB_REF_NAME" tools/agentlintel-cli/agentlintel-cli.tgz --clobber
+          || gh release upload "$GITHUB_REF_NAME" \
+            tools/agentlintel-cli/agentlintel-cli.tgz \
+            tools/agentlintel-cli/agentlintel-cli.tgz.sha256 \
+            --clobber
 
-      - name: Publish to npm (skips cleanly without NPM_TOKEN)
+      - name: Publish to npm with provenance
+        if: vars.NPM_PUBLISH == 'true'
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          if [ -z "$NODE_AUTH_TOKEN" ]; then
-            echo "NPM_TOKEN not configured - skipping registry publish (tarball release is live)."
-            exit 0
+          # npm >= 11.5.1 for OIDC trusted publishing; node 24 bundles 11.x
+          # but the floor is pinned explicitly rather than assumed.
+          npm install -g npm@11 --no-audit --no-fund
+          npm --version
+          if [ -n "${NPM_TOKEN:-}" ]; then
+            echo "Auth: granular automation token (bootstrap path)."
+            echo "//registry.npmjs.org/:_authToken=\${NPM_TOKEN}" > "$HOME/.npmrc"
+          else
+            echo "Auth: GitHub OIDC trusted publishing (tokenless)."
           fi
           cd tools/agentlintel-cli
-          npm publish --access public
+          npm publish --access public --provenance
+
+      - name: npm publish skipped
+        if: vars.NPM_PUBLISH != 'true'
+        run: |
+          echo "Repository variable NPM_PUBLISH is not 'true' - skipping the npm registry."
+          echo "The tarball release is live. To enable npm publishing, follow docs/PUBLISHING.md."
