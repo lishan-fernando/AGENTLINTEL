@@ -699,12 +699,14 @@ function changedFiles(root, base) {
       () => {
         if (base.startsWith("origin/") && !hasOriginRemote(root)) return null;
         const branch = base.replace(/^origin\//, "");
+        if (!SAFE_REF.test(branch)) return null;
         const fetched = spawnSync(
           "git",
           [
             "fetch",
             "--no-tags",
             "--depth=1",
+            "--end-of-options",
             "origin",
             `+refs/heads/${branch}:refs/remotes/origin/${branch}`,
           ],

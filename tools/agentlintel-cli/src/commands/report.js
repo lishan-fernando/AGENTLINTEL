@@ -80,6 +80,7 @@ function renderReport(result) {
 
 function tableCell(value) {
   return String(value == null ? "" : value)
+    .replace(/\\/g, "\\\\")
     .replace(/\r?\n/g, "<br>")
     .replace(/\|/g, "\\|");
 }

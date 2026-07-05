@@ -28,10 +28,10 @@ Decision:
 
 Budget consequence: readable runtime source increases the normalized npm
 unpacked payload from ~102.6 KB to ~139.5 KB and the eligible tracked payload
-to ~205.0 KB. The package byte budget recalibrates to 141,000 and the eligible
-tracked byte budget recalibrates to 207,000. The always-load budget is
-unchanged; the extra bytes are shipped implementation source, not agent
-context.
+(measured on the committed tree) to ~212.9 KB. The package byte budget
+recalibrates to 141,000 and the eligible tracked byte budget recalibrates to
+214,000. The always-load budget is unchanged; the extra bytes are shipped
+implementation source, not agent context.
 
 Out of scope: a full semantic rewrite of the built-in regex engines. They
 remain deterministic starter checks. The deeper path is explicit external
