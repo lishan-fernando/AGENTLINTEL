@@ -1,2 +1,493 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
-"use strict";const{matchAny:matchAny,matchGlob:matchGlob}=require("./io");function applies(e,n){const s=e._appliesTo||(e.applies_to&&e.applies_to.length?e.applies_to:["**/*"]);if(!matchAny(s,n))return!1;const t=e._excludes||e.excludes;return!t||!matchAny(t,n)}function regexEngine(e,n,s,t={}){if(!t.skipApplies&&!applies(e,n))return[];const r=[],i=s.split(/\r?\n/);for(const s of e._forbiddenRegexes||(e.forbidden||[]).map(n=>new RegExp(n,e.flags||"")))for(let t=0;t<i.length;t++)s.lastIndex=0,s.test(i[t])&&r.push({rule:e.id,file:n,line:t+1,message:e.message,severity:e.severity});return r}const CODE_LITERAL=/['"]([A-Za-z][A-Za-z0-9]*)-([A-Za-z][A-Za-z0-9]*)-(\d{1,5})['"]/g;function errorCodesEngine(e,n,s,t={}){if(!t.skipApplies&&!applies(e,n))return[];const r=e._categories||new Set(e.categories||[]),i=[],o=s.split(/\r?\n/);for(let s=0;s<o.length;s++)for(const t of o[s].matchAll(CODE_LITERAL)){const[,o,l]=t,a=[];o!==o.toUpperCase()&&a.push(`slice segment '${o}' must be uppercase`),l===l.toUpperCase()&&r.has(l.toUpperCase())||a.push(`category '${l}' is not a registered category (${[...r].join(", ")})`),a.length&&i.push({rule:e.id,file:n,line:s+1,message:`${e.message} [${t[0]}: ${a.join("; ")}]`,severity:e.severity})}return i}function exemptionsEngine(e,n,s,{today:t=new Date,skipApplies:r=!1}={}){if(!r&&!applies(e,n))return[];const i=e._marker||e.marker||"AGENTLINTEL-EXEMPT";if(!s.includes(i))return[];const o=e._requiredFields||e.required_fields||["Reason","Approver","Expires","Owner"],l=e._withinLines||e.within_lines||5,a=[],p=e._exemptionAnnotation||new RegExp((e._markerEsc||i.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"))+"\\s*:\\s*\\S"),c=s.split(/\r?\n/);for(let s=0;s<c.length;s++){if(!p.test(c[s]))continue;const r=c.slice(s+1,s+1+l).join("\n"),i=(e._fieldRegexes||o.map(e=>[e,new RegExp(`\\b${e}\\s*:`)])).filter(([,e])=>!e.test(r)).map(([e])=>e);i.length&&a.push({rule:e.id,file:n,line:s+1,message:`Exemption missing required field(s): ${i.join(", ")}. ${e.message}`,severity:e.severity});const u=r.match(e._expiresRegex||/\bExpires\s*:\s*(\d{4}-\d{2}-\d{2})/);if(u){const r=new Date(u[1]+"T23:59:59Z");Number.isFinite(r.getTime())&&r<t&&a.push({rule:e.id,file:n,line:s+1,message:`Exemption expired on ${u[1]}. Expired exemptions block CI.`,severity:"error"})}}return a}function collectExemptionSpans(e,n,s,{today:t=new Date,skipApplies:r=!1}={}){if(!r&&!applies(e,n))return[];const i=e._marker||e.marker||"AGENTLINTEL-EXEMPT";if(!s.includes(i))return[];const o=e._requiredFields||e.required_fields||["Reason","Approver","Expires","Owner"],l=e._withinLines||e.within_lines||5,a=e._exemptionSpan||new RegExp((e._markerEsc||i.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"))+"\\s*:\\s*(\\S[^\\n]*)"),p=e._fieldRegexes||o.map(e=>[e,new RegExp(`\\b${e}\\s*:`)]),c=[],u=s.split(/\r?\n/);for(let s=0;s<u.length;s++){const r=u[s].match(a);if(!r)continue;const i=r[1].split(/[,\s]+/).map(e=>e.trim()).filter(Boolean),o=u.slice(s+1,s+1+l),f=o.join("\n");if(p.some(([,e])=>!e.test(f)))continue;const m=f.match(e._expiresRegex||/\bExpires\s*:\s*(\d{4}-\d{2}-\d{2})/);if(!m)continue;const d=new Date(m[1]+"T23:59:59Z");if(!Number.isFinite(d.getTime())||d<t)continue;let g=s;for(let e=0;e<o.length;e++)p.some(([,n])=>n.test(o[e]))&&(g=s+1+e);c.push({file:n,rules:i,fromLine:s+1,toLine:g+1+l})}return c}const JS_IMPORT_PATTERNS=[/\bimport\s+(?!['"(])[^;'"]*?from\s+['"]([^'"]+)['"]/g,/\bexport\s+(?!['"(])[^;'"]*?from\s+['"]([^'"]+)['"]/g,/\bimport\s*\(\s*['"]([^'"]+)['"]/g,/\bimport\s+['"]([^'"]+)['"]/g,/\brequire\s*\(\s*['"]([^'"]+)['"]/g],PY_FROM_IMPORT=/^[ \t]*from\s+([.\w]+)\s+import\s+([\w*][\w*, \t]*)/gm,PY_IMPORT=/^[ \t]*import\s+([.\w]+)[ \t]*(?:as\s+\w+)?[ \t]*$/gm,NS_IMPORT=/^[ \t]*(?:using|import)\s+([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+)\s*;?/gm,GO_IMPORT=/^[ \t]*"([^".][^"]+)"/gm,IMPORT_TARGET_SUFFIXES=["",".ts",".tsx",".js",".jsx",".mts",".cts",".mjs",".cjs",".py",".cs",".go",".java",".kt",".swift","/index.ts","/index.tsx","/index.js","/index.jsx","/__init__.py"];function lineOfIndex(e,n){let s=1;for(let t=0;t<n&&t<e.length;t++)10===e.charCodeAt(t)&&s++;return s}function modulePath(e){return String(e||"").replace(/::/g,"/").replace(/\./g,"/")}function pyModuleToPath(e,n){if(n.startsWith(".")){const s=n.match(/^\.+/)[0].length,t=n.slice(s).replace(/\./g,"/");let r=e.split("/").slice(0,-1);for(let e=1;e<s;e++)r=r.slice(0,-1);return normalizePosix([...r,t].filter(Boolean).join("/"))}return modulePath(n)}function normalizePosix(e){const n=[];for(const s of e.split("/"))s&&"."!==s&&(".."===s?n.length&&".."!==n[n.length-1]?n.pop():n.push(".."):n.push(s));return n.join("/")}function layerOfPath(e,n){if(!n||n.startsWith(".."))return null;const s=n.toLowerCase();return e.find(e=>(e.path||[]).some(e=>{const n=String(e).toLowerCase();return!(!n.endsWith("/**")||s!==n.slice(0,-3))||matchGlob(n,s)}))||null}function layerOfImport(e,n){if(!n)return null;for(const s of IMPORT_TARGET_SUFFIXES){const t=layerOfPath(e,n+s);if(t)return t}return null}function resolveSpec(e,n,s,t){for(const[e,t]of s)if(n.startsWith(e)){const s=normalizePosix(t+n.slice(e.length));return s.startsWith("..")?null:s}if(n.startsWith("./")||n.startsWith("../")){const s=e.split("/").slice(0,-1).join("/"),t=normalizePosix(s?`${s}/${n}`:n);return t.startsWith("..")?null:t}return layerOfImport(t,n)?normalizePosix(n):null}function validateLayersRule(e){const n=[],s=e.layers||[];s.length||n.push("declares no layers");const t=new Set;for(const e of s)e&&e.name?t.add(e.name):n.push("a layer is missing a name"),e&&Array.isArray(e.path)&&e.path.length||n.push(`layer '${e&&e.name}' has no path globs`);for(const[s,r]of Object.entries(e.allowed||{})){t.has(s)||n.push(`allowed references undeclared layer '${s}'`);for(const e of r||[])t.has(e)||n.push(`allowed.${s} references undeclared layer '${e}'`)}return n}function aliasEntriesOf(e){return e._aliasEntries||Object.entries(e.aliases||{}).sort((e,n)=>n[0].length-e[0].length)}function layersEngine(e,n,s,t={}){if(!t.skipApplies&&!applies(e,n))return[];const r=e.layers||[],i=layerOfPath(r,n);if(!i)return[];const o=e._allowedByLayer?.[i.name]||new Set(e.allowed?.[i.name]||[]),l=aliasEntriesOf(e),a=/\.py$/i.test(n),p=[],c=new Set,u=(t,l,a)=>{const u=layerOfImport(r,l);if(!u||u.name===i.name||o.has(u.name))return;const f=lineOfIndex(s,a),m=`${u.name}:${f}`;c.has(m)||(c.add(m),p.push({rule:e.id,file:n,line:f,message:`Layer '${i.name}' must not depend on layer '${u.name}' (import of ${t}). ${e.message||""}`.trim(),severity:e.severity}))};if(a){for(const e of s.matchAll(PY_FROM_IMPORT)){const s=pyModuleToPath(n,e[1]);u(e[1],s,e.index);for(const n of e[2].split(",")){const t=n.trim().split(/\s+/)[0];t&&"*"!==t&&u(`${e[1]}.${t}`,s?`${s}/${t}`:t,e.index)}}for(const e of s.matchAll(PY_IMPORT))u(e[1],pyModuleToPath(n,e[1]),e.index)}else{if(!/\.go$/i.test(n))for(const e of JS_IMPORT_PATTERNS){e.lastIndex=0;for(const t of s.matchAll(e))u(t[1],resolveSpec(n,t[1],l,r),t.index)}if(/\.(cs|java|kt|swift)$/i.test(n))for(const e of s.matchAll(NS_IMPORT))u(e[1],resolveSpec(n,modulePath(e[1]),l,r),e.index);if(/\.go$/i.test(n))for(const e of s.matchAll(GO_IMPORT))u(e[1],resolveSpec(n,e[1],l,r),e.index)}return p}const ENGINES={regex:regexEngine,"error-codes":errorCodesEngine,exemptions:exemptionsEngine,layers:layersEngine};function prepareRule(e){const n={...e};return n._appliesTo=e.applies_to&&e.applies_to.length?e.applies_to:["**/*"],n._excludes=e.excludes||[],"regex"===e.engine?n._forbiddenRegexes=(e.forbidden||[]).map(n=>new RegExp(n,e.flags||"")):"error-codes"===e.engine?n._categories=new Set(e.categories||[]):"exemptions"===e.engine?(n._marker=e.marker||"AGENTLINTEL-EXEMPT",n._requiredFields=e.required_fields||["Reason","Approver","Expires","Owner"],n._withinLines=e.within_lines||5,n._markerEsc=n._marker.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"),n._exemptionAnnotation=new RegExp(n._markerEsc+"\\s*:\\s*\\S"),n._exemptionSpan=new RegExp(n._markerEsc+"\\s*:\\s*(\\S[^\\n]*)"),n._fieldRegexes=n._requiredFields.map(e=>[e,new RegExp(`\\b${e}\\s*:`)]),n._expiresRegex=/\bExpires\s*:\s*(\d{4}-\d{2}-\d{2})/):"layers"===e.engine&&(n._aliasEntries=aliasEntriesOf(e),n._allowedByLayer=Object.fromEntries(Object.entries(e.allowed||{}).map(([e,n])=>[e,new Set(n||[])]))),n}function runRule(e,n,s,t){const r=ENGINES[e.engine];if(!r)throw new Error(`Unknown engine '${e.engine}' for rule ${e.id}`);return r(e,n,s,t)}module.exports={runRule:runRule,ENGINES:ENGINES,prepareRule:prepareRule,collectExemptionSpans:collectExemptionSpans,layerOfPath:layerOfPath,validateLayersRule:validateLayersRule};
+"use strict";
+
+const { matchAny, matchGlob } = require("./io");
+
+function applies(rule, filePath) {
+  const appliesTo =
+    rule._appliesTo ||
+    (rule.applies_to && rule.applies_to.length ? rule.applies_to : ["**/*"]);
+  if (!matchAny(appliesTo, filePath)) return false;
+  const excludes = rule._excludes || rule.excludes;
+  return !excludes || !matchAny(excludes, filePath);
+}
+
+function regexEngine(rule, filePath, content, options = {}) {
+  if (!options.skipApplies && !applies(rule, filePath)) return [];
+
+  const violations = [];
+  const lines = content.split(/\r?\n/);
+  const forbidden =
+    rule._forbiddenRegexes ||
+    (rule.forbidden || []).map(
+      (pattern) => new RegExp(pattern, rule.flags || ""),
+    );
+
+  for (const regex of forbidden) {
+    for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+      regex.lastIndex = 0;
+      if (!regex.test(lines[lineIndex])) continue;
+      violations.push({
+        rule: rule.id,
+        file: filePath,
+        line: lineIndex + 1,
+        message: rule.message,
+        severity: rule.severity,
+      });
+    }
+  }
+
+  return violations;
+}
+
+const CODE_LITERAL =
+  /['"]([A-Za-z][A-Za-z0-9]*)-([A-Za-z][A-Za-z0-9]*)-(\d{1,5})['"]/g;
+
+function errorCodesEngine(rule, filePath, content, options = {}) {
+  if (!options.skipApplies && !applies(rule, filePath)) return [];
+
+  const categories = rule._categories || new Set(rule.categories || []);
+  const violations = [];
+  const lines = content.split(/\r?\n/);
+
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+    for (const match of lines[lineIndex].matchAll(CODE_LITERAL)) {
+      const [, slice, category] = match;
+      const problems = [];
+
+      if (slice !== slice.toUpperCase())
+        problems.push(`slice segment '${slice}' must be uppercase`);
+      if (
+        !(
+          category === category.toUpperCase() &&
+          categories.has(category.toUpperCase())
+        )
+      )
+        problems.push(
+          `category '${category}' is not a registered category (${[...categories].join(", ")})`,
+        );
+
+      if (problems.length)
+        violations.push({
+          rule: rule.id,
+          file: filePath,
+          line: lineIndex + 1,
+          message: `${rule.message} [${match[0]}: ${problems.join("; ")}]`,
+          severity: rule.severity,
+        });
+    }
+  }
+
+  return violations;
+}
+
+function escapeForRegex(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+const EXPIRES_FIELD = /\bExpires\s*:\s*(\d{4}-\d{2}-\d{2})/;
+
+function exemptionsEngine(
+  rule,
+  filePath,
+  content,
+  { today = new Date(), skipApplies = false } = {},
+) {
+  if (!skipApplies && !applies(rule, filePath)) return [];
+
+  const marker = rule._marker || rule.marker || "AGENTLINTEL-EXEMPT";
+  if (!content.includes(marker)) return [];
+
+  const requiredFields = rule._requiredFields ||
+    rule.required_fields || ["Reason", "Approver", "Expires", "Owner"];
+  const withinLines = rule._withinLines || rule.within_lines || 5;
+  const annotation =
+    rule._exemptionAnnotation ||
+    new RegExp((rule._markerEsc || escapeForRegex(marker)) + "\\s*:\\s*\\S");
+  const fieldRegexes =
+    rule._fieldRegexes ||
+    requiredFields.map((field) => [field, new RegExp(`\\b${field}\\s*:`)]);
+
+  const violations = [];
+  const lines = content.split(/\r?\n/);
+
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+    if (!annotation.test(lines[lineIndex])) continue;
+
+    const window = lines
+      .slice(lineIndex + 1, lineIndex + 1 + withinLines)
+      .join("\n");
+    const missingFields = fieldRegexes
+      .filter(([, fieldRegex]) => !fieldRegex.test(window))
+      .map(([field]) => field);
+
+    if (missingFields.length)
+      violations.push({
+        rule: rule.id,
+        file: filePath,
+        line: lineIndex + 1,
+        message: `Exemption missing required field(s): ${missingFields.join(", ")}. ${rule.message}`,
+        severity: rule.severity,
+      });
+
+    const expiresMatch = window.match(rule._expiresRegex || EXPIRES_FIELD);
+    if (expiresMatch) {
+      // End-of-day UTC: an exemption is valid through its Expires date.
+      const expiry = new Date(expiresMatch[1] + "T23:59:59Z");
+      if (Number.isFinite(expiry.getTime()) && expiry < today)
+        violations.push({
+          rule: rule.id,
+          file: filePath,
+          line: lineIndex + 1,
+          message: `Exemption expired on ${expiresMatch[1]}. Expired exemptions block CI.`,
+          severity: "error",
+        });
+    }
+  }
+
+  return violations;
+}
+
+function collectExemptionSpans(
+  rule,
+  filePath,
+  content,
+  { today = new Date(), skipApplies = false } = {},
+) {
+  if (!skipApplies && !applies(rule, filePath)) return [];
+
+  const marker = rule._marker || rule.marker || "AGENTLINTEL-EXEMPT";
+  if (!content.includes(marker)) return [];
+
+  const requiredFields = rule._requiredFields ||
+    rule.required_fields || ["Reason", "Approver", "Expires", "Owner"];
+  const withinLines = rule._withinLines || rule.within_lines || 5;
+  const spanPattern =
+    rule._exemptionSpan ||
+    new RegExp(
+      (rule._markerEsc || escapeForRegex(marker)) + "\\s*:\\s*(\\S[^\\n]*)",
+    );
+  const fieldRegexes =
+    rule._fieldRegexes ||
+    requiredFields.map((field) => [field, new RegExp(`\\b${field}\\s*:`)]);
+
+  const spans = [];
+  const lines = content.split(/\r?\n/);
+
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+    const markerMatch = lines[lineIndex].match(spanPattern);
+    if (!markerMatch) continue;
+
+    const ruleIds = markerMatch[1]
+      .split(/[,\s]+/)
+      .map((id) => id.trim())
+      .filter(Boolean);
+    const windowLines = lines.slice(lineIndex + 1, lineIndex + 1 + withinLines);
+    const window = windowLines.join("\n");
+
+    // Only a complete, unexpired exemption suppresses anything.
+    if (fieldRegexes.some(([, fieldRegex]) => !fieldRegex.test(window)))
+      continue;
+    const expiresMatch = window.match(rule._expiresRegex || EXPIRES_FIELD);
+    if (!expiresMatch) continue;
+    const expiry = new Date(expiresMatch[1] + "T23:59:59Z");
+    if (!Number.isFinite(expiry.getTime()) || expiry < today) continue;
+
+    let lastFieldLine = lineIndex;
+    for (let offset = 0; offset < windowLines.length; offset++)
+      if (fieldRegexes.some(([, fieldRegex]) => fieldRegex.test(windowLines[offset])))
+        lastFieldLine = lineIndex + 1 + offset;
+
+    spans.push({
+      file: filePath,
+      rules: ruleIds,
+      fromLine: lineIndex + 1,
+      toLine: lastFieldLine + 1 + withinLines,
+    });
+  }
+
+  return spans;
+}
+
+const JS_IMPORT_PATTERNS = [
+  /\bimport\s+(?!['"(])[^;'"]*?from\s+['"]([^'"]+)['"]/g,
+  /\bexport\s+(?!['"(])[^;'"]*?from\s+['"]([^'"]+)['"]/g,
+  /\bimport\s*\(\s*['"]([^'"]+)['"]/g,
+  /\bimport\s+['"]([^'"]+)['"]/g,
+  /\brequire\s*\(\s*['"]([^'"]+)['"]/g,
+];
+const PY_FROM_IMPORT = /^[ \t]*from\s+([.\w]+)\s+import\s+([\w*][\w*, \t]*)/gm;
+const PY_IMPORT = /^[ \t]*import\s+([.\w]+)[ \t]*(?:as\s+\w+)?[ \t]*$/gm;
+const NS_IMPORT =
+  /^[ \t]*(?:using|import)\s+([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+)\s*;?/gm;
+const GO_IMPORT = /^[ \t]*"([^".][^"]+)"/gm;
+const IMPORT_TARGET_SUFFIXES = [
+  "",
+  ".ts",
+  ".tsx",
+  ".js",
+  ".jsx",
+  ".mts",
+  ".cts",
+  ".mjs",
+  ".cjs",
+  ".py",
+  ".cs",
+  ".go",
+  ".java",
+  ".kt",
+  ".swift",
+  "/index.ts",
+  "/index.tsx",
+  "/index.js",
+  "/index.jsx",
+  "/__init__.py",
+];
+
+function lineOfIndex(content, index) {
+  let line = 1;
+  for (let i = 0; i < index && i < content.length; i++)
+    if (content.charCodeAt(i) === 10) line++;
+  return line;
+}
+
+function modulePath(moduleName) {
+  return String(moduleName || "")
+    .replace(/::/g, "/")
+    .replace(/\./g, "/");
+}
+
+function pyModuleToPath(filePath, moduleName) {
+  if (moduleName.startsWith(".")) {
+    const dots = moduleName.match(/^\.+/)[0].length;
+    const suffix = moduleName.slice(dots).replace(/\./g, "/");
+    let baseSegments = filePath.split("/").slice(0, -1);
+    for (let level = 1; level < dots; level++)
+      baseSegments = baseSegments.slice(0, -1);
+    return normalizePosix([...baseSegments, suffix].filter(Boolean).join("/"));
+  }
+  return modulePath(moduleName);
+}
+
+function normalizePosix(rawPath) {
+  const segments = [];
+  for (const segment of rawPath.split("/")) {
+    if (!segment || segment === ".") continue;
+    if (segment === "..") {
+      if (segments.length && segments[segments.length - 1] !== "..")
+        segments.pop();
+      else segments.push("..");
+    } else {
+      segments.push(segment);
+    }
+  }
+  return segments.join("/");
+}
+
+function layerOfPath(layers, relPath) {
+  if (!relPath || relPath.startsWith("..")) return null;
+  const lowerPath = relPath.toLowerCase();
+  return (
+    layers.find((layer) =>
+      (layer.path || []).some((glob) => {
+        const lowerGlob = String(glob).toLowerCase();
+        // "src/domain/**" also claims the bare directory path "src/domain".
+        if (lowerGlob.endsWith("/**") && lowerPath === lowerGlob.slice(0, -3))
+          return true;
+        return matchGlob(lowerGlob, lowerPath);
+      }),
+    ) || null
+  );
+}
+
+function layerOfImport(layers, importPath) {
+  if (!importPath) return null;
+  for (const suffix of IMPORT_TARGET_SUFFIXES) {
+    const layer = layerOfPath(layers, importPath + suffix);
+    if (layer) return layer;
+  }
+  return null;
+}
+
+function resolveSpec(filePath, spec, aliasEntries, layers) {
+  for (const [alias, target] of aliasEntries) {
+    if (spec.startsWith(alias)) {
+      const resolved = normalizePosix(target + spec.slice(alias.length));
+      return resolved.startsWith("..") ? null : resolved;
+    }
+  }
+  if (spec.startsWith("./") || spec.startsWith("../")) {
+    const dir = filePath.split("/").slice(0, -1).join("/");
+    const resolved = normalizePosix(dir ? `${dir}/${spec}` : spec);
+    return resolved.startsWith("..") ? null : resolved;
+  }
+  // Bare specifiers only count when they land in a declared layer.
+  return layerOfImport(layers, spec) ? normalizePosix(spec) : null;
+}
+
+function validateLayersRule(rule) {
+  const problems = [];
+  const layers = rule.layers || [];
+  if (!layers.length) problems.push("declares no layers");
+
+  const declaredNames = new Set();
+  for (const layer of layers) {
+    if (layer && layer.name) declaredNames.add(layer.name);
+    else problems.push("a layer is missing a name");
+    if (!(layer && Array.isArray(layer.path) && layer.path.length))
+      problems.push(`layer '${layer && layer.name}' has no path globs`);
+  }
+
+  for (const [layerName, targets] of Object.entries(rule.allowed || {})) {
+    if (!declaredNames.has(layerName))
+      problems.push(`allowed references undeclared layer '${layerName}'`);
+    for (const target of targets || [])
+      if (!declaredNames.has(target))
+        problems.push(
+          `allowed.${layerName} references undeclared layer '${target}'`,
+        );
+  }
+
+  return problems;
+}
+
+function aliasEntriesOf(rule) {
+  return (
+    rule._aliasEntries ||
+    Object.entries(rule.aliases || {}).sort(
+      (a, b) => b[0].length - a[0].length,
+    )
+  );
+}
+
+function layersEngine(rule, filePath, content, options = {}) {
+  if (!options.skipApplies && !applies(rule, filePath)) return [];
+
+  const layers = rule.layers || [];
+  const fromLayer = layerOfPath(layers, filePath);
+  if (!fromLayer) return [];
+
+  const allowed =
+    rule._allowedByLayer?.[fromLayer.name] ||
+    new Set(rule.allowed?.[fromLayer.name] || []);
+  const aliasEntries = aliasEntriesOf(rule);
+  const isPython = /\.py$/i.test(filePath);
+  const violations = [];
+  const reported = new Set();
+
+  const check = (importText, resolvedTarget, matchIndex) => {
+    const toLayer = layerOfImport(layers, resolvedTarget);
+    if (!toLayer || toLayer.name === fromLayer.name || allowed.has(toLayer.name))
+      return;
+    const line = lineOfIndex(content, matchIndex);
+    const key = `${toLayer.name}:${line}`;
+    if (reported.has(key)) return;
+    reported.add(key);
+    violations.push({
+      rule: rule.id,
+      file: filePath,
+      line,
+      message:
+        `Layer '${fromLayer.name}' must not depend on layer '${toLayer.name}' (import of ${importText}). ${rule.message || ""}`.trim(),
+      severity: rule.severity,
+    });
+  };
+
+  if (isPython) {
+    for (const match of content.matchAll(PY_FROM_IMPORT)) {
+      const base = pyModuleToPath(filePath, match[1]);
+      check(match[1], base, match.index);
+      for (const imported of match[2].split(",")) {
+        const name = imported.trim().split(/\s+/)[0];
+        if (name && name !== "*")
+          check(`${match[1]}.${name}`, base ? `${base}/${name}` : name, match.index);
+      }
+    }
+    for (const match of content.matchAll(PY_IMPORT))
+      check(match[1], pyModuleToPath(filePath, match[1]), match.index);
+  } else {
+    if (!/\.go$/i.test(filePath)) {
+      for (const pattern of JS_IMPORT_PATTERNS) {
+        pattern.lastIndex = 0;
+        for (const match of content.matchAll(pattern))
+          check(match[1], resolveSpec(filePath, match[1], aliasEntries, layers), match.index);
+      }
+    }
+    if (/\.(cs|java|kt|swift)$/i.test(filePath))
+      for (const match of content.matchAll(NS_IMPORT))
+        check(match[1], resolveSpec(filePath, modulePath(match[1]), aliasEntries, layers), match.index);
+    if (/\.go$/i.test(filePath))
+      for (const match of content.matchAll(GO_IMPORT))
+        check(match[1], resolveSpec(filePath, match[1], aliasEntries, layers), match.index);
+  }
+
+  return violations;
+}
+
+const ENGINES = {
+  regex: regexEngine,
+  "error-codes": errorCodesEngine,
+  exemptions: exemptionsEngine,
+  layers: layersEngine,
+};
+
+function prepareRule(rule) {
+  const prepared = { ...rule };
+  prepared._appliesTo =
+    rule.applies_to && rule.applies_to.length ? rule.applies_to : ["**/*"];
+  prepared._excludes = rule.excludes || [];
+
+  if (rule.engine === "regex") {
+    prepared._forbiddenRegexes = (rule.forbidden || []).map(
+      (pattern) => new RegExp(pattern, rule.flags || ""),
+    );
+  } else if (rule.engine === "error-codes") {
+    prepared._categories = new Set(rule.categories || []);
+  } else if (rule.engine === "exemptions") {
+    prepared._marker = rule.marker || "AGENTLINTEL-EXEMPT";
+    prepared._requiredFields = rule.required_fields || [
+      "Reason",
+      "Approver",
+      "Expires",
+      "Owner",
+    ];
+    prepared._withinLines = rule.within_lines || 5;
+    prepared._markerEsc = escapeForRegex(prepared._marker);
+    prepared._exemptionAnnotation = new RegExp(
+      prepared._markerEsc + "\\s*:\\s*\\S",
+    );
+    prepared._exemptionSpan = new RegExp(
+      prepared._markerEsc + "\\s*:\\s*(\\S[^\\n]*)",
+    );
+    prepared._fieldRegexes = prepared._requiredFields.map((field) => [
+      field,
+      new RegExp(`\\b${field}\\s*:`),
+    ]);
+    prepared._expiresRegex = EXPIRES_FIELD;
+  } else if (rule.engine === "layers") {
+    prepared._aliasEntries = aliasEntriesOf(rule);
+    prepared._allowedByLayer = Object.fromEntries(
+      Object.entries(rule.allowed || {}).map(([layerName, targets]) => [
+        layerName,
+        new Set(targets || []),
+      ]),
+    );
+  }
+
+  return prepared;
+}
+
+function runRule(rule, filePath, content, options) {
+  const engine = ENGINES[rule.engine];
+  if (!engine) throw new Error(`Unknown engine '${rule.engine}' for rule ${rule.id}`);
+  return engine(rule, filePath, content, options);
+}
+
+module.exports = {
+  runRule,
+  ENGINES,
+  prepareRule,
+  collectExemptionSpans,
+  layerOfPath,
+  validateLayersRule,
+};

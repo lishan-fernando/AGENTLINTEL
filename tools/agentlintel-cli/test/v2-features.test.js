@@ -141,11 +141,11 @@ const SCOPED_RULE = (extra) => [
   '    message: "never fires"',
 ].join('\n');
 
-test('a rule matching zero files warns by default, fails with must_match: true, silent with false', () => {
-  for (const [extra, expectError, expectWarn] of [
-    [null, false, true],
-    ['must_match: true', true, false],
-    ['must_match: false', false, false],
+test('a rule matching zero files warns by default, fails with must_match: true, dormant with false', () => {
+  for (const [extra, expectError, expectWarn, expectDormant] of [
+    [null, false, true, []],
+    ['must_match: true', true, false, []],
+    ['must_match: false', false, false, ['ghost.rule']],
   ]) {
     const root = tmpDir();
     write(root, '.agentlintel/rules.yaml', SCOPED_RULE(extra));
@@ -153,6 +153,7 @@ test('a rule matching zero files warns by default, fails with must_match: true, 
     const result = verify(root, { skipFixtures: true });
     assert.strictEqual(result.errors.some((e) => e.includes('RULE-SCOPE')), expectError, String(extra));
     assert.strictEqual(result.warnings.some((w) => w.includes('RULE-SCOPE')), expectWarn, String(extra));
+    assert.deepStrictEqual(result.dormant_rules, expectDormant, String(extra));
   }
 });
 

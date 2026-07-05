@@ -11,7 +11,9 @@ const { spawnSync } = require('node:child_process');
 const ROOT = path.join(__dirname, '..');
 const REPO = path.join(ROOT, '..', '..');
 const PKG = require('../package.json');
-const NPM_UNPACKED_BYTE_BUDGET = 102552;
+// Recalibrated for readable shipped source with meaningful identifiers
+// (ADR-014); auditability beats the old minified-source package size.
+const NPM_UNPACKED_BYTE_BUDGET = 141000;
 
 let packCache = null;
 
@@ -74,6 +76,7 @@ test('npm package contains runtime files and excludes tests', () => {
 
   for (const required of [
     'bin/agentlintel.js',
+    'src/cli.js',
     'src/lib/verify.js',
     'src/commands/init.js',
     'src/commands/report.js',
@@ -101,6 +104,33 @@ test('npm package contains runtime files and excludes tests', () => {
     assert.match(git.stdout, /^100755 /, 'CLI bin should be executable in the Git index');
   } else {
     assert.strictEqual(byPath.get('bin/agentlintel.js').mode, 493, 'CLI bin should pack as executable 0755');
+  }
+});
+
+test('runtime JavaScript ships as reviewable source, not minified blobs', () => {
+  const { files } = packedCli();
+  const runtimeJs = [...files]
+    .filter((file) => (file === 'bin/agentlintel.js' || file.startsWith('src/')) && file.endsWith('.js'))
+    .sort();
+
+  assert.ok(runtimeJs.length >= 8, 'runtime package should include the CLI entry and source modules');
+
+  for (const rel of runtimeJs) {
+    const text = fs.readFileSync(path.join(ROOT, rel), 'utf8').replace(/\r\n/g, '\n');
+    const lines = text.split('\n').filter((line) => line.trim());
+    const longestLine = Math.max(...lines.map((line) => line.length));
+
+    assert.ok(lines.length >= 8, `${rel} looks minified; runtime source must stay audit-readable`);
+    assert.ok(longestLine <= 260, `${rel} has an overlong line (${longestLine} chars); runtime source must stay audit-readable`);
+
+    // Prettier-formatted minifier output still fails audit: its declarations
+    // stay single-letter. Hand-written source sits far below this ratio.
+    const declared = [...text.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)/g)].map((m) => m[1]);
+    const singleLetter = declared.filter((name) => name.length === 1).length;
+    assert.ok(
+      declared.length < 8 || singleLetter / declared.length <= 0.25,
+      `${rel} declares mostly single-letter identifiers (${singleLetter}/${declared.length}); runtime source must stay audit-readable`,
+    );
   }
 });
 

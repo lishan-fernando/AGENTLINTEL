@@ -37,14 +37,16 @@ migrator keeps derivable checks, marks the rest `pending`, and writes
 
 1. Run the gate in advisory mode: `verify --no-run --skip-fixtures`.
 2. Fix stale facts and missing exemplars.
-3. Turn on fixtures and project-native external engines.
+3. Turn on fixtures and project-native external engines before treating deep
+   architecture claims as blockers.
 4. Turn warnings into blockers with `--strict`.
 5. Use bounded exemptions only for reviewed debt:
    `Reason`, `Approver`, `Expires`, `Owner`.
 
 ## Native Engines
 
-Use `init --engine-adapters` when regex is too weak. Typical mappings:
+Use `init --engine-adapters` when regex is too weak. For semantic or
+AST-aware rules, start here instead of stretching a regex. Typical mappings:
 
 - Frontend public surfaces: dependency-cruiser -> `engine: external`.
 - .NET architecture tests: `dotnet test` -> `adapter: dotnet-test`.
@@ -69,5 +71,7 @@ Run `agentlintel verify --workspace` from the workspace root.
 ## Claim Boundary
 
 Say: "AgentLintel gives AI-agent repos a deterministic architecture gate."
+Also say: "Built-in rules are a portable floor; deep checks should use
+project-native tools through `engine: external`."
 Do not claim proven causal impact until the benchmark protocol has produced
 public results.

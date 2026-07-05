@@ -57,6 +57,10 @@ Run untrusted PRs with `--no-run`; command facts execute shell.
 engines or repo-native external checkers. Every active rule needs fixtures under
 `.agentlintel/conformance/<rule-id>/cases/`.
 
+The gate verdict is deterministic; the detection depth depends on the engine.
+Built-in engines are portable syntactic checks. Use `external` for semantic,
+AST-aware, type-aware, or stack-native architecture checks.
+
 ```yaml
 version: 2
 rules:
@@ -77,7 +81,8 @@ Engines:
   `allowed` dependency map.
 - `external`: runs a repo command. Default output is JSONL `{file,line,message}`;
   adapters exist for `command-status`, dependency-cruiser, and `dotnet test`.
-  This is the primary language-agnostic path for native architecture tests.
+  This is the primary language-agnostic path for native architecture tests and
+  other deep analyzers.
 
 ```yaml
 rules:

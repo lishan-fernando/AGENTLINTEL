@@ -6,6 +6,10 @@ Spec-driven tools gate your workflow. AgentLintel gates your architecture:
 verified facts, deterministic rules, conformance fixtures, guard zones,
 exemplars, skills, and append-only decisions.
 
+The verdict is deterministic; detection depth comes from the engine you choose.
+Use built-in rules as portable starter checks and `engine: external` for
+semantic or stack-native analyzers.
+
 ## Install
 
 Pinned GitHub Release tarball:
@@ -44,7 +48,8 @@ npx agentlintel init --adapters --hooks --engine-adapters
 ```
 
 Patterns are starters. Custom architecture, commit, and PR policies live in
-`.agentlintel/rules.yaml`; use `engine: external` for native checkers.
+`.agentlintel/rules.yaml`; use `engine: external` for native checkers instead
+of stretching regex into semantic analysis.
 
 ## CI
 
