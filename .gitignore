@@ -3,6 +3,7 @@
 Thumbs.db
 desktop.ini
 .vscode/
+.vs/
 
 # Logs and temporary files
 *.log
@@ -19,6 +20,7 @@ dist/
 build/
 
 # Local agent worktrees and scratch exports
+/examples/
 .claude/
 commercial-staging/
 .cursor
