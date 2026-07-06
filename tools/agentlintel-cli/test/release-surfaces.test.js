@@ -7,14 +7,19 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const REPO = path.join(__dirname, '..', '..', '..');
+const CLI_PACKAGE = require('../package.json');
+const ROOT_PACKAGE = require('../../../package.json');
 const read = (rel) => fs.readFileSync(path.join(REPO, rel), 'utf8');
 
 test('release workflow preserves the tested tarball distribution path', () => {
   const yml = read('.github/workflows/release.yml');
-  assert.match(yml, /npm test --prefix tools\/agentlintel-cli/);
-  assert.match(yml, /agentlintel\.js verify --dir \. --strict/);
-  assert.match(yml, /working-directory: tools\/agentlintel-cli/);
-  assert.match(yml, /npm pack --dry-run --json/);
+  assert.match(yml, /npm run release:check --prefix tools\/agentlintel-cli/);
+  assert.match(yml, /cache-dependency-path: tools\/agentlintel-cli\/package-lock\.json/);
+  assert.match(CLI_PACKAGE.scripts['test:ci'], /npm run check && npm test/);
+  assert.match(CLI_PACKAGE.scripts['release:check'], /npm run test:ci && npm run verify:strict && npm run pack:dry-run/);
+  assert.match(CLI_PACKAGE.scripts['verify:strict'], /agentlintel\.js verify --dir \.\.\/\.\. --strict/);
+  assert.match(CLI_PACKAGE.scripts['pack:dry-run'], /npm pack --dry-run --json/);
+  assert.match(CLI_PACKAGE.scripts.prepublishOnly, /npm run release:check/);
   assert.match(yml, /agentlintel-cli\.tgz/);
   assert.match(yml, /npm publish --access public/);
 });
@@ -29,7 +34,7 @@ test('release workflow publishes deliberately and with provenance (ADR-013)', ()
 });
 
 test('CLI bin entries survive npm publish normalization', () => {
-  const bin = require('../package.json').bin;
+  const bin = CLI_PACKAGE.bin;
   assert.ok(bin && Object.keys(bin).length > 0, 'the CLI must expose a bin');
   for (const [name, target] of Object.entries(bin)) {
     assert.ok(!target.startsWith('./'), `bin["${name}"]: npm >= 11.17 treats "./"-prefixed targets as invalid and strips the entry at publish`);
@@ -54,6 +59,8 @@ test('repository CI tests the support claims, not just the happy path (ADR-013)'
   assert.match(yml, /"18"/, 'engines says node >=18, so 18 is tested, not asserted');
   assert.match(yml, /ci-ok/, 'branch protection targets the single aggregation check');
   assert.match(yml, /permissions:\s*\n\s*contents: read/, 'CI runs with a read-only token');
+  assert.match(yml, /npm run test:ci --prefix tools\/agentlintel-cli/, 'matrix CI uses the package-owned test script');
+  assert.match(yml, /cache-dependency-path: tools\/agentlintel-cli\/package-lock\.json/, 'npm cache keys off the committed CLI lockfile');
 });
 
 test('CI surfaces pin third-party actions to commit SHAs (ADR-013)', () => {
@@ -77,8 +84,9 @@ test('CI surfaces pin third-party actions to commit SHAs (ADR-013)', () => {
 });
 
 test('CLI dependencies install from the committed lockfile in CI (ADR-013)', () => {
-  const rootPackage = require('../../../package.json');
-  assert.ok(!Object.prototype.hasOwnProperty.call(rootPackage, 'workspaces'), 'root package.json must stay a script wrapper, not an npm workspace root');
+  assert.ok(!Object.prototype.hasOwnProperty.call(ROOT_PACKAGE, 'workspaces'), 'root package.json must stay a script wrapper, not an npm workspace root');
+  assert.match(ROOT_PACKAGE.scripts.ci, /npm ci --no-audit --no-fund --prefix tools\/agentlintel-cli/, 'root ci wrapper installs from the CLI lockfile');
+  assert.match(ROOT_PACKAGE.scripts['release:check'], /npm run release:check --prefix tools\/agentlintel-cli/, 'root release check delegates to the publishable package');
   assert.ok(!fs.existsSync(path.join(REPO, 'package-lock.json')), 'root package-lock.json must not be generated or committed');
   assert.ok(
     fs.existsSync(path.join(REPO, 'tools/agentlintel-cli/package-lock.json')),
@@ -120,6 +128,7 @@ test('fast local hook keeps the token-lean agent-loop shape', () => {
 test('publishing docs match the release workflow and action coordinates', () => {
   const docs = read('docs/PUBLISHING.md');
   assert.match(docs, /npm ci --no-audit --no-fund/);
+  assert.match(docs, /npm run release:check/);
   assert.match(docs, /npm pack --dry-run --json/);
   assert.match(docs, /agentlintel-cli\.tgz/);
   assert.match(docs, /lishan-fernando\/AGENTLINTEL\/\.github\/actions\/agentlintel@v2/);

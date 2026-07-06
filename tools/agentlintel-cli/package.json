@@ -1,6 +1,6 @@
 {
   "name": "@agentlintel/cli",
-  "version": "2.0.0-alpha.9",
+  "version": "2.0.0-alpha.10",
   "description": "Deterministic architecture gate for AI-agent codebases: verified facts, enforceable rules, conformance fixtures, write-boundary guard.",
   "keywords": [
     "ai",
@@ -16,8 +16,13 @@
   },
   "scripts": {
     "check": "node --check ./bin/agentlintel.js",
+    "test:ci": "npm run check && npm test",
     "test": "node --test test/benchmark-protocol.test.js test/budget.test.js test/claims.test.js test/cli.test.js test/engines.test.js test/external-engines.test.js test/facts.test.js test/fixtures.test.js test/glob.test.js test/governance.test.js test/init-workspace.test.js test/kernel-features.test.js test/package.test.js test/patterns.test.js test/release-surfaces.test.js test/report.test.js",
-    "verify:self": "node ./bin/agentlintel.js verify --dir ../.."
+    "verify:self": "node ./bin/agentlintel.js verify --dir ../..",
+    "verify:strict": "node ./bin/agentlintel.js verify --dir ../.. --strict",
+    "pack:dry-run": "npm pack --dry-run --json",
+    "release:check": "npm run test:ci && npm run verify:strict && npm run pack:dry-run",
+    "prepublishOnly": "npm run release:check"
   },
   "engines": {
     "node": ">=18"

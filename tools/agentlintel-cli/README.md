@@ -15,7 +15,7 @@ semantic or stack-native analyzers.
 Pinned GitHub Release tarball:
 
 ```bash
-npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.9/agentlintel-cli.tgz
+npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.10/agentlintel-cli.tgz
 ```
 
 Registry install, once npm publishing is configured:

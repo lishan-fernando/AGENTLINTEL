@@ -10,8 +10,8 @@ const { spawnSync } = require('node:child_process');
 const REPO = path.join(__dirname, '..', '..', '..');
 // Frozen lean cap from the alpha.5 public baseline (then ~25% below the
 // pre-lean size). Re-baselined for the ADR-016 explain/warn/hook DX surface,
-// then for the ADR-018 alpha.9 release hygiene pass; next change needs an ADR.
-const TRACKED_BYTE_BUDGET = 402000;
+// then ADR-018 alpha.9 hygiene and ADR-019 CI/npm release contract.
+const TRACKED_BYTE_BUDGET = 407000;
 // Recalibrated for readable shipped CLI source with meaningful identifiers
 // (ADR-014), then for explain/warn/hook DX surface (ADR-016), measured on the
 // committed tree; next change needs an ADR.

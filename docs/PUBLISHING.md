@@ -13,7 +13,8 @@ workflow, in order:
 
 1. Installs from the committed lockfile (`npm ci`) and rejects a tag that
    does not match the package version.
-2. Runs the full suite and `agentlintel verify --dir . --strict` — the gate
+2. Runs `npm run release:check` for parse checks, the full suite,
+   `agentlintel verify --strict`, and `npm pack --dry-run --json` — the gate
    must be green to release.
 3. Packs the tarball, writes a `sha256` checksum, and attaches both to the
    GitHub Release under stable names (`agentlintel-cli.tgz`,
@@ -45,9 +46,7 @@ migration note in CHANGELOG.md.
 ```bash
 cd tools/agentlintel-cli
 npm ci --no-audit --no-fund                   # install from the committed CLI lockfile
-npm test                                      # package, fixtures, CLI, workspace, reports
-node bin/agentlintel.js verify --dir ../..    # gate must pass on this repo
-npm pack --dry-run --json                     # package shape smoke test
+npm run release:check                         # parse, tests, strict gate, package dry-run
 ```
 
 4. Merge through the `ci-ok` gate, then tag:

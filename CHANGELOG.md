@@ -1,5 +1,19 @@
 # Changelog
 
+## v2.0.0-alpha.10 — 2026-07-06
+
+CI/CD and npm release cleanup.
+
+- CI now delegates repeated lifecycle work to package-owned npm scripts
+  (`test:ci`, `release:check`), so local checks, repository CI, and release
+  checks share the same contract.
+- Repository and release workflows use the npm cache keyed by the committed
+  CLI lockfile while keeping SHA-pinned actions, least-privilege tokens, the
+  `ci-ok` aggregate, and strict release verification.
+- `prepublishOnly` now runs the release check before any manual npm publish,
+  preserving the same parse, test, strict gate, and package-shape smoke checks
+  outside GitHub Actions.
+
 ## v2.0.0-alpha.9 — 2026-07-06
 
 Repository hygiene and reliability pass.
