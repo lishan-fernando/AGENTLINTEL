@@ -1,7 +1,7 @@
 # AGENTS.md — AGENTLINTEL (the framework repo)
 
 This repo IS AgentLintel v2: a deterministic architecture gate for AI-agent
-codebases, delivered as AGENTS.md conventions + Agent Skills + a 3-command CLI.
+codebases, delivered as AGENTS.md conventions + Agent Skills + a small CLI.
 This file is the only always-load. Keep it under 150 lines.
 
 ## v2 laws (apply to every change in this repo)
@@ -42,7 +42,7 @@ machine-verified mirror of .agentlintel/ - change both or the sync test fails.
 | `.agentlintel/skills/` | 3 Agent Skills: strangler-extraction, mirror-exemplar, audit-architecture |
 | `.agentlintel/decisions/` | append-only ADRs |
 | `.agentlintel/conformance/` | pass/fail fixtures per rule (the framework's test suite) |
-| `tools/agentlintel-cli/` | the CLI: `init`, `verify`, `report` — nothing else |
+| `tools/agentlintel-cli/` | the CLI: `init`, `verify`, `report`, `explain` |
 | `SPEC.md` | the full v2 spec for adopters (≤ 500 lines) |
 | `docs/V2-LEAN-SPEC.md` | design rationale; `docs/V2-EVALUATION-2026-06.md` — why v1 was restructured |
 

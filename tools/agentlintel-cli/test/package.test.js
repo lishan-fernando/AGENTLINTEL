@@ -12,8 +12,8 @@ const ROOT = path.join(__dirname, '..');
 const REPO = path.join(ROOT, '..', '..');
 const PKG = require('../package.json');
 // Recalibrated for readable shipped source with meaningful identifiers
-// (ADR-014); auditability beats the old minified-source package size.
-const NPM_UNPACKED_BYTE_BUDGET = 141000;
+// (ADR-014), then explain/warn/hook DX surface (ADR-016).
+const NPM_UNPACKED_BYTE_BUDGET = 152000;
 
 let packCache = null;
 
@@ -79,6 +79,7 @@ test('npm package contains runtime files and excludes tests', () => {
     'src/cli.js',
     'src/lib/verify.js',
     'src/commands/init.js',
+    'src/commands/explain.js',
     'src/commands/report.js',
     'src/commands/migrate.js',
     'src/lib/workspace.js',
@@ -86,6 +87,7 @@ test('npm package contains runtime files and excludes tests', () => {
     'templates/conformance/CONFORMANCE.md',
     'templates/skills/mirror-exemplar/SKILL.md',
     'templates/hooks/verify-hook.sh',
+    'templates/hooks/pretooluse-hook.sh',
     'README.md',
     'package.json',
     'LICENSE',

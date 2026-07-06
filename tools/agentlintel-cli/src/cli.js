@@ -10,6 +10,7 @@ Usage:
   agentlintel init [--dir <root>] [opts]
   agentlintel verify [--dir <root>] [opts]
   agentlintel report [--dir <root>] [opts]
+  agentlintel explain --path <file> [--dir <root>] [--json]
 
 init options:
   --pattern <name> vertical-slice (default), layered-3tier, mvvm, custom
@@ -17,11 +18,14 @@ init options:
 
 verify/report options:
   --dir <root>  --base <ref>  --diff  --quiet  --bail  --workspace
-  --json  --strict  --no-run  --skip-fixtures
+  --json  --strict  --no-run  --skip-fixtures  --mode warn
+
+explain options:
+  --dir <root>  --path <file>  --json
 
 Exit codes: 0 gate passed, 1 gate failed, 2 internal/config error.`;
 
-const VALUE_FLAGS = new Set(["--dir", "--base", "--pattern"]);
+const VALUE_FLAGS = new Set(["--dir", "--base", "--pattern", "--path", "--mode"]);
 const BOOLEAN_FLAGS = {
   "--json": "json",
   "--strict": "strict",
@@ -79,6 +83,7 @@ function verifyOpts(options) {
     base: options.base,
     diff: options.diff,
     bail: options.bail,
+    mode: options.mode,
   };
 }
 
@@ -114,6 +119,11 @@ function main(argv = process.argv.slice(2), cwd = process.cwd()) {
     return 2;
   }
 
+  if (options.mode && options.mode !== "warn") {
+    console.error(`Unknown --mode '${options.mode}'. Supported: warn`);
+    return 2;
+  }
+
   if (options._.length) {
     console.error(
       `Unexpected argument '${options._[0]}'. Run: agentlintel help`,
@@ -124,9 +134,19 @@ function main(argv = process.argv.slice(2), cwd = process.cwd()) {
   if (command === "init") return runInit(root, options);
   if (command === "verify" || command === "report")
     return runVerifyOrReport(command, root, options);
+  if (command === "explain") return runExplain(root, options);
 
   console.error(`Unknown command '${command}'. Run: agentlintel help`);
   return 2;
+}
+
+function runExplain(root, options) {
+  const { explain, renderExplain } = require("./commands/explain");
+  const result = explain(root, { path: options.path });
+  if (options.json) console.log(JSON.stringify(result, null, 2));
+  else if (result.ok) console.log(renderExplain(result));
+  else console.error(renderExplain(result));
+  return result.ok ? 0 : 2;
 }
 
 function runInit(root, options) {
@@ -246,7 +266,7 @@ function printVerify(result) {
   const dormantRules = (result.dormant_rules || []).length;
 
   console.log(
-    `agentlintel verify @ ${result.root}${result.mode === "diff" ? " (diff mode)" : ""}`,
+    `agentlintel verify @ ${result.root}${result.mode === "diff" ? " (diff mode)" : ""}${result.advisory_mode === "warn" ? " (warn mode)" : ""}`,
   );
   console.log(
     `  facts     ${freshFacts}/${result.facts.length} fresh${pendingFacts ? ` (${pendingFacts} pending)` : ""}`,

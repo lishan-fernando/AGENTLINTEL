@@ -247,23 +247,28 @@ function init(
   }
 
   if (hooks) {
-    ok =
-      copyFile(
-        { from: "hooks/verify-hook.sh", to: ".agentlintel/hooks/verify-hook.sh" },
-        root,
-        { force, log },
-      ) && ok;
-    try {
-      fs.chmodSync(path.join(root, ".agentlintel", "hooks", "verify-hook.sh"), 0o755);
-    } catch {}
+    for (const hook of ["verify-hook.sh", "pretooluse-hook.sh"]) {
+      ok =
+        copyFile(
+          { from: `hooks/${hook}`, to: `.agentlintel/hooks/${hook}` },
+          root,
+          { force, log },
+        ) && ok;
+      try {
+        fs.chmodSync(path.join(root, ".agentlintel", "hooks", hook), 0o755);
+      } catch {}
+    }
     log.push(
-      "note  register the hook (Claude Code .claude/settings.json, Stop or PostToolUse).",
+      "note  register hooks in Claude Code .claude/settings.json (Stop and/or PreToolUse).",
     );
     log.push(
       "      Invoke via the interpreter - exec bits do not survive Windows checkouts:",
     );
     log.push(
       '        {"hooks":{"Stop":[{"hooks":[{"type":"command","command":"sh .agentlintel/hooks/verify-hook.sh"}]}]}}',
+    );
+    log.push(
+      '        {"hooks":{"PreToolUse":[{"matcher":"Edit|Write|MultiEdit","hooks":[{"type":"command","command":"sh .agentlintel/hooks/pretooluse-hook.sh"}]}]}}',
     );
   }
 

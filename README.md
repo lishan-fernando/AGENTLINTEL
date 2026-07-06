@@ -21,10 +21,14 @@ in-house convention — in any language. Built-in engines provide a deterministi
 syntactic floor; the `external` engine is the primary path for semantic,
 AST-aware, or stack-native checks from tools your team already trusts.
 
+That is the moat: fixture-backed, deterministic architecture gates for the
+portable floor, with external engines for native depth. Prompt files, memory,
+and retrieval can help agents remember; AgentLintel decides what can merge.
+
 The deterministic architecture gate is the mechanism. Durable, accurate
 human–AI collaboration is the mission.
 
-**Status:** `v2.0.0-alpha.7` · **License:** Fair Source ([FSL-1.1-ALv2](LICENSE); templates and contract formats [Apache-2.0](LICENSE-APACHE)) · **Requires:** Node.js >= 18
+**Status:** `v2.0.0-alpha.8` · **License:** Fair Source ([FSL-1.1-ALv2](LICENSE); templates and contract formats [Apache-2.0](LICENSE-APACHE)) · **Requires:** Node.js >= 18
 
 ## The problem: AI coding agents drift
 
@@ -107,9 +111,10 @@ session inherits the update.
 ## Quick start
 
 ```bash
-npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.7/agentlintel-cli.tgz
+npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.8/agentlintel-cli.tgz
 npx agentlintel init      # scaffold the contract (pick a pattern pack)
 npx agentlintel verify    # run the gate locally
+npx agentlintel explain --path src/example.ts  # debug what applies to a file
 ```
 
 `init` offers pattern packs — `vertical-slice`, `layered-3tier`, `mvvm`, or
@@ -282,7 +287,7 @@ durable, visible to agents, and enforceable in CI.
 |---|---|
 | [SPEC.md](SPEC.md) | The normative v2 spec (<= 500 lines) |
 | [.agentlintel/](.agentlintel/) | This repo's own contract — AgentLintel governs itself |
-| [tools/agentlintel-cli/](tools/agentlintel-cli/) | The CLI: `init`, `verify`, `report` — plain Node.js, one dependency |
+| [tools/agentlintel-cli/](tools/agentlintel-cli/) | The CLI: `init`, `verify`, `report`, `explain` — plain Node.js, one dependency |
 | [docs/](docs/) | Adoption playbook, design rationale, evaluations |
 
 This repository dogfoods the governance mechanics: the six concepts above are
@@ -294,13 +299,13 @@ them to `must_match: true`.
 
 ## Status
 
-`v2.0.0-alpha.7`, fair source, Node.js >= 18. Free to use and to build your
+`v2.0.0-alpha.8`, fair source, Node.js >= 18. Free to use and to build your
 own software with: everything `init` scaffolds into your repo is
 [Apache-2.0](LICENSE-APACHE), and the core is [FSL-1.1-ALv2](LICENSE) — any
 use except selling AgentLintel itself, with each release becoming Apache-2.0
 open source two years after publication
 ([LICENSE-POLICY.md](LICENSE-POLICY.md) has the one-page map). The
-six-concept contract and the three-command CLI are stable by law — growth in
-either is treated as a bug.
+six-concept contract is stable by law; CLI surface changes require an accepted
+ADR and must not add kernel concepts.
 File formats may still see minor changes before `v2.0.0`. Feedback and drift
 war stories are welcome in the issue tracker.

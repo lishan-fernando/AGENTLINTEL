@@ -128,6 +128,21 @@ test('init --engine-adapters writes external engine starter templates', () => {
   assert.strictEqual(verify(root, {}).ok, true);
 });
 
+test('init --hooks writes Stop and PreToolUse hook templates', () => {
+  const root = tmpDir();
+  const r = init(root, { hooks: true });
+  assert.strictEqual(r.ok, true, r.log.join('\n'));
+  const stopHook = path.join(root, '.agentlintel', 'hooks', 'verify-hook.sh');
+  const preToolHook = path.join(root, '.agentlintel', 'hooks', 'pretooluse-hook.sh');
+  assert.ok(fs.existsSync(stopHook));
+  assert.ok(fs.existsSync(preToolHook));
+  assert.match(fs.readFileSync(preToolHook, 'utf8'), /Edit\|Write\|MultiEdit/);
+  assert.strictEqual(verify(root, {}).ok, true);
+  fs.appendFileSync(preToolHook, '\nExtra local rule\n');
+  const drifted = verify(root, {});
+  assert.ok(drifted.errors.some((e) => e.includes('pretooluse-hook.sh')), 'drifted PreToolUse hook fails the gate');
+});
+
 test('CLI templates for fixtures and skills are byte-identical to the kernel', () => {
   const repo = path.join(__dirname, '..', '..', '..');
   for (const pair of [

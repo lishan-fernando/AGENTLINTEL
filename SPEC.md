@@ -67,10 +67,14 @@ rules:
   - id: slice.no-deep-imports
     severity: error
     engine: regex
+    adr: ADR-007
     applies_to: ["**/*.ts"]
     forbidden: ["from\\s+['\"](?:\\.\\./)*slices/[^/'\"]+/(domain|application)\\b"]
     message: "Import from the slice public surface."
 ```
+
+Optional `adr` provenance prints the accepted decision beside violations. It
+explains why a rule exists; it does not compile decisions into rules.
 
 Engines:
 
@@ -179,18 +183,23 @@ nothing. `exemption.audited` cannot be suppressed.
 agentlintel init
 agentlintel verify
 agentlintel report
+agentlintel explain --path <file>
 ```
 
 Init flags: `--pattern`, `--from-v1`, `--adapters`, `--hooks`,
 `--engine-adapters`, `--force`.
 
 Verify/report flags: `--dir`, `--base`, `--diff`, `--quiet`, `--bail`,
-`--workspace`, `--json`, `--strict`, `--no-run`, `--skip-fixtures`.
+`--workspace`, `--json`, `--strict`, `--no-run`, `--skip-fixtures`,
+`--mode warn`.
+
+Explain flags: `--dir`, `--path`, `--json`.
 
 Exit codes: `0` passed, `1` gate failed, `2` internal/config error.
 
 Fast agent loop: `verify --diff --quiet --bail --no-run --skip-fixtures`.
 Merge gate: `verify --strict`; CI must run this on every PR before merge.
+Adoption ramp: `verify --mode warn` reports findings without failing.
 
 ## Workspaces
 

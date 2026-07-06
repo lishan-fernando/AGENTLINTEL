@@ -15,7 +15,7 @@ semantic or stack-native analyzers.
 Pinned GitHub Release tarball:
 
 ```bash
-npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.7/agentlintel-cli.tgz
+npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.8/agentlintel-cli.tgz
 ```
 
 Registry install, once npm publishing is configured:
@@ -30,6 +30,7 @@ npm i -D @agentlintel/cli
 npx agentlintel init
 npx agentlintel verify
 npx agentlintel report
+npx agentlintel explain --path src/example.ts
 ```
 
 Architecture packs:
@@ -68,10 +69,14 @@ CI should run the strict gate on every pull request.
 agentlintel init      scaffold .agentlintel/ kernel + AGENTS.md
 agentlintel verify    facts fresh + rules pass + fixtures green + guard held
 agentlintel report    the same gate as markdown (--json for machines)
+agentlintel explain   show which contract parts apply to a path
 ```
 
 Common flags: `--dir <root>`, `--json`, `--strict`, `--no-run`,
-`--skip-fixtures`, `--diff`, `--quiet`, `--bail`, `--workspace`.
+`--skip-fixtures`, `--diff`, `--quiet`, `--bail`, `--workspace`,
+`--mode warn`.
+
+Explain flag: `--path <file>`.
 
 Init extras: `--pattern`, `--from-v1`, `--adapters`, `--hooks`,
 `--engine-adapters`, `--force`.

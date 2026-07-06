@@ -108,6 +108,10 @@ test('fast local hook keeps the token-lean agent-loop shape', () => {
   assert.match(hook, /verify --diff --quiet --bail --no-run --skip-fixtures/);
   assert.match(hook, /exit 2/);
   assert.match(hook, /GATE FAILED/);
+  const preToolUse = read('tools/agentlintel-cli/templates/hooks/pretooluse-hook.sh');
+  assert.match(preToolUse, /Edit\|Write\|MultiEdit/);
+  assert.match(preToolUse, /verify --diff --quiet --bail --no-run --skip-fixtures/);
+  assert.match(preToolUse, /exit 2/);
 });
 
 test('publishing docs match the release workflow and action coordinates', () => {

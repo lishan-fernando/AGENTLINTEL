@@ -225,6 +225,13 @@ function ruleApplies(rule, filePath) {
   return !excludes || !matchAny(excludes, filePath);
 }
 
+function annotateRuleViolations(rule, violations) {
+  if (!rule || !rule.adr) return violations;
+  for (const violation of violations)
+    if (!violation.adr) violation.adr = rule.adr;
+  return violations;
+}
+
 function preparedRuleSet(rulesDoc) {
   const all = (
     rulesDoc && Array.isArray(rulesDoc.rules) ? rulesDoc.rules : []
@@ -269,7 +276,12 @@ function runRulesOnFiles(root, rulesDoc, files, options = {}) {
       // A layers rule only "covers" a file that lands in a declared layer.
       if (rule.engine !== "layers" || layerOfPath(rule.layers || [], filePath))
         ruleFileCounts.set(rule.id, ruleFileCounts.get(rule.id) + 1);
-      violations.push(...runRule(rule, filePath, content, { skipApplies: true }));
+      violations.push(
+        ...annotateRuleViolations(
+          rule,
+          runRule(rule, filePath, content, { skipApplies: true }),
+        ),
+      );
     }
 
     if (
@@ -339,6 +351,7 @@ function runExternalRules(root, rulesDoc, { run = true, rules = null } = {}) {
         line: 0,
         message: `external engine did not run cleanly (${reason}): ${rule.run}`,
         severity: rule.severity,
+        adr: rule.adr,
       });
       continue;
     }
@@ -353,10 +366,14 @@ function runExternalRules(root, rulesDoc, { run = true, rules = null } = {}) {
 function parseExternalOutput(rule, stdout, meta = {}) {
   const adapter = rule.adapter || rule.format || "jsonl";
   if (adapter === "dependency-cruiser")
-    return parseDependencyCruiserOutput(rule, stdout);
-  if (adapter === "dotnet-test") return parseDotnetTestOutput(rule, stdout, meta);
+    return annotateRuleViolations(rule, parseDependencyCruiserOutput(rule, stdout));
+  if (adapter === "dotnet-test")
+    return annotateRuleViolations(rule, parseDotnetTestOutput(rule, stdout, meta));
   if (adapter === "command-status" || adapter === "status")
-    return parseCommandStatusOutput(rule, stdout, meta);
+    return annotateRuleViolations(
+      rule,
+      parseCommandStatusOutput(rule, stdout, meta),
+    );
 
   const violations = [];
   for (const line of stdout.split(/\r?\n/)) {
@@ -374,7 +391,7 @@ function parseExternalOutput(rule, stdout, meta = {}) {
         });
     } catch {}
   }
-  return violations;
+  return annotateRuleViolations(rule, violations);
 }
 
 function parseCommandStatusOutput(rule, stdout, { status = 0, stderr = "" } = {}) {
@@ -853,6 +870,11 @@ const ADAPTERS = [
     template: "hooks/verify-hook.sh",
     regen: "agentlintel init --hooks --force",
   },
+  {
+    file: ".agentlintel/hooks/pretooluse-hook.sh",
+    template: "hooks/pretooluse-hook.sh",
+    regen: "agentlintel init --hooks --force",
+  },
 ];
 
 function checkAdapters(root) {
@@ -1054,6 +1076,16 @@ function checkRuleRatcheting(root, rulesDoc, { base = null, changed = null } = {
   };
 }
 
+function ruleReference(violation) {
+  if (!violation.adr) return "";
+  const refs = Array.isArray(violation.adr) ? violation.adr : [violation.adr];
+  return ` [${refs.join(",")}]`;
+}
+
+function ruleViolationMessage(violation) {
+  return `RULE [${violation.rule}]${ruleReference(violation)} ${violation.file}:${violation.line} ${violation.message}`;
+}
+
 function verify(root, options = {}) {
   const kernel = loadKernel(root);
   const base = resolveBase(options.base);
@@ -1064,8 +1096,12 @@ function verify(root, options = {}) {
     const facts = verifyFacts(root, kernel.facts, { run: options.run !== false });
     bailFacts = facts;
     const stale = facts.filter((fact) => !fact.ok && !fact.pending);
-    if (stale.length)
-      return {
+    if (stale.length) {
+      const staleErrors = stale.map(
+        (fact) => `STALE FACT [${fact.id}] ${fact.claim} -> ${fact.detail}`,
+      );
+      const advisory = options.mode === "warn";
+      const bail = {
         root: path.resolve(root),
         mode: "bail",
         kernel_present: true,
@@ -1079,12 +1115,13 @@ function verify(root, options = {}) {
         adapters: [],
         dormant_rules: [],
         exempted_count: 0,
-        errors: stale.map(
-          (fact) => `STALE FACT [${fact.id}] ${fact.claim} -> ${fact.detail}`,
-        ),
-        warnings: [],
-        ok: false,
+        errors: advisory ? [] : staleErrors,
+        warnings: advisory ? staleErrors.map((error) => `ADVISORY ${error}`) : [],
+        ok: advisory,
       };
+      if (advisory) bail.advisory_mode = "warn";
+      return bail;
+    }
   }
 
   const ruleSet = kernel.rules ? preparedRuleSet(kernel.rules) : null;
@@ -1160,7 +1197,7 @@ function verify(root, options = {}) {
   for (const violation of result.rule_violations) {
     if (violation.exempted) continue;
     (violation.severity === "warn" ? warnings : errors).push(
-      `RULE [${violation.rule}] ${violation.file}:${violation.line} ${violation.message}`,
+      ruleViolationMessage(violation),
     );
   }
 
@@ -1245,9 +1282,18 @@ function verify(root, options = {}) {
   result.exempted_count = result.rule_violations.filter(
     (violation) => violation.exempted,
   ).length;
+
+  if (options.mode === "warn") {
+    result.advisory_mode = "warn";
+    warnings.push(...errors.map((error) => `ADVISORY ${error}`));
+    errors.length = 0;
+  }
+
   result.errors = errors;
   result.warnings = warnings;
-  result.ok = errors.length === 0 && (!options.strict || warnings.length === 0);
+  result.ok =
+    errors.length === 0 &&
+    (options.mode === "warn" || !options.strict || warnings.length === 0);
   return result;
 }
 
@@ -1256,6 +1302,8 @@ module.exports = {
   loadKernel,
   verifyFacts,
   runRulesOnFiles,
+  ruleApplies,
+  preparedRuleSet,
   runExternalRules,
   applySuppression,
   runFixtures,

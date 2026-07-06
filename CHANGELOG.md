@@ -1,5 +1,23 @@
 # Changelog
 
+## v2.0.0-alpha.8 — 2026-07-06
+
+Adopt the reviewed Mneme lessons without touching the enforcement kernel
+(ADR-016). DX and adoption surface only; facts, rules, guard, exemplars,
+skills, and decisions are unchanged.
+
+- `agentlintel explain --path <file>` prints which rules, guard zones,
+  exemplars, and decisions apply to a path, and why. Authoring/debugging
+  help — not a new enforcement path.
+- `verify --mode warn` downgrades every finding to non-failing for an
+  adoption ramp on an existing repo, distinct from per-rule `severity: warn`.
+  CI still gates with `--strict`.
+- `init --hooks` also installs a Claude Code `PreToolUse` hook that blocks a
+  violating Edit/Write/MultiEdit at the write seam, alongside the existing
+  `Stop` hook. Both ship; adopters choose.
+- Rules may carry optional `adr:` provenance, printed beside violations so a
+  failure names the accepted decision that justifies it.
+
 ## v2.0.0-alpha.7 — 2026-07-04
 
 The first npm release: `@agentlintel/cli` on the registry with provenance.

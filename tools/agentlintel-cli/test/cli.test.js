@@ -31,11 +31,93 @@ test('CLI rejects unknown flags instead of silently ignoring them', () => {
 });
 
 test('CLI rejects missing option values', () => {
-  for (const flag of ['--dir', '--base', '--pattern']) {
+  for (const flag of ['--dir', '--base', '--pattern', '--path', '--mode']) {
     const r = run(['verify', flag]);
     assert.strictEqual(r.status, 2, flag);
     assert.match(r.stderr, new RegExp(`${flag} requires a value`));
   }
+});
+
+test('CLI rejects unknown verify modes', () => {
+  const r = run(['verify', '--mode', 'advice']);
+  assert.strictEqual(r.status, 2);
+  assert.match(r.stderr, /Unknown --mode 'advice'/);
+});
+
+test('verify --mode warn downgrades gate findings without failing', () => {
+  const root = tmpDir();
+  write(root, '.agentlintel/rules.yaml', [
+    'version: 2',
+    'rules:',
+    '  - id: no.boom',
+    '    severity: error',
+    '    engine: regex',
+    '    applies_to: ["**/*.ts"]',
+    '    forbidden: ["boom"]',
+    '    message: no boom',
+  ].join('\n'));
+  write(root, 'src/a.ts', 'boom\n');
+  const r = run(['verify', '--dir', root, '--mode', 'warn', '--strict', '--skip-fixtures']);
+  assert.strictEqual(r.status, 0);
+  assert.match(r.stdout, /warn mode/);
+  assert.match(r.stdout, /warn ADVISORY RULE \[no\.boom\]/);
+  assert.match(r.stdout, /GATE PASSED/);
+});
+
+test('rule adr provenance is printed with verify violations', () => {
+  const root = tmpDir();
+  write(root, '.agentlintel/rules.yaml', [
+    'version: 2',
+    'rules:',
+    '  - id: no.boom',
+    '    severity: error',
+    '    engine: regex',
+    '    adr: ADR-123',
+    '    applies_to: ["**/*.ts"]',
+    '    forbidden: ["boom"]',
+    '    message: no boom',
+  ].join('\n'));
+  write(root, 'src/a.ts', 'boom\n');
+  const r = run(['verify', '--dir', root, '--skip-fixtures']);
+  assert.strictEqual(r.status, 1);
+  assert.match(r.stdout, /RULE \[no\.boom\] \[ADR-123\] src\/a\.ts:1 no boom/);
+});
+
+test('explain reports matching rules, guard zones, exemplars, and decisions', () => {
+  const root = tmpDir();
+  write(root, '.agentlintel/rules.yaml', [
+    'version: 2',
+    'rules:',
+    '  - id: no.boom',
+    '    severity: error',
+    '    engine: regex',
+    '    adr: ADR-123',
+    '    applies_to: ["src/**/*.ts"]',
+    '    forbidden: ["boom"]',
+    '    message: no boom',
+  ].join('\n'));
+  write(root, '.agentlintel/guard.json', JSON.stringify({
+    version: 2,
+    zones: [{ id: 'app', allow: ['src/**'] }],
+    forbidden: ['secrets/**'],
+  }));
+  write(root, '.agentlintel/exemplars.yaml', [
+    'version: 2',
+    'exemplars:',
+    '  - id: sample',
+    '    shape: service',
+    '    path: src',
+    '    demonstrates: sample code',
+  ].join('\n'));
+  write(root, '.agentlintel/decisions/ADR-123-no-boom.md', '# ADR-123: No Boom\n');
+  const r = run(['explain', '--dir', root, '--path', 'src/a.ts', '--json']);
+  assert.strictEqual(r.status, 0, r.stderr);
+  const parsed = JSON.parse(r.stdout);
+  assert.strictEqual(parsed.path, 'src/a.ts');
+  assert.strictEqual(parsed.rules[0].id, 'no.boom');
+  assert.strictEqual(parsed.guard.zones[0].id, 'app');
+  assert.strictEqual(parsed.exemplars[0].id, 'sample');
+  assert.strictEqual(parsed.decisions[0].id, 'ADR-123');
 });
 
 test('quiet strict failures include the warning that caused the block', () => {
