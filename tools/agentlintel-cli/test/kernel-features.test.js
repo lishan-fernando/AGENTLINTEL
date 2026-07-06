@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: FSL-1.1-ALv2
-// Focused v2 feature tests: suppression, fact checks, and empty scopes.
+// Focused kernel feature tests: suppression, fact checks, and empty scopes.
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
@@ -129,6 +129,26 @@ test('pending facts are warnings, not errors', () => {
   assert.ok(result.warnings.some((w) => w.includes('PENDING FACT')));
 });
 
+test('warning severity is non-blocking outside strict mode', () => {
+  const root = tmpDir();
+  write(root, '.agentlintel/rules.yaml', [
+    'version: 2',
+    'rules:',
+    '  - id: no.boom',
+    '    severity: warning',
+    '    engine: regex',
+    '    applies_to: ["**/*.ts"]',
+    '    forbidden: ["boom"]',
+    '    message: no boom',
+  ].join('\n'));
+  write(root, 'src/a.ts', 'boom\n');
+
+  const result = verify(root, { skipFixtures: true });
+  assert.strictEqual(result.ok, true);
+  assert.ok(result.warnings.some((w) => w.includes('RULE [no.boom]')), result.warnings.join('\n'));
+  assert.ok(!result.errors.some((e) => e.includes('RULE [no.boom]')), result.errors.join('\n'));
+});
+
 const SCOPED_RULE = (extra) => [
   'version: 2',
   'rules:',
@@ -155,6 +175,49 @@ test('a rule matching zero files warns by default, fails with must_match: true, 
     assert.strictEqual(result.warnings.some((w) => w.includes('RULE-SCOPE')), expectWarn, String(extra));
     assert.deepStrictEqual(result.dormant_rules, expectDormant, String(extra));
   }
+});
+
+test('bad rule config fails the gate without aborting valid rules', () => {
+  const root = tmpDir();
+  write(root, '.agentlintel/rules.yaml', [
+    'version: 2',
+    'rules:',
+    '  - id: bad.regex',
+    '    severity: error',
+    '    engine: regex',
+    '    applies_to: ["**/*.ts"]',
+    '    forbidden: ["["]',
+    '    message: bad regex',
+    '  - id: no.boom',
+    '    severity: error',
+    '    engine: regex',
+    '    applies_to: ["**/*.ts"]',
+    '    forbidden: ["boom"]',
+    '    message: no boom',
+  ].join('\n'));
+  write(root, 'src/a.ts', 'boom\n');
+
+  const result = verify(root, { skipFixtures: true });
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.errors.some((e) => e.includes('RULE-CONFIG [bad.regex]')), result.errors.join('\n'));
+  assert.ok(result.errors.some((e) => e.includes('RULE [no.boom]')), result.errors.join('\n'));
+});
+
+test('unknown rule engines are gate findings, not internal errors', () => {
+  const root = tmpDir();
+  write(root, '.agentlintel/rules.yaml', [
+    'version: 2',
+    'rules:',
+    '  - id: typo.engine',
+    '    severity: error',
+    '    engine: regx',
+    '    forbidden: ["boom"]',
+    '    message: unknown engine',
+  ].join('\n'));
+
+  const result = verify(root, { skipFixtures: true });
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.errors.some((e) => e.includes("RULE-CONFIG [typo.engine] unknown engine 'regx'")), result.errors.join('\n'));
 });
 
 test('excluded files are skipped before file contents are read', () => {

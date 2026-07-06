@@ -44,7 +44,7 @@ migration note in CHANGELOG.md.
 
 ```bash
 cd tools/agentlintel-cli
-npm install    # npm ci here would look for a root workspace lockfile
+npm ci --no-audit --no-fund                   # install from the committed CLI lockfile
 npm test                                      # package, fixtures, CLI, workspace, reports
 node bin/agentlintel.js verify --dir ../..    # gate must pass on this repo
 npm pack --dry-run --json                     # package shape smoke test

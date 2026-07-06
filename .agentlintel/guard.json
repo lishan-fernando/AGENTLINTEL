@@ -27,7 +27,6 @@
         ".gitignore",
         ".pre-commit-hooks.yaml",
         "package.json",
-        "package-lock.json",
         "LICENSE",
         "LICENSE-APACHE",
         "LICENSE-POLICY.md",

@@ -1,7 +1,8 @@
-# V2 Lean Spec
+# Design Rationale
 
-V2 is the cut-down architecture: one always-load file, three CLI commands, six
-concepts, and no hand-maintained metadata that mirrors code.
+AgentLintel's current architecture is intentionally small: one always-load
+file, three CLI commands, six concepts, and no hand-maintained metadata that
+mirrors code.
 
 ## Laws
 
@@ -22,7 +23,7 @@ concepts, and no hand-maintained metadata that mirrors code.
 - `.agentlintel/decisions/ADR-*.md`: append-only rationale.
 - `.agentlintel/conformance/<rule>/cases`: fixtures proving rules.
 
-## Deleted From V1
+## Deleted From Earlier Designs
 
 Routers, mode files, orchestration manifests, generated context bundles,
 metadata mirrors, and maturity taxonomies are gone. If a file cannot be checked

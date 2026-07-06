@@ -1,4 +1,4 @@
-# Production Feedback - July 2026
+# Production Feedback
 
 Evidence base: the AgentLintel v2 repo plus two production multi-repo
 workspaces migrated from v1/pre-rename governance. The migration covered 11
@@ -23,7 +23,7 @@ build/test gates were run where applicable.
   public control-arm benchmark yet.
 - Some product gates also had native architecture tests, dependency-cruiser, or
   guard scripts, so consistency claims are correlational until the benchmark in
-  [BENCHMARK-PROTOCOL-2026-07.md](BENCHMARK-PROTOCOL-2026-07.md) is run.
+  [BENCHMARK-PROTOCOL.md](BENCHMARK-PROTOCOL.md) is run.
 - One product-side failure observed during migration was preexisting and not
   caused by AgentLintel; the migration recorded it rather than hiding it.
 

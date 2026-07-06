@@ -1,4 +1,4 @@
-# Competitive Positioning - July 2026
+# Competitive Positioning
 
 ## Thesis
 

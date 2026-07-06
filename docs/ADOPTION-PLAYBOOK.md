@@ -1,4 +1,4 @@
-# Adoption Playbook - July 2026
+# Adoption Playbook
 
 Goal: first verified PR in about 30 minutes, then tighten rules as the repo
 proves its shape.

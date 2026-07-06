@@ -1,6 +1,6 @@
 {
   "name": "agentlintel",
-  "version": "2.0.0-alpha.8",
+  "version": "2.0.0-alpha.9",
   "private": true,
   "description": "AgentLintel - deterministic architecture gate for AI-agent codebases. Monorepo root.",
   "license": "FSL-1.1-ALv2",
@@ -21,9 +21,6 @@
   "engines": {
     "node": ">=18"
   },
-  "workspaces": [
-    "tools/agentlintel-cli"
-  ],
   "scripts": {
     "test": "npm test --prefix tools/agentlintel-cli",
     "verify:self": "node tools/agentlintel-cli/bin/agentlintel.js verify --dir ."

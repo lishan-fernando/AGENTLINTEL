@@ -62,6 +62,22 @@ facts:
     claim: "Exactly the three reference skills ship - concept creep is a bug"
     check: { type: glob_count, pattern: ".agentlintel/skills/*/SKILL.md", min: 3, max: 3 }
 
+  - id: no-root-package-lock
+    claim: "The repo root is a script wrapper, not an npm workspace install root; dependency locking lives in tools/agentlintel-cli/package-lock.json"
+    check: { type: file_absent, path: package-lock.json }
+
+  - id: stable-doc-filenames
+    claim: "Living docs use stable semantic filenames; dates and release versions stay in changelog content, tags, or ADR history"
+    check: { type: glob_count, pattern: "docs/*202*.md", max: 0 }
+
+  - id: no-leading-version-docs
+    claim: "Living docs do not use product-version prefixes in filenames"
+    check: { type: glob_count, pattern: "docs/V*.md", max: 0 }
+
+  - id: no-versioned-test-filenames
+    claim: "CLI test files are named for behavior, not product versions"
+    check: { type: glob_count, pattern: "tools/agentlintel-cli/test/v*-*.test.js", max: 0 }
+
   - id: v1-split-doc-deleted
     claim: "The stale v1 REPOSITORY-SPLIT.md stays deleted (verified, append-only, or deleted)"
     check: { type: file_absent, path: REPOSITORY-SPLIT.md }

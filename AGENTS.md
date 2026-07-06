@@ -21,7 +21,7 @@ This file is the only always-load. Keep it under 150 lines.
 ## Verify (the gate)
 
 ```
-cd tools/agentlintel-cli && npm install
+cd tools/agentlintel-cli && npm ci --no-audit --no-fund
 node bin/agentlintel.js verify --dir ../..
 npm test
 ```
@@ -44,7 +44,7 @@ machine-verified mirror of .agentlintel/ - change both or the sync test fails.
 | `.agentlintel/conformance/` | pass/fail fixtures per rule (the framework's test suite) |
 | `tools/agentlintel-cli/` | the CLI: `init`, `verify`, `report`, `explain` |
 | `SPEC.md` | the full v2 spec for adopters (≤ 500 lines) |
-| `docs/V2-LEAN-SPEC.md` | design rationale; `docs/V2-EVALUATION-2026-06.md` — why v1 was restructured |
+| `docs/DESIGN-RATIONALE.md` | design rationale for the current lean architecture |
 
 ## Working on the CLI
 

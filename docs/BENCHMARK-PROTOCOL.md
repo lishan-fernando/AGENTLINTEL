@@ -1,4 +1,4 @@
-# Benchmark Protocol - July 2026
+# Benchmark Protocol
 
 Purpose: test whether AgentLintel reduces architecture-contract escapes before
 review. Until this protocol is run publicly, impact claims stay bounded.

@@ -233,13 +233,40 @@ function annotateRuleViolations(rule, violations) {
 }
 
 function preparedRuleSet(rulesDoc) {
-  const all = (
-    rulesDoc && Array.isArray(rulesDoc.rules) ? rulesDoc.rules : []
-  ).map(prepareRule);
+  const all = [];
+  const configErrors = [];
+  const validEngines = new Set([
+    "regex",
+    "error-codes",
+    "exemptions",
+    "layers",
+    "external",
+  ]);
+
+  for (const rule of rulesDoc && Array.isArray(rulesDoc.rules) ? rulesDoc.rules : []) {
+    const id = rule && rule.id ? rule.id : "(unnamed)";
+    if (!rule || typeof rule !== "object" || Array.isArray(rule)) {
+      configErrors.push(`RULE-CONFIG [${id}] rule entry must be an object`);
+      continue;
+    }
+    if (!validEngines.has(rule.engine)) {
+      configErrors.push(
+        `RULE-CONFIG [${id}] unknown engine '${rule.engine || "(missing)"}'`,
+      );
+      continue;
+    }
+    try {
+      all.push(prepareRule(rule));
+    } catch (error) {
+      configErrors.push(`RULE-CONFIG [${id}] ${error.message || error}`);
+    }
+  }
+
   return {
     all,
     fileRules: all.filter((rule) => rule.engine !== "external"),
     externalRules: all.filter((rule) => rule.engine === "external"),
+    configErrors,
   };
 }
 
@@ -950,6 +977,10 @@ function severityRank(severity) {
   );
 }
 
+function isWarningSeverity(severity) {
+  return severityRank(severity) === 1;
+}
+
 function rulesById(rulesDoc) {
   return new Map(
     (rulesDoc && Array.isArray(rulesDoc.rules) ? rulesDoc.rules : []).map(
@@ -1175,9 +1206,10 @@ function verify(root, options = {}) {
     exemplars: kernel.exemplars ? checkExemplars(root, kernel.exemplars) : [],
     adapters: checkAdapters(root),
     kernel_schema: kernel.schemaErrors || [],
+    rule_config: ruleSet ? ruleSet.configErrors : [],
   };
 
-  const errors = [...result.kernel_schema];
+  const errors = [...result.kernel_schema, ...result.rule_config];
   const warnings = [];
 
   if (!result.kernel_present)
@@ -1196,7 +1228,7 @@ function verify(root, options = {}) {
 
   for (const violation of result.rule_violations) {
     if (violation.exempted) continue;
-    (violation.severity === "warn" ? warnings : errors).push(
+    (isWarningSeverity(violation.severity) ? warnings : errors).push(
       ruleViolationMessage(violation),
     );
   }

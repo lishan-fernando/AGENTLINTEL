@@ -1,5 +1,22 @@
 # Changelog
 
+## v2.0.0-alpha.9 — 2026-07-06
+
+Repository hygiene and reliability pass.
+
+- Malformed rule configuration now reports normal `RULE-CONFIG` gate failures
+  instead of aborting verification; valid rules still run.
+- `severity: warning` now behaves like `warn`, so warning rules are
+  non-blocking outside `--strict`.
+- Living docs and CLI tests use stable semantic filenames; date/version names
+  stay in changelog entries, tags, release metadata, or append-only ADR
+  history.
+- The root package is now a script wrapper rather than an npm workspace root,
+  preventing stray root `package-lock.json` churn. The committed CLI lockfile
+  remains the build lockfile.
+- Added machine-checked facts and release-surface tests for the hygiene rules,
+  plus a command smoke pass across the public CLI surface.
+
 ## v2.0.0-alpha.8 — 2026-07-06
 
 Adopt the reviewed Mneme lessons without touching the enforcement kernel
@@ -98,9 +115,9 @@ Language-agnostic contracts and commit/PR policy support.
 
 ## v2.0.0-alpha.1 — 2026-06-10
 
-The lean restructure. Design rationale: `docs/V2-LEAN-SPEC.md`; evidence:
-`docs/V2-EVALUATION-2026-06.md`. One law now governs the repo: **every
-artifact is machine-verified, append-only, or deleted.**
+The lean restructure. Design rationale: `docs/DESIGN-RATIONALE.md`. One law
+now governs the repo: **every artifact is machine-verified, append-only, or
+deleted.**
 
 ### Added
 
@@ -143,8 +160,9 @@ artifact is machine-verified, append-only, or deleted.**
 
 ## v0.3.0 — 2026-05
 
-Last v1 release. See `docs/RELEASE-NOTES-v0.3.md`.
+Last v1 release. Superseded by the verified, append-only, or deleted model.
 
 ## v0.2.0
 
-See `docs/RELEASE-NOTES-v0.2.md`.
+Historical public-preview release. Current implementation behavior lives in
+`SPEC.md` and this changelog.

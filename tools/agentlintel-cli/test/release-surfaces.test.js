@@ -77,6 +77,9 @@ test('CI surfaces pin third-party actions to commit SHAs (ADR-013)', () => {
 });
 
 test('CLI dependencies install from the committed lockfile in CI (ADR-013)', () => {
+  const rootPackage = require('../../../package.json');
+  assert.ok(!Object.prototype.hasOwnProperty.call(rootPackage, 'workspaces'), 'root package.json must stay a script wrapper, not an npm workspace root');
+  assert.ok(!fs.existsSync(path.join(REPO, 'package-lock.json')), 'root package-lock.json must not be generated or committed');
   assert.ok(
     fs.existsSync(path.join(REPO, 'tools/agentlintel-cli/package-lock.json')),
     'tools/agentlintel-cli/package-lock.json must be committed'
@@ -116,6 +119,7 @@ test('fast local hook keeps the token-lean agent-loop shape', () => {
 
 test('publishing docs match the release workflow and action coordinates', () => {
   const docs = read('docs/PUBLISHING.md');
+  assert.match(docs, /npm ci --no-audit --no-fund/);
   assert.match(docs, /npm pack --dry-run --json/);
   assert.match(docs, /agentlintel-cli\.tgz/);
   assert.match(docs, /lishan-fernando\/AGENTLINTEL\/\.github\/actions\/agentlintel@v2/);
