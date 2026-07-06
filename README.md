@@ -78,15 +78,23 @@ allowed to exist.
 
 ```mermaid
 flowchart LR
-    H["👤 Human<br>states intent once"] -->|"edits the contract"| K["📜 .agentlintel/ + AGENTS.md<br>the repo contract"]
-    K -->|"always-load ≤ 2K tokens"| A["🤖 AI agent<br>reads, mirrors, writes"]
-    A --> V{"verify — fast loop<br>(seconds)"}
+    H["Human<br/>states intent once"]
+    K[".agentlintel/ + AGENTS.md<br/>the repo contract"]
+    A["AI agent<br/>reads, mirrors, writes"]
+    V{"verify - fast loop<br/>(seconds)"}
+    P["pull request"]
+    C{"CI gate<br/>verify --strict"}
+    M["merged code<br/>matches intent"]
+
+    H -->|edits the contract| K
+    K -->|always-load <= 2K tokens| A
+    A --> V
     V -->|violations| A
-    V -->|clean| P["pull request"]
-    P --> C{"CI gate<br>verify --strict"}
+    V -->|clean| P
+    P --> C
     C -->|red| A
-    C -->|green| M["✅ merged code<br>matches intent"]
-    H -.->|"intent changed?<br>append an ADR"| K
+    C -->|green| M
+    H -.->|intent changed? append an ADR| K
 ```
 
 Why this improves agent accuracy, mechanically:
@@ -138,17 +146,24 @@ law, so the contract stays learnable in minutes — by humans and by agents.
 
 ```mermaid
 flowchart TB
-    V["agentlintel verify<br>one command · exit 0 or 1"]
-    subgraph K["the contract — .agentlintel/"]
+    V["agentlintel verify<br/>one command - exit 0 or 1"]
+
+    subgraph K["the contract - .agentlintel/"]
         direction LR
-        F["facts<br>checked claims"]
-        R["rules<br>+ fixtures"]
-        G["guard<br>write zones"]
-        E["exemplars<br>code to mirror"]
-        S["skills<br>on-demand workflows"]
-        D["decisions<br>append-only ADRs"]
+        F["facts<br/>checked claims"]
+        R["rules<br/>+ fixtures"]
+        G["guard<br/>write zones"]
+        E["exemplars<br/>code to mirror"]
+        S["skills<br/>on-demand workflows"]
+        D["decisions<br/>append-only ADRs"]
     end
-    V --> F & R & G & E & S & D
+
+    V --> F
+    V --> R
+    V --> G
+    V --> E
+    V --> S
+    V --> D
 ```
 
 | Concept | File | Question it answers | How it is checked |
