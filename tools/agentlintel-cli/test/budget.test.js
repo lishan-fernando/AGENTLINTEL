@@ -16,7 +16,7 @@ const TRACKED_BYTE_BUDGET = 407000;
 // (ADR-014), then for explain/warn/hook DX surface (ADR-016), measured on the
 // committed tree; next change needs an ADR.
 const ELIGIBLE_TRACKED_BYTE_BUDGET = 230000;
-const DEAD_WEIGHT_EXCLUDE = /^(?:\.agentlintel\/decisions\/|LICENSE(?:-APACHE)?$|LICENSE-POLICY\.md$|NOTICE$|tools\/agentlintel-cli\/LICENSE$|tools\/agentlintel-cli\/package-lock\.json$|tools\/agentlintel-cli\/test\/|\.agentlintel\/conformance\/.*\/cases\/|tools\/agentlintel-cli\/templates\/conformance\/.*\/cases\/|tools\/agentlintel-cli\/templates\/engine-adapters\/conformance-snippets\/.*\/cases\/)/;
+const DEAD_WEIGHT_EXCLUDE = /^(?:\.agentlintel\/decisions\/|LICENSE$|NOTICE$|docs\/LEGAL\.md$|tools\/agentlintel-cli\/LICENSE(?:-APACHE)?$|tools\/agentlintel-cli\/package-lock\.json$|tools\/agentlintel-cli\/test\/|\.agentlintel\/conformance\/.*\/cases\/|tools\/agentlintel-cli\/templates\/conformance\/.*\/cases\/|tools\/agentlintel-cli\/templates\/engine-adapters\/conformance-snippets\/.*\/cases\/)/;
 
 function trackedFiles() {
   const git = spawnSync('git', ['ls-files', '-z'], { cwd: REPO, encoding: 'buffer' });

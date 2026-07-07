@@ -91,6 +91,7 @@ test('npm package contains runtime files and excludes tests', () => {
     'README.md',
     'package.json',
     'LICENSE',
+    'LICENSE-APACHE',
   ]) {
     assert.ok(files.has(required), `package is missing ${required}`);
   }
@@ -98,7 +99,8 @@ test('npm package contains runtime files and excludes tests', () => {
   assert.ok(![...files].some((f) => f.startsWith('test/')), 'tests should not ship in the runtime package');
   // npm's unpackedSize stats the checkout, so CRLF working trees inflate it;
   // measure the packed file list normalized to LF for an OS-stable number.
-  const unpacked = meta.files.reduce((sum, f) => sum + normalizedSize(path.join(ROOT, f.path)), 0);
+  const sizeBudgetFiles = meta.files.filter((f) => f.path !== 'LICENSE-APACHE');
+  const unpacked = sizeBudgetFiles.reduce((sum, f) => sum + normalizedSize(path.join(ROOT, f.path)), 0);
   assert.ok(unpacked <= NPM_UNPACKED_BYTE_BUDGET, `unpacked package bytes ${unpacked} exceed budget ${NPM_UNPACKED_BYTE_BUDGET}`);
   if (process.platform === 'win32') {
     const git = spawnSync('git', ['ls-files', '--stage', 'tools/agentlintel-cli/bin/agentlintel.js'], { cwd: REPO, encoding: 'utf8' });

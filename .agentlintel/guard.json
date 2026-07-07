@@ -27,9 +27,7 @@
         ".gitignore",
         ".pre-commit-hooks.yaml",
         "package.json",
-        "LICENSE",
-        "LICENSE-APACHE",
-        "LICENSE-POLICY.md",
+        "LICENSE*",
         "NOTICE"
       ]
     }

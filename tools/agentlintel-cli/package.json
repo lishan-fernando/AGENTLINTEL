@@ -44,6 +44,7 @@
     "src",
     "templates",
     "README.md",
+    "LICENSE-APACHE",
     "package.json"
   ],
   "repository": {

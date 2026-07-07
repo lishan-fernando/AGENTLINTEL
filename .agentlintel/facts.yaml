@@ -92,5 +92,13 @@ facts:
     check: { type: file_contains, path: LICENSE, pattern: "FSL-1.1-ALv2" }
 
   - id: license-adoption-surface
-    claim: "The adoption surface (templates, .agentlintel contract, CI glue) stays Apache-2.0 via LICENSE-APACHE"
-    check: { type: file_contains, path: LICENSE-APACHE, pattern: "Apache License" }
+    claim: "The adoption surface (templates, .agentlintel contract, CI glue) stays Apache-2.0; the package ships the Apache text"
+    check: { type: file_contains, path: tools/agentlintel-cli/LICENSE-APACHE, pattern: "Apache License" }
+
+  - id: single-root-license-file
+    claim: "Only the primary repo LICENSE stays at the root; secondary legal docs live below docs/ or the package"
+    check: { type: file_absent, path: LICENSE-APACHE }
+
+  - id: root-license-policy-moved
+    claim: "The license boundary map lives at docs/LEGAL.md, not as a second root license tab"
+    check: { type: file_absent, path: LICENSE-POLICY.md }

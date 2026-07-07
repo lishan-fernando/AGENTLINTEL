@@ -40,7 +40,10 @@ test('license posture stays consistent across public surfaces (ADR-012)', () => 
   const license = read('LICENSE');
   assert.match(license, /^# Functional Source License, Version 1\.1, ALv2 Future License/);
   assert.strictEqual(read('tools/agentlintel-cli/LICENSE'), license, 'CLI package LICENSE must stay byte-identical to the root LICENSE');
-  assert.match(read('LICENSE-APACHE'), /Apache License/);
+  assert.match(read('tools/agentlintel-cli/LICENSE-APACHE'), /Apache License/);
+  assert.ok(!fs.existsSync(path.join(REPO, 'LICENSE-APACHE')), 'secondary Apache text must not create a second root license tab');
+  assert.ok(!fs.existsSync(path.join(REPO, 'LICENSE-POLICY.md')), 'license boundary map must not create a third root license tab');
+  assert.match(read('docs/LEGAL.md'), /AgentLintel Legal Boundary/);
 
   assert.strictEqual(require('../../../package.json').license, 'FSL-1.1-ALv2');
   assert.strictEqual(require('../package.json').license, 'FSL-1.1-ALv2');

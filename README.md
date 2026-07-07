@@ -39,7 +39,7 @@ architecture, not its own: vertical slices, layers, MVVM, or in-house rules.
 Built-in engines provide a starter floor; `engine: external` wraps the
 stack-native analyzers your team already trusts.
 
-**Status:** `v2.0.0-alpha.10` · **License:** Fair Source ([FSL-1.1-ALv2](LICENSE); templates and contract formats [Apache-2.0](LICENSE-APACHE)) · **Requires:** Node.js >= 18
+**Status:** `v2.0.0-alpha.10` · **License:** Fair Source ([FSL-1.1-ALv2](LICENSE); adoption surface [Apache-2.0](tools/agentlintel-cli/LICENSE-APACHE); [map](docs/LEGAL.md)) · **Requires:** Node.js >= 18
 
 ## The problem: AI coding agents drift
 
@@ -242,10 +242,10 @@ them to `must_match: true`.
 
 `v2.0.0-alpha.10`, fair source, Node.js >= 18. Free to use and to build your
 own software with: everything `init` scaffolds into your repo is
-[Apache-2.0](LICENSE-APACHE), and the core is [FSL-1.1-ALv2](LICENSE) — any
+[Apache-2.0](tools/agentlintel-cli/LICENSE-APACHE), and the core is [FSL-1.1-ALv2](LICENSE) — any
 use except selling AgentLintel itself, with each release becoming Apache-2.0
 open source two years after publication
-([LICENSE-POLICY.md](LICENSE-POLICY.md) has the one-page map). The
+([docs/LEGAL.md](docs/LEGAL.md) has the one-page map). The
 six-concept contract is stable by law; CLI surface changes require an accepted
 ADR and must not add kernel concepts.
 File formats may still see minor changes before `v2.0.0`. Feedback and drift

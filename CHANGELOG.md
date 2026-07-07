@@ -86,7 +86,7 @@ The fair-source release.
   free for any use except selling AgentLintel itself; each release converts
   to Apache-2.0 two years after publication. The adoption surface (templates,
   `.agentlintel/**` contract formats, CI glue) stays Apache-2.0, so nothing
-  fair-source-licensed enters adopter repos. `LICENSE-POLICY.md` is the map;
+  fair-source-licensed enters adopter repos. `docs/LEGAL.md` is the map;
   the posture is machine-enforced (license facts, claims tests, packaged
   `LICENSE`), and `CODE_OF_CONDUCT.md` lands alongside.
 - Withdrawn: releases `v2.0.0-alpha.1`–`v2.0.0-alpha.4` and their tags

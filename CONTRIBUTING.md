@@ -37,7 +37,7 @@ CI runs exactly this.
 Inbound = outbound. By submitting a contribution you license it under the
 license of the files it modifies or creates — `FSL-1.1-ALv2` for the core,
 `Apache-2.0` for the adoption surface (see
-[LICENSE-POLICY.md](LICENSE-POLICY.md) for the boundary) — including, for
+[docs/LEGAL.md](docs/LEGAL.md) for the boundary) — including, for
 FSL-covered files, the future Apache-2.0 grant. Keep the SPDX header style of
 the area you touch. Sign each commit off (`git commit -s`) to certify the
 Developer Certificate of Origin (developercertificate.org) — that you have
