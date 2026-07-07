@@ -1,14 +1,19 @@
 # @agentlintel/cli
 
-Deterministic architecture gate for AI-agent codebases.
+AI coding agents forget architecture. AgentLintel makes your repo architecture
+enforceable in CI.
 
-Spec-driven tools gate your workflow. AgentLintel gates your architecture:
-verified facts, deterministic rules, conformance fixtures, guard zones,
-exemplars, skills, and append-only decisions.
+Use it when agents keep inventing new folders, imports, layers, or error
+patterns; when you are tired of repeating the same architecture instructions;
+or when you want pull requests to fail on repo-convention drift.
 
-The verdict is deterministic; detection depth comes from the engine you choose.
-Use built-in rules as portable starter checks and `engine: external` for
-semantic or stack-native analyzers.
+AgentLintel is local-first: verified facts, deterministic rules with fixtures,
+guard zones, exemplars, standard Agent Skills, and append-only decisions. No
+model calls, no hosted service, no telemetry.
+
+Fixture-backed starter checks catch drift like deep imports, raw request casts
+before validation, and secret logging. Use `engine: external` for deeper checks
+from tools your stack already trusts.
 
 ## Install
 
