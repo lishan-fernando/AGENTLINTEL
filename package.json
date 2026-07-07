@@ -11,11 +11,23 @@
   },
   "keywords": [
     "ai",
+    "ai-agents",
     "coding-agents",
     "architecture",
+    "software-architecture",
+    "architecture-tests",
+    "ci",
+    "github-actions",
+    "code-quality",
+    "static-analysis",
     "lint",
     "agents-md",
     "agent-skills",
+    "claude-code",
+    "cursor",
+    "copilot",
+    "codex",
+    "devtools",
     "agentlintel"
   ],
   "engines": {

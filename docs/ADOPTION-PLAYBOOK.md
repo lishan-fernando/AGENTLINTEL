@@ -3,6 +3,9 @@
 Goal: first verified PR in about 30 minutes, then tighten rules as the repo
 proves its shape.
 
+For public promotion, pilot outreach, and founder-friendly launch scripts, see
+[LAUNCH-PLAYBOOK.md](LAUNCH-PLAYBOOK.md).
+
 ## Start
 
 ```bash

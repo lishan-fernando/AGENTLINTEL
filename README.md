@@ -1,32 +1,36 @@
 # AgentLintel
 
-**Tell your codebase its architecture once. Every AI agent, every session,
-every model builds to it — or the pull request fails.**
+**AI coding agents forget architecture. AgentLintel makes your repo
+architecture enforceable in CI.**
 
-AgentLintel is a fair-source framework for repositories where humans and AI
-coding agents work together. You state your architecture one time, as a small
-machine-verified contract inside the repo. Agents read it, mirror it, and get
-deterministic feedback in seconds; CI fails any pull request that violates it.
-The result is a reproducible merge gate for architectural drift across prompts,
-sessions, models, and context windows — without you repeating yourself in
-every review.
+```bash
+npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.10/agentlintel-cli.tgz
+npx agentlintel init
+npx agentlintel verify
+```
 
-It rides the open standards agents already read — `AGENTS.md` for always-load
-guidance, `SKILL.md` for on-demand workflows — and adds the missing half:
-enforcement. It works with Claude Code, Cursor, Codex, GitHub Copilot, and any
-other AI coding agent that honors `AGENTS.md` or a one-line pointer from its
-native instruction file. And it is deliberately unopinionated: AgentLintel
-enforces *your* architecture — vertical slices, layers, MVVM, or your own
-in-house convention — in any language. Built-in engines provide a deterministic
-syntactic floor; the `external` engine is the primary path for semantic,
-AST-aware, or stack-native checks from tools your team already trusts.
+Use it when:
 
-That is the moat: fixture-backed, deterministic architecture gates for the
-portable floor, with external engines for native depth. Prompt files, memory,
-and retrieval can help agents remember; AgentLintel decides what can merge.
+- AI agents keep inventing new folders, imports, layers, or error patterns.
+- You are tired of repeating the same architecture instructions in every chat.
+- You want pull requests to fail when repo conventions drift.
 
-The deterministic architecture gate is the mechanism. Durable, accurate
-human–AI collaboration is the mission.
+AgentLintel is a local-first CLI plus a small repo contract. You state your
+architecture once with verified facts, deterministic rules, write-boundary
+guard zones, exemplars, standard Agent Skills, and append-only decisions.
+Agents read the contract, mirror real code, and get fast machine feedback;
+CI fails the pull request if the architecture gate is red.
+
+No model calls. No hosted service. No custom context router. AgentLintel rides
+the standards agents already read — `AGENTS.md` for always-load guidance and
+`SKILL.md` for on-demand workflows — and adds the enforcement half.
+
+It works with Claude Code, Cursor, Codex, GitHub Copilot, and any other coding
+agent that honors `AGENTS.md` or a one-line pointer from its native instruction
+file. AgentLintel does not choose your architecture; it enforces yours:
+vertical slices, layers, MVVM, or an in-house convention, in any language.
+Built-in engines provide a deterministic starter floor; `engine: external`
+wraps the stack-native analyzers your team already trusts.
 
 **Status:** `v2.0.0-alpha.10` · **License:** Fair Source ([FSL-1.1-ALv2](LICENSE); templates and contract formats [Apache-2.0](LICENSE-APACHE)) · **Requires:** Node.js >= 18
 
@@ -303,7 +307,7 @@ durable, visible to agents, and enforceable in CI.
 | [SPEC.md](SPEC.md) | The normative v2 spec (<= 500 lines) |
 | [.agentlintel/](.agentlintel/) | This repo's own contract — AgentLintel governs itself |
 | [tools/agentlintel-cli/](tools/agentlintel-cli/) | The CLI: `init`, `verify`, `report`, `explain` — plain Node.js, one dependency |
-| [docs/](docs/) | Adoption playbook, design rationale, benchmark protocol, evidence summary |
+| [docs/](docs/) | Adoption playbook, launch playbook, design rationale, benchmark protocol, evidence summary |
 
 This repository dogfoods the governance mechanics: the six concepts above are
 live here, the CLI is fixture-tested, and CI runs `verify --strict` on every
