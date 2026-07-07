@@ -1,5 +1,8 @@
 # AgentLintel
 
+[![Repository checks](https://github.com/lishan-fernando/AGENTLINTEL/actions/workflows/repository-checks.yml/badge.svg?branch=main)](https://github.com/lishan-fernando/AGENTLINTEL/actions/workflows/repository-checks.yml)
+[![Release](https://img.shields.io/github/v/release/lishan-fernando/AGENTLINTEL?include_prereleases&label=release)](https://github.com/lishan-fernando/AGENTLINTEL/releases)
+
 **AI coding agents forget architecture. AgentLintel makes your repo
 architecture enforceable in CI.**
 
@@ -30,12 +33,11 @@ No model calls. No hosted service. No custom context router. AgentLintel rides
 the standards agents already read — `AGENTS.md` for always-load guidance and
 `SKILL.md` for on-demand workflows — and adds the enforcement half.
 
-It works with Claude Code, Cursor, Codex, GitHub Copilot, and any other coding
-agent that honors `AGENTS.md` or a one-line pointer from its native instruction
-file. AgentLintel does not choose your architecture; it enforces yours:
-vertical slices, layers, MVVM, or an in-house convention, in any language.
-Built-in engines provide a deterministic starter floor; `engine: external`
-wraps the stack-native analyzers your team already trusts.
+It works with Claude Code, Cursor, Codex, GitHub Copilot, and any coding agent
+that reads `AGENTS.md` or a native pointer to it. AgentLintel enforces your
+architecture, not its own: vertical slices, layers, MVVM, or in-house rules.
+Built-in engines provide a starter floor; `engine: external` wraps the
+stack-native analyzers your team already trusts.
 
 **Status:** `v2.0.0-alpha.10` · **License:** Fair Source ([FSL-1.1-ALv2](LICENSE); templates and contract formats [Apache-2.0](LICENSE-APACHE)) · **Requires:** Node.js >= 18
 
