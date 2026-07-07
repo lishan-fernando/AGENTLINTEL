@@ -9,7 +9,7 @@ extra root license tabs on GitHub.
 | What | License | Text |
 |---|---|---|
 | **Core** — CLI source, spec, docs, and every file not carved out below | Functional Source License, Version 1.1, with Apache-2.0 future grant (SPDX: `FSL-1.1-ALv2`) | [LICENSE](../LICENSE) |
-| **Adoption surface** — templates, `.agentlintel/**`, `.github/**`, `.pre-commit-hooks.yaml` | Apache License, Version 2.0 | [tools/agentlintel-cli/LICENSE-APACHE](../tools/agentlintel-cli/LICENSE-APACHE) |
+| **AgentLintel adoption files** — templates and bundled starter files | Apache License, Version 2.0 | [tools/agentlintel-cli/LICENSE-APACHE](../tools/agentlintel-cli/LICENSE-APACHE) |
 
 Source files carry `SPDX-License-Identifier` headers. A file's header wins;
 otherwise the table above wins.
@@ -17,14 +17,20 @@ otherwise the table above wins.
 ## Free uses
 
 - Run AgentLintel on personal, internal, or commercial codebases.
-- Build and sell your own software with it. Your code, `.agentlintel/`
-  contract, and CLI reports are yours; `init` scaffolds Apache-2.0 templates,
-  so no fair-source restriction enters your repo.
-- Read, modify, fork, and redistribute the source for any non-Competing Use,
-  including internal forks, patches, review, research, and services for
-  licensees.
+- Build and sell your own software with it.
+- Read, modify, fork, and redistribute source for any non-Competing Use,
+  including internal forks, patches, review, research, and licensee services.
 - Implement and integrate the protocol; contract formats, templates, fixtures,
   and CI glue are Apache-2.0.
+
+## Proprietary projects
+
+Using AgentLintel does not change the license of your source code, product,
+repo, or generated output. You need not publish source, use a hosted service,
+send code to AgentLintel, or grant AgentLintel rights to your project.
+Apache-2.0 applies only to AgentLintel-supplied adoption files, with normal
+notice/license preservation when redistributed. The FSL future grant applies to
+AgentLintel releases, not your project.
 
 ## Fair-source window limits
 

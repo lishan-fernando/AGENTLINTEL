@@ -20,8 +20,7 @@ Use it when:
 
 AgentLintel is early and looking for serious feedback. If this pain is familiar,
 [open a feedback or pilot issue](https://github.com/lishan-fernando/AGENTLINTEL/issues/new?template=feedback.yml).
-Please do not paste private code, secrets, customer data, or anything your team
-would not want public.
+Please do not paste private code, secrets, or customer data in public issues.
 
 AgentLintel is a local-first CLI plus a small repo contract. You state your
 architecture once with verified facts, deterministic rules, write-boundary
@@ -39,7 +38,7 @@ architecture, not its own: vertical slices, layers, MVVM, or in-house rules.
 Built-in engines provide a starter floor; `engine: external` wraps the
 stack-native analyzers your team already trusts.
 
-**Status:** `v2.0.0-alpha.10` · **License:** Fair Source ([FSL-1.1-ALv2](LICENSE); adoption surface [Apache-2.0](tools/agentlintel-cli/LICENSE-APACHE); [map](docs/LEGAL.md)) · **Requires:** Node.js >= 18
+**Status:** `v2.0.0-alpha.10` - Fair source - Node.js >= 18
 
 ## The problem: AI coding agents drift
 
@@ -198,18 +197,9 @@ Skip it, for now, when:
 - You expect a replacement for linters, tests, or code review. It sits beside
   them; it does not absorb them.
 
-What adoption costs, honestly: one afternoon to state your intent (fill facts,
-register an exemplar, trim rules, wire CI), and one ADR each time that intent
-changes. That is the whole ongoing tax — the point is that you never again pay
-the per-session re-explaining tax.
-
-## AgentLintel alongside the tools you already use
-
-AgentLintel replaces none of your existing quality stack. Linters keep style
-clean, architecture-test tools provide stack-native depth, AI reviewers provide
-probabilistic judgment, and instruction files guide the agent. AgentLintel adds
-the deterministic floor beneath them: architecture rules that agents can read
-and CI can enforce.
+Adoption cost: one afternoon to state intent (facts, exemplar, rules, CI) and
+one ADR each time that intent changes. The payoff is avoiding the per-session
+re-explaining tax.
 
 ## What AgentLintel is not
 
@@ -240,13 +230,14 @@ them to `must_match: true`.
 
 ## Status
 
-`v2.0.0-alpha.10`, fair source, Node.js >= 18. Free to use and to build your
-own software with: everything `init` scaffolds into your repo is
-[Apache-2.0](tools/agentlintel-cli/LICENSE-APACHE), and the core is [FSL-1.1-ALv2](LICENSE) — any
-use except selling AgentLintel itself, with each release becoming Apache-2.0
-open source two years after publication
-([docs/LEGAL.md](docs/LEGAL.md) has the one-page map). The
-six-concept contract is stable by law; CLI surface changes require an accepted
-ADR and must not add kernel concepts.
+`v2.0.0-alpha.10`, fair source, Node.js >= 18. Free for personal, internal, and
+commercial codebases. AgentLintel does not change the license of your source
+code, product, repo, or output. Files copied by `agentlintel init` are
+[Apache-2.0](tools/agentlintel-cli/LICENSE-APACHE), with normal Apache
+notice/license preservation. The core is [FSL-1.1-ALv2](LICENSE); its two-year
+Apache-2.0 future grant applies to AgentLintel releases, not your project. See
+[docs/LEGAL.md](docs/LEGAL.md).
+The six-concept contract is a compatibility promise; CLI surface changes
+require an accepted ADR and must not add kernel concepts.
 File formats may still see minor changes before `v2.0.0`. Feedback and drift
 war stories are welcome in the issue tracker.

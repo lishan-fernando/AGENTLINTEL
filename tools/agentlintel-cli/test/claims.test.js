@@ -26,6 +26,7 @@ test('public adoption surfaces avoid unearned market claims', () => {
     /\bfully automatic governance\b/i,
     /\bworks for every stack\b/i,
     /\bguaranteed to prevent architecture drift\b/i,
+    /\bstable by law\b|\beverything `?init`? scaffolds into your repo\b/i,
   ];
 
   for (const rel of surfaces) {
@@ -51,6 +52,10 @@ test('license posture stays consistent across public surfaces (ADR-012)', () => 
   for (const rel of ['README.md', 'tools/agentlintel-cli/README.md']) {
     assert.doesNotMatch(read(rel), /open[- ]source (framework|project|tool|CLI)/i, `${rel} must not call the core open source; it is fair source (FSL-1.1-ALv2) until each release's Apache-2.0 grant matures`);
   }
+
+  for (const rel of ['README.md', 'tools/agentlintel-cli/README.md', 'docs/LEGAL.md']) assert.match(read(rel), /does not change the license of your\s+source\s+code/i);
+  assert.match(read('docs/LEGAL.md'), /grant AgentLintel rights to your project/i);
+  assert.match(read('docs/LEGAL.md'), /future grant applies to\s+AgentLintel releases,\s+not your project/i);
 });
 
 test('public adoption surfaces use one canonical repository coordinate', () => {

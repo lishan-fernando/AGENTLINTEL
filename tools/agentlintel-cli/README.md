@@ -96,10 +96,8 @@ Full spec and file formats: https://github.com/lishan-fernando/AGENTLINTEL.
 
 ## License
 
-Fair source. The CLI is `FSL-1.1-ALv2` (see `LICENSE` in this package): free
-for any use except selling AgentLintel itself, and each release becomes
-Apache-2.0 two years after publication. Everything under `templates/` — the
-files `init` copies into your repository — is Apache-2.0 (see
-`LICENSE-APACHE`), so nothing
-fair-source-licensed enters your project. Your code and the tool's output are
-yours.
+Fair source. The CLI is `FSL-1.1-ALv2` (see `LICENSE`): free for any use except
+selling AgentLintel itself. Each release becomes Apache-2.0 after two years.
+Using AgentLintel does not change the license of your source code, product,
+repo, or output. Templates copied by `init` are Apache-2.0 (see
+`LICENSE-APACHE`), with normal Apache notice/license preservation.
