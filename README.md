@@ -128,28 +128,22 @@ framework is the enforcement layer, and your architecture is configuration in
 plain files you own: `rules.yaml` (what must hold), `guard.json` (where
 changes may land), `exemplars.yaml` (what good looks like).
 
-Pattern packs are starting templates, nothing more:
+Fixture-backed starter rules catch drift like:
 
-| Pack | Seeds rules like |
-|---|---|
-| `vertical-slice` | Capability slices: imports only through each slice's public surface, boundary validation, stable slice-local error codes |
-| `layered-3tier` | Downward-only dependencies: presentation → business → data, no layer skipping, no upward imports |
-| `mvvm` | Views bind ViewModels, ViewModels use Models; Views never touch Models |
-| `custom` | No architecture at all — a documented skeleton for your own rules, with `engine: external` examples |
+- `slice.no-deep-imports`: a feature imports another slice's private domain
+  file instead of its public index.
+- `boundary.validation`: a route casts raw request input before validation.
+- `secrets.no-logging`: code logs a token, key, password, or regulated data.
 
-Every pack shares the same two universal safety rules — never log secrets,
-and exemptions must be audited (reason, approver, owner, expiry). Everything
-a pack generates is yours to edit, replace, or delete: keep the rules you
-believe, because an unenforced rule nobody holds is noise.
+Pattern packs are starting templates: `vertical-slice`, `layered-3tier`,
+`mvvm`, or `custom`. Every pack includes universal safety rules for secret
+logging and audited exemptions (reason, approver, owner, expiry). Keep only the
+rules you believe, because an unenforced rule nobody holds is noise.
 
-Engines: `regex`, `layers` (declarative dependency boundaries),
-`error-codes`, `exemptions` (audited escape hatches with approver, owner, and
-expiry), and `external` — which wraps any repo-native checker (architecture
-tests, dependency-cruiser, `dotnet test`, commit and PR policies) behind the
-same gate. Treat `regex` and `layers` as a portable starter floor, not a type
-system or security scanner. `external` is the language-agnostic path for deep
-checks: if your stack can check it, AgentLintel can enforce it and surface it to
-agents under stable rule ids.
+Engines: `regex`, `layers`, `error-codes`, `exemptions`, and `external`. Treat
+built-ins as a portable starter floor, not a type system or security scanner.
+Use `external` for deep checks from tools your stack already trusts:
+architecture tests, dependency-cruiser, `dotnet test`, commit and PR policies.
 
 Rule changes are ratcheted: tightening is free, but deleting, weakening, or
 narrowing a rule requires an ADR in the same diff. Guardrails cannot erode
