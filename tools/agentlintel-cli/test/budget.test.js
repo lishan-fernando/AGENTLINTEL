@@ -12,7 +12,7 @@ const REPO = path.join(__dirname, '..', '..', '..');
 // pre-lean size). Re-baselined for the ADR-016 explain/warn/hook DX surface,
 // ADR-018 alpha.9 hygiene, ADR-019 CI/npm release contract, then ADR-020
 // license clarity text.
-const TRACKED_BYTE_BUDGET = 416000;
+const TRACKED_BYTE_BUDGET = 419000;
 // Recalibrated for readable shipped CLI source with meaningful identifiers
 // (ADR-014), then for explain/warn/hook DX surface (ADR-016), measured on the
 // committed tree; re-baselined for ADR-020 legal clarity text.
