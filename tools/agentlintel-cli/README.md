@@ -17,20 +17,21 @@ from tools your stack already trusts.
 
 ## Install
 
-Pinned GitHub Release tarball:
+Current alpha from npm:
+
+```bash
+npm i -D @agentlintel/cli@alpha
+```
+
+During prerelease, `@agentlintel/cli@alpha` is the current npm channel. The
+unqualified `@agentlintel/cli` install follows npm's `latest` tag, which may
+intentionally trail until a stable release.
+
+Exact GitHub Release tarball, for pinned or registry-free installs:
 
 ```bash
 npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.11/agentlintel-cli.tgz
 ```
-
-Registry install, when npm shows the same version as the GitHub release:
-
-```bash
-npm i -D @agentlintel/cli
-```
-
-For prereleases, the GitHub Release tarball is the canonical exact-version
-install path when the registry trails the latest release.
 
 ## Quick Start
 

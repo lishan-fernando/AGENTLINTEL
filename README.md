@@ -2,15 +2,21 @@
 
 [![Repository checks](https://github.com/lishan-fernando/AGENTLINTEL/actions/workflows/repository-checks.yml/badge.svg?branch=main)](https://github.com/lishan-fernando/AGENTLINTEL/actions/workflows/repository-checks.yml)
 [![Release](https://img.shields.io/github/v/release/lishan-fernando/AGENTLINTEL?include_prereleases&label=release)](https://github.com/lishan-fernando/AGENTLINTEL/releases)
+[![npm alpha](https://img.shields.io/npm/v/%40agentlintel%2Fcli/alpha?label=npm%20alpha)](https://www.npmjs.com/package/@agentlintel/cli)
 
 **AI coding agents forget architecture. AgentLintel makes your repo
 architecture enforceable in CI.**
 
 ```bash
-npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.11/agentlintel-cli.tgz
+npm i -D @agentlintel/cli@alpha
 npx agentlintel init
 npx agentlintel verify
 ```
+
+The public npm package is
+[`@agentlintel/cli`](https://www.npmjs.com/package/@agentlintel/cli). During
+alpha, install from the `alpha` dist-tag for the newest prerelease; the
+unqualified npm `latest` tag may intentionally trail until a stable cut.
 
 Use it when:
 
@@ -40,7 +46,8 @@ AgentLintel enforces your architecture, not its own: vertical slices, layers,
 MVVM, or in-house rules. Built-in engines provide a starter floor; set
 `engine: external` to wrap the stack-native analyzers your team already trusts.
 
-**Status:** `v2.0.0-alpha.11` - Source-available free use - Node.js >= 18
+**Status:** `v2.0.0-alpha.11` - npm `@agentlintel/cli@alpha` -
+Source-available free use - Node.js >= 18
 
 ## The problem: AI coding agents drift
 
@@ -83,10 +90,16 @@ future agent sessions inherit the update.
 ## Quick start
 
 ```bash
-npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.11/agentlintel-cli.tgz
+npm i -D @agentlintel/cli@alpha
 npx agentlintel init      # scaffold the contract (pick a pattern pack)
 npx agentlintel verify    # run the gate locally
 npx agentlintel explain --path src/example.ts  # debug what applies to a file
+```
+
+Need an exact release artifact or a registry-free fallback?
+
+```bash
+npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.11/agentlintel-cli.tgz
 ```
 
 `init` offers pattern packs — `vertical-slice`, `layered-3tier`, `mvvm`, or
@@ -233,7 +246,8 @@ them to `must_match: true`.
 
 ## Status
 
-`v2.0.0-alpha.11`, source-available free use, Node.js >= 18.
+`v2.0.0-alpha.11`, npm `@agentlintel/cli@alpha`, source-available free use,
+Node.js >= 18.
 
 AgentLintel is free for personal, internal, commercial, client, and
 non-commercial codebases. Using AgentLintel does **not** change the license of

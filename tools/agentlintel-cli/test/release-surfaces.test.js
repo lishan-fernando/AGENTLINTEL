@@ -130,6 +130,7 @@ test('publishing docs match the release workflow and action coordinates', () => 
   assert.match(docs, /npm ci --no-audit --no-fund/);
   assert.match(docs, /npm run release:check/);
   assert.match(docs, /npm pack --dry-run --json/);
+  assert.match(docs, /npm i -D @agentlintel\/cli@alpha/);
   assert.match(docs, /agentlintel-cli\.tgz/);
   assert.match(docs, /lishan-fernando\/AGENTLINTEL\/\.github\/actions\/agentlintel@v2/);
 });

@@ -142,7 +142,7 @@ test('runtime JavaScript ships as reviewable source, not minified blobs', () => 
 test('packaged README contains install, quick start, and CI anchors', () => {
   const readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8');
   assert.ok(readme.includes(`releases/download/v${PKG.version}/agentlintel-cli.tgz`));
-  assert.match(readme, /npm i -D @agentlintel\/cli/);
+  assert.match(readme, /npm i -D @agentlintel\/cli@alpha/);
   assert.match(readme, /npx agentlintel init/);
   assert.match(readme, /npx agentlintel verify/);
   assert.match(readme, /lishan-fernando\/AGENTLINTEL\/\.github\/actions\/agentlintel@v2/);

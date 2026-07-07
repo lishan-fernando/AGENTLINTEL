@@ -14,6 +14,9 @@ Legal clarity pass.
   `.agentlintel/` files do not become Apache-2.0 merely because of their path.
 - Documents that previously published copies keep the license grants they were
   already published under.
+- Makes npm the primary adopter install path in public docs:
+  `npm i -D @agentlintel/cli@alpha`, with the GitHub Release tarball retained
+  as the exact-version and registry-free fallback.
 
 ## v2.0.0-alpha.10 — 2026-07-06
 

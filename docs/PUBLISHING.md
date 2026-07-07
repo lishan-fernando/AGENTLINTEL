@@ -1,8 +1,9 @@
 # Publishing
 
-Distribution has three surfaces, all driven by one tag push: a GitHub Release
-tarball under a stable name (primary, zero-account path), the npm registry
-(`@agentlintel/cli`, provenance-attested), and the GitHub Action tag (`v2`).
+Distribution has three surfaces, all driven by one tag push: the npm registry
+(`@agentlintel/cli`, provenance-attested, primary adopter install path), a
+GitHub Release tarball under a stable name (exact-version or registry-free
+fallback), and the GitHub Action tag (`v2`).
 The release workflow (`.github/workflows/release.yml`) refuses to ship
 anything the gate has not passed.
 
@@ -24,7 +25,14 @@ workflow, in order:
    `"true"`. Publishing is an explicit decision, never an inference from
    which secrets happen to exist (ADR-013).
 
-Adopters who never touch npm install with one line:
+Adopters install the current alpha from npm:
+
+```bash
+npm i -D @agentlintel/cli@alpha
+```
+
+Adopters who need an exact artifact or cannot use the registry install the
+GitHub Release tarball:
 
 ```bash
 npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/latest/download/agentlintel-cli.tgz
@@ -39,7 +47,9 @@ migration note in CHANGELOG.md.
 1. Bump the version in `tools/agentlintel-cli/package.json` and
    `package.json` (root), and update the version pins in `README.md`,
    `tools/agentlintel-cli/README.md`, and `.pre-commit-hooks.yaml` — the
-   release-surfaces test fails if a pinned snippet lags.
+   release-surfaces test fails if a pinned snippet lags. During prerelease,
+   keep adopter docs on `@agentlintel/cli@alpha`; promote the unqualified npm
+   install only when `latest` is intentionally current.
 2. Add the CHANGELOG.md entry.
 3. Verify locally what CI verifies:
 
@@ -101,10 +111,12 @@ npmjs.com and in the GitHub repo settings, in this order:
    - From now on the workflow authenticates via GitHub OIDC; there is no
      long-lived credential to compromise, and provenance is attested on every
      release.
-5. **Tell adopters.** Make `npm i -D @agentlintel/cli` the primary install path
-   only when the registry version matches the current GitHub release. If npm
-   trails, keep the GitHub Release tarball as the canonical exact-version path
-   (mind the README byte budget, ADR-011).
+5. **Tell adopters.** During prerelease, make
+   `npm i -D @agentlintel/cli@alpha` the primary install path. Promote
+   `npm i -D @agentlintel/cli` only when the npm `latest` tag is intentionally
+   current, usually at a stable release. Keep the GitHub Release tarball as the
+   canonical exact-version and registry-free fallback (mind the README byte
+   budget, ADR-011).
 
 ## GitHub Action
 
