@@ -101,9 +101,10 @@ npmjs.com and in the GitHub repo settings, in this order:
    - From now on the workflow authenticates via GitHub OIDC; there is no
      long-lived credential to steal, and provenance is attested on every
      release.
-5. **Tell adopters.** Add the `npm i -D @agentlintel/cli` install path to
-   the READMEs once the package page is live (mind the README byte budget,
-   ADR-011).
+5. **Tell adopters.** Make `npm i -D @agentlintel/cli` the primary install path
+   only when the registry version matches the current GitHub release. If npm
+   trails, keep the GitHub Release tarball as the canonical exact-version path
+   (mind the README byte budget, ADR-011).
 
 ## GitHub Action
 

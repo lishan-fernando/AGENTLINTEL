@@ -40,7 +40,8 @@ build/test gates were run where applicable.
 
 ## Follow-Up
 
-1. Keep the install path tarball-first until npm publishing is configured.
+1. Keep the install path tarball-first until npm matches the current GitHub
+   release.
 2. Run the public benchmark before making causal adoption claims.
 3. Keep docs short and current; move rationale to ADRs or delete it.
 4. Prefer project-native external engines for deep checks and report findings
