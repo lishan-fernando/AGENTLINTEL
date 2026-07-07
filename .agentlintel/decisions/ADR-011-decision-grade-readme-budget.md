@@ -3,7 +3,7 @@
 Accepted: 2026-07-04
 
 The eligible-payload byte budget (148,000, set during the v2 lean restructure)
-was calibrated to a minimal ~3 KB README. Founder direction on 2026-07-04:
+was calibrated to a minimal ~3 KB README. Maintainer direction on 2026-07-04:
 the README must be decision-grade — problem statement, the instruct-once
 vision, process diagrams, adoption and non-adoption criteria — so a reader
 can decide for or against AgentLintel without leaving the page. The README is

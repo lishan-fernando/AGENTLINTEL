@@ -2,7 +2,7 @@
 
 Accepted: 2026-07-04
 
-Ahead of the public launch, the CI/CD surface graduates from "works" to
+Before release, the CI/CD surface graduates from "works" to
 "defensible". A framework whose pitch is *deterministic enforcement* cannot
 ship through a pipeline built on floating tags, untested support claims, and
 inferred publish intent. The same standard the gate applies to adopter repos

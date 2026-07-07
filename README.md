@@ -18,9 +18,10 @@ Use it when:
 - You are tired of repeating the same architecture instructions in every chat.
 - You want pull requests to fail when repo conventions drift.
 
-AgentLintel is early and looking for serious feedback. If this pain is familiar,
-[open a feedback or pilot issue](https://github.com/lishan-fernando/AGENTLINTEL/issues/new?template=feedback.yml).
-Please do not paste private code, secrets, or customer data in public issues.
+AgentLintel is early and looking for serious, sanitized feedback. If this pain
+is familiar, [open a public feedback issue](https://github.com/lishan-fernando/AGENTLINTEL/issues/new?template=feedback.yml).
+Please keep private code, secrets, customer data, and sensitive adoption
+context out of public issues.
 
 AgentLintel is a local-first CLI plus a small repo contract. You state your
 architecture once with verified facts, deterministic rules, write-boundary
@@ -32,11 +33,12 @@ No model calls. No hosted service. No custom context router. AgentLintel rides
 the standards agents already read — `AGENTS.md` for always-load guidance and
 `SKILL.md` for on-demand workflows — and adds the enforcement half.
 
-It works with Claude Code, Cursor, Codex, GitHub Copilot, and any coding agent
-that reads `AGENTS.md` or a native pointer to it. AgentLintel enforces your
-architecture, not its own: vertical slices, layers, MVVM, or in-house rules.
-Built-in engines provide a starter floor; `engine: external` wraps the
-stack-native analyzers your team already trusts.
+AgentLintel is designed for Claude Code, Cursor, Codex, GitHub Copilot, and any
+coding-agent workflow that can read `AGENTS.md` or a pointer to it. The
+enforcement path is agent-independent: the CLI and CI gate decide pass/fail.
+AgentLintel enforces your architecture, not its own: vertical slices, layers,
+MVVM, or in-house rules. Built-in engines provide a starter floor; set
+`engine: external` to wrap the stack-native analyzers your team already trusts.
 
 **Status:** `v2.0.0-alpha.11` - Source-available free use - Node.js >= 18
 
@@ -48,10 +50,11 @@ Teams that pair humans with AI agents hit three walls:
    Ten sessions later — new chat, new model, compacted context — the agent
    invents a second error-handling style or a fourth folder convention.
 2. **Instruction files are advisory.** Cursor rules, Copilot instructions, and
-   plain `AGENTS.md` prose improve behavior but guarantee nothing: recent
-   research measured instruction files dropped from the prompt roughly a third
-   of the time, and 61–79% compliance on complex constraints
-   ([arXiv:2512.18925](https://arxiv.org/abs/2512.18925)). Advice alone
+   plain `AGENTS.md` prose can guide agents, but they do not create a merge
+   gate. Recent empirical work shows developers already write persistent
+   AI-assistant rule files at scale, while the actual performance impact of
+   those rules remains an open research question
+   ([arXiv:2512.18925](https://arxiv.org/abs/2512.18925)). Advice alone still
    drifts.
 3. **Hand-maintained context rots.** Architecture docs and metadata written
    for agents go stale silently — and then agents follow the stale version
@@ -219,7 +222,7 @@ durable, visible to agents, and enforceable in CI.
 | [SPEC.md](SPEC.md) | The normative v2 spec (<= 500 lines) |
 | [.agentlintel/](.agentlintel/) | This repo's own contract — AgentLintel governs itself |
 | [tools/agentlintel-cli/](tools/agentlintel-cli/) | The CLI: `init`, `verify`, `report`, `explain` — plain Node.js, one dependency |
-| [docs/](docs/) | Adoption playbook, launch playbook, design rationale, benchmark protocol, evidence summary |
+| [docs/](docs/) | Adoption playbook, design rationale, benchmark protocol, security and privacy notes |
 
 This repository dogfoods the governance mechanics: the six concepts above are
 live here, the CLI is fixture-tested, and CI runs `verify --strict` on every
@@ -230,17 +233,29 @@ them to `must_match: true`.
 
 ## Status
 
-`v2.0.0-alpha.11`, source-available free use, Node.js >= 18. Free for
-personal, internal, commercial, and non-commercial codebases. AgentLintel does
-not change the license of your source code, product, repo, ADRs, generated
-files, or output. You can build and sell your own software with it; do not
-sell AgentLintel itself, a fork, or a rebranded substantially similar
-architecture-gate system. Files copied by `agentlintel init` are
-[Apache-2.0](tools/agentlintel-cli/LICENSE-APACHE), with normal Apache
-notice/license preservation. The core is under the
-[AgentLintel Free Use No-Resale License 1.0](LICENSE), with no automatic
-Apache-2.0 conversion. See [docs/LEGAL.md](docs/LEGAL.md).
-The six-concept contract is a compatibility promise; CLI surface changes
-require an accepted ADR and must not add kernel concepts.
-File formats may still see minor changes before `v2.0.0`. Feedback and drift
-war stories are welcome in the issue tracker.
+`v2.0.0-alpha.11`, source-available free use, Node.js >= 18.
+
+AgentLintel is free for personal, internal, commercial, client, and
+non-commercial codebases. Using AgentLintel does **not** change the license of
+your source code, product, repository, project-authored ADRs,
+application-generated files, reports, or output. Your project remains yours.
+
+License boundary:
+
+- **Your project stays under your terms.** You can keep it private, sell it,
+  open-source it, or use it internally.
+- **AgentLintel-supplied starter templates are Apache-2.0.** Files copied by
+  `agentlintel init` are permissive templates, safe to commit and modify in
+  proprietary or open-source repositories, subject to normal Apache-2.0
+  notice/license preservation for the copied template content.
+- **AgentLintel core is source-available under the AgentLintel Free Use
+  No-Resale License 1.0.** You may use it for your own projects and client
+  projects, but you may not sell AgentLintel itself, a paid rebrand, a fork,
+  or a substantially similar paid AgentLintel-like product or service.
+
+See [docs/LEGAL.md](docs/LEGAL.md) for the license map. The six-concept
+contract is a compatibility promise: facts, rules, guard, exemplars, skills,
+and decisions. CLI surface changes require an accepted ADR and must not add
+kernel concepts. File formats may still see minor changes before `v2.0.0`.
+Public bugs, docs fixes, and sanitized drift examples are welcome in the issue
+tracker.

@@ -9,7 +9,7 @@
 
 AgentLintel's value depends on discipline, but governance files can become large. If every task loads every rule, ADR, fixture, and template, the system becomes slow, costly, and less likely to be followed.
 
-The first pilot showed that sophistication can be kept if the first loaded files route context instead of explaining everything.
+Early use showed that sophistication can be kept if the first loaded files route context instead of explaining everything.
 
 ## Decision
 

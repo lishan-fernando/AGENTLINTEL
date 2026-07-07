@@ -78,9 +78,9 @@ Consequences:
   item 3 is the only one touching the agent-integration surface; items 4-5 are
   polish and narrative. None touches the enforcement substrate, so the
   fixture-backed guarantee is preserved by construction.
-- The "already shipped" inventory above is the canonical answer to "should we copy X
-  from Mneme?" for the capabilities it lists. A future proposal to add one of them
-  must cite a concrete deficiency in the existing implementation, not its absence.
+- The "already shipped" inventory above is the canonical answer for the
+  capabilities it lists. A future proposal to add one of them must cite a
+  concrete deficiency in the existing implementation, not its absence.
 
 The product direction is therefore not "copy Mneme." It is: keep the AgentLintel
 kernel, close the before-write and explainability gaps, and tell the story with

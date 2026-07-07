@@ -1,13 +1,12 @@
-# ADR-007: Close the enforcement gaps found in production (v2.1)
+# ADR-007: Close the enforcement gaps found in private deployments (v2.1)
 
 Date: 2026-07-02
 Status: Accepted
-Informed by: docs/PRODUCTION-FEEDBACK-2026-07.md (GG + POS production study,
-adversarially reviewed by five independent verification passes)
+Informed by private pre-release migration notes and independent verification passes.
 
 ## Context
 
-Both production deployments (GG and POS, v1) validated the framework's
+Two private v1 deployments validated the framework's
 content — exemplar mirroring, verified facts, guard zones, ADRs — and exposed
 the same failure: nothing the framework ships enforces anything automatically.
 v2 itself had four broken mechanisms: exemptions audited but never suppressed,
@@ -54,7 +53,7 @@ a shape v2 could not verify at all.
    `{file,line,message}`, reporting under AgentLintel rule ids; fixtures cover
    the output-mapping contract via recorded `output.jsonl`. This is the
    "build on, never build" path to dependency-cruiser / ast-grep / compiled
-   architecture tests (POS hand-built exactly this; now it has a socket).
+   architecture tests (one deployment hand-built exactly this; now it has a socket).
 10. **Adapters are content-free pointers** (`init --adapters` for Cursor /
     Copilot / Windsurf) on the CLAUDE.md precedent; verify fails an adapter
     that grows content. They are not compile targets — there is nothing to
@@ -70,8 +69,8 @@ a shape v2 could not verify at all.
 
 - `init && verify` passes out of the box; the 30-minute adoption target is
   mechanically possible.
-- The two stranded v1 production workspaces (GG, POS) have a migration path and
-  a workspace-aware gate — they are the intended first case study.
+- The two stranded private v1 workspaces have a migration path and
+  a workspace-aware gate — they are the intended first migration validation.
 - The CLI grows from ~750 to ~1,300 lines, still plain Node, one dependency,
   three commands. Rejected: new CLI verbs (migrate/status/context) — folded
   into init/report flags to keep "init, verify, report — nothing else" true.

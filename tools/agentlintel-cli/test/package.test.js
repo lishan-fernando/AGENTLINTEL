@@ -13,8 +13,8 @@ const REPO = path.join(ROOT, '..', '..');
 const PKG = require('../package.json');
 // Recalibrated for readable shipped source with meaningful identifiers
 // (ADR-014), explain/warn/hook DX surface (ADR-016), and license clarity text
-// (ADR-020).
-const NPM_UNPACKED_BYTE_BUDGET = 154000;
+// (ADR-020 and ADR-021).
+const NPM_UNPACKED_BYTE_BUDGET = 155000;
 
 let packCache = null;
 

@@ -5,12 +5,12 @@ Status: Accepted
 
 ## Context
 
-Two adoption blockers surfaced from the production deployments:
+Two adoption blockers surfaced from private v1 deployments:
 
-1. **Distribution.** GG and POS copy-pasted (vendored) the framework because no
-   installable package existed. Vendored kits get no updates — POS is pinned to
-   an extinct kit layout, GG carries a rule bug POS fixed locally. The study
-   (docs/PRODUCTION-FEEDBACK-2026-07.md §2.9) named this the stranding problem.
+1. **Distribution.** Private adopters copy-pasted (vendored) the framework
+   because no installable package existed. Vendored kits get no updates — one
+   deployment pinned to an extinct kit layout while another carried a rule bug
+   fixed elsewhere. Private migration notes named this the stranding problem.
 2. **Genericity.** The reference rules encode one company's architecture
    (vertical slices, Result, slice-local error codes). A generic framework must
    support common patterns (3-tier, MVVM, hexagonal, ...) and let a team define
@@ -47,7 +47,7 @@ Two adoption blockers surfaced from the production deployments:
 
 ## Consequences
 
-- GG and POS de-vendor by deleting the framework clone and adding one
+- Private deployments de-vendor by deleting the framework clone and adding one
   devDependency line per repo; upgrades become visible diffs.
 - "Supports my architecture" changes from "rewrite the rules" to "pick a pack
   or write 10 lines" — the genericity blocker.

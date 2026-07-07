@@ -98,8 +98,10 @@ Full spec and file formats: https://github.com/lishan-fernando/AGENTLINTEL.
 
 Source-available free use. The CLI is under the AgentLintel Free Use No-Resale
 License 1.0 (see `LICENSE`): free for personal, internal, commercial, and
-non-commercial projects, but you may not sell AgentLintel itself, a fork, or a
-rebranded substantially similar architecture-gate system. Using AgentLintel
-does not change the license of your source code, product, repo, ADRs,
-generated files, or output. Templates copied by `init` are Apache-2.0 (see
-`LICENSE-APACHE`), with normal Apache notice/license preservation.
+non-commercial projects, including client projects, but you may not sell
+AgentLintel itself, a fork, or a rebranded substantially similar
+architecture-gate system. Using AgentLintel does not change the license of your
+source code, product, repository, project-authored ADRs, application-generated
+files, reports, or output. AgentLintel-supplied starter templates copied by
+`init` are Apache-2.0 (see `LICENSE-APACHE`), with normal Apache notice/license
+preservation for the copied template content.

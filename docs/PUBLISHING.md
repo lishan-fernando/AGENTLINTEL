@@ -99,7 +99,7 @@ npmjs.com and in the GitHub repo settings, in this order:
    - In the package's publishing access settings, require two-factor
      authentication or automation and disallow classic tokens.
    - From now on the workflow authenticates via GitHub OIDC; there is no
-     long-lived credential to steal, and provenance is attested on every
+     long-lived credential to compromise, and provenance is attested on every
      release.
 5. **Tell adopters.** Make `npm i -D @agentlintel/cli` the primary install path
    only when the registry version matches the current GitHub release. If npm

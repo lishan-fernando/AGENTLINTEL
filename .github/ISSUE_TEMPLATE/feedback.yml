@@ -1,5 +1,5 @@
-name: Feedback or pilot
-description: Share feedback, a drift story, a bug, or a pilot request.
+name: Public feedback
+description: Share a sanitized drift story, bug, or docs feedback.
 title: "Feedback: "
 labels: ["feedback"]
 body:
@@ -7,35 +7,24 @@ body:
     attributes:
       value: |
         Thanks for testing AgentLintel early. Do not paste secrets, customer
-        data, private source code, or private logs.
+        data, private source code, private logs, or sensitive adoption context.
   - type: dropdown
     id: kind
     attributes:
       label: What kind of feedback is this?
       options:
-        - Pilot request
-        - Architecture drift story
+        - Architecture drift report
         - Bug report
-        - Docs or positioning feedback
-        - Other
+        - Docs feedback
+        - Other public feedback
     validations:
       required: true
   - type: textarea
     id: details
     attributes:
       label: Details
-      description: What happened, what hurt, or what should AgentLintel enforce first?
-      placeholder: "Example: TypeScript monorepo using Cursor; agents keep bypassing public slice indexes."
-    validations:
-      required: true
-  - type: dropdown
-    id: quote
-    attributes:
-      label: May we quote the outcome anonymously?
-      options:
-        - Ask me first
-        - Yes, anonymized is okay
-        - No
+      description: Share only public, sanitized details: what drifted, what failed, or what was unclear.
+      placeholder: "Example: Agents keep bypassing public slice indexes in a TypeScript monorepo."
     validations:
       required: true
   - type: checkboxes
@@ -43,5 +32,5 @@ body:
     attributes:
       label: Public safety check
       options:
-        - label: I did not include secrets, customer data, private source code, or private logs.
+        - label: I did not include secrets, customer data, private source code, private logs, or sensitive adoption context.
           required: true

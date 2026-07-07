@@ -8,10 +8,9 @@ Supersedes: ADR-001 (partially), ADR-002, ADR-003 (mechanism replaced; intent re
 
 v1 shipped ~40 concepts, 17 file types, 10 schemas, 27 rules (18 of them
 instruction-only), eight compile targets, and orchestration metadata with no
-executor. In its flagship deployment (GG, 5 repos), the framework's
-own metadata drifted — `repos.yaml` declared MediatR after the code had moved
-to Wolverine, CI installed .NET 9 against net10.0 projects — and a *manual
-audit*, not the framework, caught it. Meanwhile AGENTS.md (Linux Foundation
+executor. In a private pre-v2 deployment, the framework's own metadata drifted
+away from the code and CI shape, and a *manual audit*, not the framework,
+caught it. Meanwhile AGENTS.md (Linux Foundation
 AAIF, Dec 2025) and Agent Skills (32+ tools) consolidated the instruction and
 progressive-disclosure layers v1 was hand-rolling.
 
@@ -33,8 +32,8 @@ progressive-disclosure layers v1 was hand-rolling.
 
 ## Consequences
 
-- Always-load drops from ~21K measured tokens (GG) to ≤2K.
-- Drift of the MediatR class is now a CI failure (stale fact), not an audit finding.
+- Always-load drops from ~21K measured tokens to ≤2K.
+- Drift of that class is now a CI failure (stale fact), not an audit finding.
 - Cross-repo consistency is achieved by sharing the same rules.yaml +
   fixtures across repos, not by an orchestrator: simpler, weaker, shippable.
 - v1 adopters migrate by running `agentlintel init` and porting facts; there

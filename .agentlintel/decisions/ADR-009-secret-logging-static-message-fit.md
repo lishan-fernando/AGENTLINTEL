@@ -5,7 +5,7 @@ Status: Accepted
 
 ## Context
 
-The five-repo v2 migration for one case-study workspace found that
+Private v2 migration work found that
 `secrets.no-logging` reported eight violations where the log message mentioned words such as
 `token` or `secret`, but did not log the sensitive value. Examples included
 static operational messages like "Session token not found" and exception messages

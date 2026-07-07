@@ -2,7 +2,7 @@
 
 Accepted: 2026-07-04
 
-Founder direction on 2026-07-04, ahead of the public announcement: anyone may
+Maintainer direction on 2026-07-04, before release: anyone may
 use AgentLintel and ship their own software with it, but nobody may sell
 AgentLintel itself. Apache-2.0 alone cannot express that — it grants
 unrestricted commercial redistribution, so a third party could lawfully

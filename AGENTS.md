@@ -53,7 +53,7 @@ machine-verified mirror of .agentlintel/ - change both or the sync test fails.
 - New rule = rule entry + fixtures + tests, in the same PR, or it doesn't merge.
 - Exit codes: 0 gate passed, 1 gate failed, 2 internal error. Documented in `SPEC.md`.
 
-## The five rules (what adopters enforce; vocabulary used everywhere)
+## The five architecture principles
 
 1. A slice is one business capability, not one technical layer.
 2. One public file per slice (`index`); everything else is private.

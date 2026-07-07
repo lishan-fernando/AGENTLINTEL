@@ -4,7 +4,7 @@ Accepted: 2026-07-07
 
 Supersedes ADR-012 for versions released with this decision.
 
-Founder direction on 2026-07-07 clarified the intended license posture:
+Maintainer direction on 2026-07-07 clarified the intended license posture:
 AgentLintel must be free to use in personal, internal, commercial, and
 non-commercial projects. Humans and AI systems may use it to create project
 code, ADRs, documentation, configuration, and other files, and those project

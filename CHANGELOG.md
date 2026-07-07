@@ -9,8 +9,9 @@ Legal clarity pass.
   commercial and non-commercial projects, project outputs stay with the user,
   and AgentLintel itself, forks, or rebranded substantially similar systems may
   not be sold.
-- Keeps templates, generated starter files, and adopter-facing glue under
-  Apache-2.0 so adopter repositories do not inherit the core no-resale license.
+- Keeps AgentLintel-supplied templates, generated starter files, and
+  adopter-facing glue under Apache-2.0, while clarifying that adopter-authored
+  `.agentlintel/` files do not become Apache-2.0 merely because of their path.
 - Documents that previously published copies keep the license grants they were
   already published under.
 
@@ -47,7 +48,7 @@ Repository hygiene and reliability pass.
 
 ## v2.0.0-alpha.8 — 2026-07-06
 
-Adopt the reviewed Mneme lessons without touching the enforcement kernel
+Apply the reviewed memory-tool comparison without touching the enforcement kernel
 (ADR-016). DX and adoption surface only; facts, rules, guard, exemplars,
 skills, and decisions are unchanged.
 
@@ -77,7 +78,7 @@ The first npm release: `@agentlintel/cli` on the registry with provenance.
 
 ## v2.0.0-alpha.6 — 2026-07-04
 
-Supply-chain-hardened CI/CD ahead of the public launch (ADR-013).
+Supply-chain-hardened CI/CD before release (ADR-013).
 GitHub Release only; its npm publish was blocked by the two defects fixed
 in alpha.7.
 
@@ -95,7 +96,7 @@ in alpha.7.
 
 The fair-source release.
 
-- Relicensed ahead of the public announcement (ADR-012). The core — CLI
+- Relicensed for the alpha.5 baseline (ADR-012). The core — CLI
   source, spec, docs — moves from Apache-2.0 to fair-source `FSL-1.1-ALv2`:
   free for any use except selling AgentLintel itself; each release converts
   to Apache-2.0 two years after publication. The adoption surface (templates,
@@ -153,7 +154,7 @@ deleted.**
   `command`). Stale facts fail the gate; this kills the
   metadata-says-MediatR-while-code-uses-Wolverine class of drift.
 - `guard.json` — write-boundary zones checked against git diff (promoted from
-  the Workspace Alpha deployment's `architecture.guard.json`).
+  a pre-v2 deployment's `architecture.guard.json`).
 - `exemplars.yaml` — exemplar registry with existence checks.
 - Rewritten CLI (`@agentlintel/cli` 2.0.0-alpha.1): three commands
   (`init`, `verify`, `report`), modular source, 13 tests, one dependency.
@@ -184,7 +185,7 @@ deleted.**
 
 - Concepts: ~40 → 6. Schemas: 10 → 0 (formats documented in SPEC.md).
 - Rules: 27 declared / 7 enforced → 7 declared / 7 enforced.
-- Always-load: ~21K tokens measured in Workspace Alpha → ≤ 2K target.
+- Always-load: ~21K tokens measured in a pre-v2 deployment → ≤ 2K target.
 
 ## v0.3.0 — 2026-05
 

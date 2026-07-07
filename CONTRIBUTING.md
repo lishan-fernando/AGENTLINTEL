@@ -4,14 +4,12 @@ Read `AGENTS.md` first — its laws apply to humans too.
 
 ## Helpful non-code contributions
 
-- Request a pilot if you have a repo where AI-agent architecture drift is
-  already painful.
-- Share a concrete drift story: what the agent changed, why it mattered, and
-  how you caught it.
+- Share a sanitized drift example: what the agent changed, why it mattered,
+  and how you caught it.
 - Point out unclear README, install, licensing, or claim-boundary language.
 
-Please do not paste secrets, customer data, private source code, or anything
-your team would not want public. An anonymized story is useful.
+Please do not paste secrets, customer data, private source code, sensitive
+adoption context, or anything your team would not want public.
 
 ## The bar
 
@@ -37,9 +35,10 @@ CI runs exactly this.
 Inbound = outbound. By submitting a contribution you license it under the
 license of the files it modifies or creates -
 `LicenseRef-AgentLintel-Free-Use-No-Resale-1.0` for the core, `Apache-2.0`
-for `.agentlintel/**`, `.github/**`, `.pre-commit-hooks.yaml`, and
-`tools/agentlintel-cli/templates/**` (see [docs/LEGAL.md](docs/LEGAL.md) for
-the boundary). Keep the SPDX header style of the area you touch. Sign each
-commit off (`git commit -s`) to certify the Developer Certificate of Origin
-(developercertificate.org) - that you have the right to submit the work under
-these terms.
+for AgentLintel-supplied adoption templates and examples:
+`tools/agentlintel-cli/templates/**`, this repository's own `.agentlintel/**`,
+this repository's own `.github/**`, and `.pre-commit-hooks.yaml` (see
+[docs/LEGAL.md](docs/LEGAL.md) for the boundary). Keep the SPDX header style
+of the area you touch. Sign each commit off (`git commit -s`) to certify the
+Developer Certificate of Origin (developercertificate.org) - that you have the
+right to submit the work under these terms.

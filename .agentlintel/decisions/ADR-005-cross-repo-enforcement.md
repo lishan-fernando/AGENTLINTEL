@@ -4,7 +4,6 @@
 - **Date:** 2026-05-19
 - **Supersedes:** None
 - **Refines:** [ADR-004 Extraction Workflow Pack](./ADR-004-extraction-workflow-pack.md)
-- **Related:** [`WORLD-CLASS-ASSESSMENT-2026-05.md`](../../docs/WORLD-CLASS-ASSESSMENT-2026-05.md) §4.0 / §5.3 / §7.D
 
 ## Context
 
@@ -29,7 +28,7 @@ For v0.4, **cross-repo architectural enforcement becomes the lead mission of Age
 
 1. **`agentlintel consistency-check`** — a multi-repo command. Inputs: a `repos.yaml` manifest or a list of repo paths. Verifies across every repo that primitive paths (`Result`, `ExecutionContext`), validation library, error-code grammar, exemplar shape, agentlintel contract, and architecture profile all match. Outputs a per-key drift report with severity (`error` for divergent primitive paths and error patterns; `warning` for divergent validation library or architecture profile; `info` for exemplar-shape drift). Supports `--exit-on-drift` for CI.
 2. **`agentlintel registry sync` / `registry diff` / `registry list`** — the central architecture registry from ADR-004. `sync` aggregates `.agentlintel/context.yaml` + `manifest.yaml` from every repo in `repos.yaml` into one local registry directory. `diff` runs `consistency-check` against the registry. `list` enumerates synced repos with metadata. The orchestrator policy can point at the registry as the source of truth.
-3. **`agentlintel drift`** — periodic drift reports comparing the current registry against a saved snapshot. Outputs the metric the design-partner case study from §7.C.1 needs: "X architectural-style divergences per quarter, reduced to Y after AgentLintel rollout."
+3. **`agentlintel drift`** — periodic drift reports comparing the current registry against a saved snapshot. Outputs the benchmark metric: "X architectural-style divergences per quarter, reduced to Y after AgentLintel rollout."
 4. **AAIF-compatible compile targets `agents-md` and `skills`** — alongside the existing six compile targets. `agents-md` emits an AAIF-conformant `AGENTS.md` with a Cross-Repo Consistency callout that references `consistency-check`. `skills` emits a `skills/` folder of five `SKILL.md` packages (context protocol, slices, exemption governance, maturity ladder, extraction workflow) compatible with 32+ AAIF-aligned tools.
 5. **Real tokenizer with heuristic fallback** — `agentlintel estimate --model claude-opus-4-6 --model gpt-5-pro` returns real per-model token counts when `@anthropic-ai/tokenizer` and / or `js-tiktoken` are installed; the 1-char-per-4-tokens heuristic remains for unknown models and uninstalled tokenizer cases.
 6. **Distribution infrastructure** — root `package.json` with workspaces declaring `@agentlintel/cli` as the publishable workspace; `.github/actions/agentlintel/action.yml` as a composite GitHub Action adopters can reference in three lines of YAML; `.pre-commit-hooks.yaml` exposing `agentlintel-verify` and `agentlintel-consistency-check` to the pre-commit framework; example workflow file under `.github/workflows/example-adopter.yml`.
@@ -40,7 +39,7 @@ For v0.4, **cross-repo architectural enforcement becomes the lead mission of Age
 
 - The strategic-orchestrator runtime adapter (`@agentlintel/runtime-agentsdk`). The metadata stays as-is; the executor binding is v0.5 work because it depends on shipping a real adapter against Anthropic Agent SDK and validating against a design partner.
 - TypeScript AST-backed rules (`@agentlintel/eslint-plugin`) and the .NET Roslyn analyzer. These are v0.5 work; v0.4 leaves the 18 model-instruction-only rules where they are.
-- A named design-partner case study. Tracked in `docs/WORLD-CLASS-ASSESSMENT-2026-05.md` §7.C.1; recruited and run in parallel with the v0.5 cycle.
+- A named case study. Track outside the public repository until the participant has approved publication.
 - AAIF submission of the modular-monolith extraction reference pack. After v0.4 ships and the SKILL.md output is validated against at least one external repo.
 
 ## Consequences
@@ -66,7 +65,6 @@ Negative / accepted trade-offs:
 
 ## References
 
-- [`WORLD-CLASS-ASSESSMENT-2026-05.md`](../../docs/WORLD-CLASS-ASSESSMENT-2026-05.md) — the brutally-honest review that motivated v0.4.
 - [ADR-004 Extraction Workflow Pack](./ADR-004-extraction-workflow-pack.md) — declared the central registry requirement that this ADR ships.
 - [ADR-001 CLI Is A Context Compiler, Not A Coding Agent](./ADR-001-context-compiler-not-agent.md) — the framing this ADR refines (the CLI is now also a *cross-repo policy checker*).
 - AGENTS.md (https://agents.md) — AAIF AGENTS.md format.

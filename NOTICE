@@ -6,9 +6,12 @@ and documentation - is licensed under the AgentLintel Free Use No-Resale
 License, Version 1.0 (SPDX:
 LicenseRef-AgentLintel-Free-Use-No-Resale-1.0). See LICENSE.
 
-The adoption surface - .agentlintel/**, .github/**, .pre-commit-hooks.yaml,
-and tools/agentlintel-cli/templates/** - is licensed under the Apache License,
-Version 2.0. See tools/agentlintel-cli/LICENSE-APACHE and docs/LEGAL.md for
+AgentLintel-supplied templates and examples are licensed under the Apache
+License, Version 2.0: tools/agentlintel-cli/templates/**, this repository's
+own .agentlintel/**, this repository's own .github/**, and
+.pre-commit-hooks.yaml. In adopter repositories, project-specific files are
+not Apache-2.0 merely because they live under .agentlintel/ or were checked by
+AgentLintel. See tools/agentlintel-cli/LICENSE-APACHE and docs/LEGAL.md for
 the exact boundary.
 
 Previously published copies keep their published licenses: releases up to and

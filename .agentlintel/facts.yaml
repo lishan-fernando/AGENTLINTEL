@@ -92,7 +92,7 @@ facts:
     check: { type: file_contains, path: LICENSE, pattern: "LicenseRef-AgentLintel-Free-Use-No-Resale-1\\.0" }
 
   - id: license-adoption-surface
-    claim: "The adoption surface (.agentlintel/**, .github/**, pre-commit glue, and CLI templates) stays Apache-2.0; the package ships the Apache text"
+    claim: "AgentLintel-supplied adoption templates and this repo's adoption examples stay Apache-2.0; adopter-authored project files keep the adopter's terms"
     check: { type: file_contains, path: tools/agentlintel-cli/LICENSE-APACHE, pattern: "Apache License" }
 
   - id: single-root-license-file
