@@ -2,6 +2,17 @@
 
 Read `AGENTS.md` first — its laws apply to humans too.
 
+## Helpful non-code contributions
+
+- Request a pilot if you have a repo where AI-agent architecture drift is
+  already painful.
+- Share a concrete drift story: what the agent changed, why it mattered, and
+  how you caught it.
+- Point out unclear README, install, licensing, or claim-boundary language.
+
+Please do not paste secrets, customer data, private source code, or anything
+your team would not want public. An anonymized story is useful.
+
 ## The bar
 
 - **New rule:** rule entry in `.agentlintel/rules.yaml` + pass/fail fixtures

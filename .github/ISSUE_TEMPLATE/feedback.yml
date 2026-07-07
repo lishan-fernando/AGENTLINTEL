@@ -1,0 +1,47 @@
+name: Feedback or pilot
+description: Share feedback, a drift story, a bug, or a pilot request.
+title: "Feedback: "
+labels: ["feedback"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing AgentLintel early. Do not paste secrets, customer
+        data, private source code, or private logs.
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of feedback is this?
+      options:
+        - Pilot request
+        - Architecture drift story
+        - Bug report
+        - Docs or positioning feedback
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      description: What happened, what hurt, or what should AgentLintel enforce first?
+      placeholder: "Example: TypeScript monorepo using Cursor; agents keep bypassing public slice indexes."
+    validations:
+      required: true
+  - type: dropdown
+    id: quote
+    attributes:
+      label: May we quote the outcome anonymously?
+      options:
+        - Ask me first
+        - Yes, anonymized is okay
+        - No
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Public safety check
+      options:
+        - label: I did not include secrets, customer data, private source code, or private logs.
+          required: true

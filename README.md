@@ -15,6 +15,11 @@ Use it when:
 - You are tired of repeating the same architecture instructions in every chat.
 - You want pull requests to fail when repo conventions drift.
 
+AgentLintel is early and looking for serious feedback. If this pain is familiar,
+[open a feedback or pilot issue](https://github.com/lishan-fernando/AGENTLINTEL/issues/new?template=feedback.yml).
+Please do not paste private code, secrets, customer data, or anything your team
+would not want public.
+
 AgentLintel is a local-first CLI plus a small repo contract. You state your
 architecture once with verified facts, deterministic rules, write-boundary
 guard zones, exemplars, standard Agent Skills, and append-only decisions.
@@ -36,15 +41,7 @@ wraps the stack-native analyzers your team already trusts.
 
 ## The problem: AI coding agents drift
 
-> In today's world, avoiding AI agents for coding is no longer realistic. They
-> help, but they are also known for creating architectural differences across
-> prompts and sessions. Limited context windows and memory make this worse. I
-> built AgentLintel after running into this many times while working on large
-> production-grade solutions. It is my way of tackling the problem, alongside
-> many others trying to solve similar issues.
-
-The failure has a pattern. Teams that pair humans with AI agents hit three
-walls:
+Teams that pair humans with AI agents hit three walls:
 
 1. **Instructions do not persist.** You explain the architecture in a prompt.
    Ten sessions later — new chat, new model, compacted context — the agent
@@ -59,14 +56,13 @@ walls:
    for agents go stale silently — and then agents follow the stale version
    faithfully.
 
-Drift compounds. Humans end up restating the same intent in every session and
-relitigating it in every review — the opposite of the leverage agents were
-supposed to bring.
+Drift compounds. Humans restate the same intent in every session and relitigate
+it in every review.
 
 ## The idea: instruct once, enforce always
 
-AgentLintel moves architectural intent out of chat history and into a contract
-the repository itself carries. The contract has three properties prose never
+AgentLintel moves architectural intent out of chat history and into a small
+contract the repository carries. The contract has three properties prose never
 has:
 
 - **Verified.** Every claim about the repo is re-checked on every run. A stale
@@ -77,48 +73,8 @@ has:
   instruction an agent could ignore becomes a diff that cannot merge.
 
 Core law: **every governance artifact is machine-verified, append-only, or
-deleted.** Nothing in the contract can rot, because nothing unverifiable is
-allowed to exist.
-
-```mermaid
-flowchart LR
-    H["Human<br/>states intent once"]
-    K[".agentlintel/ + AGENTS.md<br/>the repo contract"]
-    A["AI agent<br/>reads, mirrors, writes"]
-    V{"verify - fast loop<br/>(seconds)"}
-    P["pull request"]
-    C{"CI gate<br/>verify --strict"}
-    M["merged code<br/>matches intent"]
-
-    H -->|edits the contract| K
-    K -->|always-load <= 2K tokens| A
-    A --> V
-    V -->|violations| A
-    V -->|clean| P
-    P --> C
-    C -->|red| A
-    C -->|green| M
-    H -.->|intent changed? append an ADR| K
-```
-
-Why this improves agent accuracy, mechanically:
-
-- **Nothing depends on memory.** The always-load surface stays under ~2K
-  tokens, so your architecture survives every context window. Deeper
-  workflows load on demand as Agent Skills.
-- **Mirroring beats recall.** Agents copy a registered exemplar — real,
-  canonical code in your repo — instead of reconstructing your conventions
-  from prose.
-- **Feedback lands in seconds.** The fast verify loop tells the agent exactly
-  which rule it broke, with file and line, while it is still working — so it
-  self-corrects before a human ever reviews.
-- **Truth cannot rot.** Facts are re-verified on every run, exemptions expire
-  on a date, and weakening a rule requires a written decision in the same
-  diff.
-
-You will still change your mind — architecture evolves. You just do it once,
-in one place, as an append-only decision record (ADR), and every future
-session inherits the update.
+deleted.** If architecture intent changes, record it once as an append-only ADR;
+future agent sessions inherit the update.
 
 ## Quick start
 
@@ -148,41 +104,15 @@ From then on, the contract changes only when your intent changes.
 AgentLintel's whole surface is six concepts. Rejecting a seventh is a design
 law, so the contract stays learnable in minutes — by humans and by agents.
 
-```mermaid
-flowchart TB
-    V["agentlintel verify<br/>one command - exit 0 or 1"]
+- **facts**: checked claims about the repo.
+- **rules**: deterministic checks with pass/fail fixtures.
+- **guard**: write-boundary zones checked against the diff.
+- **exemplars**: canonical code agents should mirror.
+- **skills**: standard `SKILL.md` workflows loaded only when relevant.
+- **decisions**: append-only ADRs for architecture changes.
 
-    subgraph K["the contract - .agentlintel/"]
-        direction LR
-        F["facts<br/>checked claims"]
-        R["rules<br/>+ fixtures"]
-        G["guard<br/>write zones"]
-        E["exemplars<br/>code to mirror"]
-        S["skills<br/>on-demand workflows"]
-        D["decisions<br/>append-only ADRs"]
-    end
-
-    V --> F
-    V --> R
-    V --> G
-    V --> E
-    V --> S
-    V --> D
-```
-
-| Concept | File | Question it answers | How it is checked |
-|---|---|---|---|
-| **facts** | `facts.yaml` | What is true about this repo? | Every claim re-verified on every run; stale facts fail the gate |
-| **rules** | `rules.yaml` | What must never regress? | Deterministic engines fail the PR; every rule ships pass/fail fixtures proving it works |
-| **guard** | `guard.json` | Where may changes land? | Changed files checked against allowed write zones |
-| **exemplars** | `exemplars.yaml` | What does good look like? | Registered canonical code; agents mirror it instead of guessing |
-| **skills** | `skills/` | How do we do X here? | Standard `SKILL.md` workflows, loaded only when relevant |
-| **decisions** | `decisions/` | Why is it this way? | Append-only ADRs; weakening any rule requires one in the same diff |
-
-Three reference skills ship with the framework: `strangler-extraction` (carve
-capabilities out of a monolith), `mirror-exemplar` (build new code by copying
-the registered exemplar), and `audit-architecture` (audit the codebase for
-drift).
+Three reference skills ship with the framework: `strangler-extraction`,
+`mirror-exemplar`, and `audit-architecture`.
 
 ## Rules and engines
 
@@ -279,15 +209,11 @@ the per-session re-explaining tax.
 
 ## AgentLintel alongside the tools you already use
 
-AgentLintel replaces none of your existing quality stack. It occupies a layer
-that was empty: deterministic architecture enforcement that agents can read.
-
-| You already have | It gives you | AgentLintel adds |
-|---|---|---|
-| Linters and formatters (ESLint, Ruff, ...) | Per-file syntax and style | Cross-file architecture: module and layer boundaries, public surfaces, error contracts |
-| Architecture test tools (ArchUnit, dependency-cruiser, NDepend) | Deep language-specific dependency analysis | Keep them — wire them in as `engine: external` rules; they gain fixtures, audited exemptions, agent visibility, and one CI gate |
-| AI code reviewers (CodeRabbit, Greptile, ...) | Probabilistic judgment — thorough, but variable | The deterministic floor beneath them: zero-variance verdicts on the rules that must never regress, in the same PR |
-| Instruction files (Cursor rules, Copilot instructions, plain `AGENTS.md`) | Advice the agent usually follows | The enforcement half: a machine that fails the PR when advice gets dropped |
+AgentLintel replaces none of your existing quality stack. Linters keep style
+clean, architecture-test tools provide stack-native depth, AI reviewers provide
+probabilistic judgment, and instruction files guide the agent. AgentLintel adds
+the deterministic floor beneath them: architecture rules that agents can read
+and CI can enforce.
 
 ## What AgentLintel is not
 
