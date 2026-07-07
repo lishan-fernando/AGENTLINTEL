@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: FSL-1.1-ALv2
+// SPDX-License-Identifier: LicenseRef-AgentLintel-Free-Use-No-Resale-1.0
 'use strict';
 
 const { test, after } = require('node:test');
@@ -12,8 +12,9 @@ const ROOT = path.join(__dirname, '..');
 const REPO = path.join(ROOT, '..', '..');
 const PKG = require('../package.json');
 // Recalibrated for readable shipped source with meaningful identifiers
-// (ADR-014), then explain/warn/hook DX surface (ADR-016).
-const NPM_UNPACKED_BYTE_BUDGET = 152000;
+// (ADR-014), explain/warn/hook DX surface (ADR-016), and license clarity text
+// (ADR-020).
+const NPM_UNPACKED_BYTE_BUDGET = 154000;
 
 let packCache = null;
 

@@ -1,6 +1,6 @@
 {
   "name": "@agentlintel/cli",
-  "version": "2.0.0-alpha.10",
+  "version": "2.0.0-alpha.11",
   "description": "Deterministic architecture gate for AI-agent codebases: verified facts, enforceable rules, conformance fixtures, write-boundary guard.",
   "keywords": [
     "ai",
@@ -59,7 +59,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "license": "FSL-1.1-ALv2",
+  "license": "SEE LICENSE IN LICENSE",
   "author": "Muthuthanthrige Lishan Waruna Pramodh Fernando",
   "dependencies": {
     "yaml": "^2.8.4"

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: FSL-1.1-ALv2
+// SPDX-License-Identifier: LicenseRef-AgentLintel-Free-Use-No-Resale-1.0
 // Tests for the layers engine and architecture pattern packs.
 'use strict';
 const { test } = require('node:test');

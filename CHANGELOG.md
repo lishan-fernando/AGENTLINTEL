@@ -1,5 +1,19 @@
 # Changelog
 
+## v2.0.0-alpha.11 - Unreleased
+
+Legal clarity pass.
+
+- Supersedes the FSL fair-source posture for future releases with the
+  AgentLintel Free Use No-Resale License 1.0: AgentLintel is free to use in
+  commercial and non-commercial projects, project outputs stay with the user,
+  and AgentLintel itself, forks, or rebranded substantially similar systems may
+  not be sold.
+- Keeps templates, generated starter files, and adopter-facing glue under
+  Apache-2.0 so adopter repositories do not inherit the core no-resale license.
+- Documents that previously published copies keep the license grants they were
+  already published under.
+
 ## v2.0.0-alpha.10 — 2026-07-06
 
 CI/CD and npm release cleanup.

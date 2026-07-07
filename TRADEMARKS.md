@@ -50,10 +50,10 @@ Restricted examples include:
 ## Relationship To The Code Licenses
 
 Trademark rights are separate from the code licenses and are not granted by
-them. This includes versions whose Functional Source License term has
-converted to Apache-2.0 under the future grant: the code becomes open source,
-the marks do not. Distribute modified or commercial derivatives under your
-own name.
+them. This includes current versions under the AgentLintel Free Use No-Resale
+License and older copies that may have been published under Apache-2.0 or
+FSL-1.1-ALv2: no code license grants the marks. Distribute modified versions
+under your own name and do not imply official status.
 
 ## Forks and Modified Versions
 

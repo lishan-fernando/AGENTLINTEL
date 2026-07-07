@@ -7,7 +7,7 @@
 architecture enforceable in CI.**
 
 ```bash
-npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.10/agentlintel-cli.tgz
+npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.11/agentlintel-cli.tgz
 npx agentlintel init
 npx agentlintel verify
 ```
@@ -38,7 +38,7 @@ architecture, not its own: vertical slices, layers, MVVM, or in-house rules.
 Built-in engines provide a starter floor; `engine: external` wraps the
 stack-native analyzers your team already trusts.
 
-**Status:** `v2.0.0-alpha.10` - Fair source - Node.js >= 18
+**Status:** `v2.0.0-alpha.11` - Source-available free use - Node.js >= 18
 
 ## The problem: AI coding agents drift
 
@@ -80,7 +80,7 @@ future agent sessions inherit the update.
 ## Quick start
 
 ```bash
-npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.10/agentlintel-cli.tgz
+npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.11/agentlintel-cli.tgz
 npx agentlintel init      # scaffold the contract (pick a pattern pack)
 npx agentlintel verify    # run the gate locally
 npx agentlintel explain --path src/example.ts  # debug what applies to a file
@@ -230,13 +230,16 @@ them to `must_match: true`.
 
 ## Status
 
-`v2.0.0-alpha.10`, fair source, Node.js >= 18. Free for personal, internal, and
-commercial codebases. AgentLintel does not change the license of your source
-code, product, repo, or output. Files copied by `agentlintel init` are
+`v2.0.0-alpha.11`, source-available free use, Node.js >= 18. Free for
+personal, internal, commercial, and non-commercial codebases. AgentLintel does
+not change the license of your source code, product, repo, ADRs, generated
+files, or output. You can build and sell your own software with it; do not
+sell AgentLintel itself, a fork, or a rebranded substantially similar
+architecture-gate system. Files copied by `agentlintel init` are
 [Apache-2.0](tools/agentlintel-cli/LICENSE-APACHE), with normal Apache
-notice/license preservation. The core is [FSL-1.1-ALv2](LICENSE); its two-year
-Apache-2.0 future grant applies to AgentLintel releases, not your project. See
-[docs/LEGAL.md](docs/LEGAL.md).
+notice/license preservation. The core is under the
+[AgentLintel Free Use No-Resale License 1.0](LICENSE), with no automatic
+Apache-2.0 conversion. See [docs/LEGAL.md](docs/LEGAL.md).
 The six-concept contract is a compatibility promise; CLI surface changes
 require an accepted ADR and must not add kernel concepts.
 File formats may still see minor changes before `v2.0.0`. Feedback and drift

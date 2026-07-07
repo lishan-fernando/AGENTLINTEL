@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: FSL-1.1-ALv2
+// SPDX-License-Identifier: LicenseRef-AgentLintel-Free-Use-No-Resale-1.0
 // LAW test: every rule in the kernel has fixtures and they are green.
 'use strict';
 const { test } = require('node:test');

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// SPDX-License-Identifier: FSL-1.1-ALv2
+// SPDX-License-Identifier: LicenseRef-AgentLintel-Free-Use-No-Resale-1.0
 "use strict";
 
 const { main } = require("../src/cli");

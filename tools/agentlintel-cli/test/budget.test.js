@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: FSL-1.1-ALv2
+// SPDX-License-Identifier: LicenseRef-AgentLintel-Free-Use-No-Resale-1.0
 'use strict';
 
 const { test } = require('node:test');
@@ -10,12 +10,13 @@ const { spawnSync } = require('node:child_process');
 const REPO = path.join(__dirname, '..', '..', '..');
 // Frozen lean cap from the alpha.5 public baseline (then ~25% below the
 // pre-lean size). Re-baselined for the ADR-016 explain/warn/hook DX surface,
-// then ADR-018 alpha.9 hygiene and ADR-019 CI/npm release contract.
-const TRACKED_BYTE_BUDGET = 407000;
+// ADR-018 alpha.9 hygiene, ADR-019 CI/npm release contract, then ADR-020
+// license clarity text.
+const TRACKED_BYTE_BUDGET = 416000;
 // Recalibrated for readable shipped CLI source with meaningful identifiers
 // (ADR-014), then for explain/warn/hook DX surface (ADR-016), measured on the
-// committed tree; next change needs an ADR.
-const ELIGIBLE_TRACKED_BYTE_BUDGET = 230000;
+// committed tree; re-baselined for ADR-020 legal clarity text.
+const ELIGIBLE_TRACKED_BYTE_BUDGET = 231000;
 const DEAD_WEIGHT_EXCLUDE = /^(?:\.agentlintel\/decisions\/|LICENSE$|NOTICE$|docs\/LEGAL\.md$|tools\/agentlintel-cli\/LICENSE(?:-APACHE)?$|tools\/agentlintel-cli\/package-lock\.json$|tools\/agentlintel-cli\/test\/|\.agentlintel\/conformance\/.*\/cases\/|tools\/agentlintel-cli\/templates\/conformance\/.*\/cases\/|tools\/agentlintel-cli\/templates\/engine-adapters\/conformance-snippets\/.*\/cases\/)/;
 
 function trackedFiles() {

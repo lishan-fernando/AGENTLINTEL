@@ -20,7 +20,7 @@ from tools your stack already trusts.
 Pinned GitHub Release tarball:
 
 ```bash
-npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.10/agentlintel-cli.tgz
+npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.11/agentlintel-cli.tgz
 ```
 
 Registry install, when npm shows the same version as the GitHub release:
@@ -96,8 +96,10 @@ Full spec and file formats: https://github.com/lishan-fernando/AGENTLINTEL.
 
 ## License
 
-Fair source. The CLI is `FSL-1.1-ALv2` (see `LICENSE`): free for any use except
-selling AgentLintel itself. Each release becomes Apache-2.0 after two years.
-Using AgentLintel does not change the license of your source code, product,
-repo, or output. Templates copied by `init` are Apache-2.0 (see
+Source-available free use. The CLI is under the AgentLintel Free Use No-Resale
+License 1.0 (see `LICENSE`): free for personal, internal, commercial, and
+non-commercial projects, but you may not sell AgentLintel itself, a fork, or a
+rebranded substantially similar architecture-gate system. Using AgentLintel
+does not change the license of your source code, product, repo, ADRs,
+generated files, or output. Templates copied by `init` are Apache-2.0 (see
 `LICENSE-APACHE`), with normal Apache notice/license preservation.

@@ -86,13 +86,13 @@ facts:
     claim: "The canonical slice exemplar template lives in .agentlintel/templates/exemplar-slice/"
     check: { type: path_exists, path: .agentlintel/templates/exemplar-slice/slice.manifest.yaml }
 
-  # The legal surface is governance too - machine-checked like everything else (ADR-012).
+  # The legal surface is governance too - machine-checked like everything else (ADR-020).
   - id: license-core
-    claim: "The core is fair-source FSL-1.1-ALv2; LICENSE carries the canonical text"
-    check: { type: file_contains, path: LICENSE, pattern: "FSL-1.1-ALv2" }
+    claim: "The core uses the AgentLintel Free Use No-Resale License; LICENSE carries the canonical text"
+    check: { type: file_contains, path: LICENSE, pattern: "LicenseRef-AgentLintel-Free-Use-No-Resale-1\\.0" }
 
   - id: license-adoption-surface
-    claim: "The adoption surface (templates, .agentlintel contract, CI glue) stays Apache-2.0; the package ships the Apache text"
+    claim: "The adoption surface (.agentlintel/**, .github/**, pre-commit glue, and CLI templates) stays Apache-2.0; the package ships the Apache text"
     check: { type: file_contains, path: tools/agentlintel-cli/LICENSE-APACHE, pattern: "Apache License" }
 
   - id: single-root-license-file

@@ -1,9 +1,9 @@
 {
   "name": "agentlintel",
-  "version": "2.0.0-alpha.10",
+  "version": "2.0.0-alpha.11",
   "private": true,
   "description": "AgentLintel - deterministic architecture gate for AI-agent codebases. Monorepo root.",
-  "license": "FSL-1.1-ALv2",
+  "license": "SEE LICENSE IN LICENSE",
   "homepage": "https://github.com/lishan-fernando/AGENTLINTEL",
   "repository": {
     "type": "git",
