@@ -107,9 +107,10 @@ test('license posture stays consistent across public surfaces (ADR-020/ADR-021)'
     /AgentLintel-supplied adoption templates and examples/,
     /`tools\/agentlintel-cli\/templates\/\*\*`/,
     /this repository's own `\.agentlintel\/\*\*`/,
-    /this repository's own `\.github\/\*\*`/,
+    /`\.agents\/skills\/\*\*`/,
+    /`\.github\/\*\*`/,
     /`\.pre-commit-hooks\.yaml`/,
-    /not made\s+Apache-2\.0 merely because they live under `\.agentlintel\/`/,
+    /not made\s+Apache-2\.0 merely because they live under\s+`\.agentlintel\/` or `\.agents\/skills\/`/,
     /Template-derived files remain subject to normal Apache-2\.0 notice\/license\s+preservation/,
   ];
   for (const pattern of legalBoundaryPatterns) {
@@ -120,9 +121,10 @@ test('license posture stays consistent across public surfaces (ADR-020/ADR-021)'
     /AgentLintel-supplied templates and examples/,
     /tools\/agentlintel-cli\/templates\/\*\*/,
     /this repository's\s+own \.agentlintel\/\*\*/,
+    /this repository's\s+own \.agents\/skills\/\*\*/,
     /this repository's\s+own \.github\/\*\*/,
     /\.pre-commit-hooks\.yaml/,
-    /not Apache-2\.0 merely because they live under \.agentlintel\//,
+    /not Apache-2\.0 merely because they live under\s+\.agentlintel\/ or \.agents\/skills\//,
   ];
   for (const pattern of noticeBoundaryPatterns) {
     assert.match(notice, pattern, `NOTICE must preserve clarified adoption boundary ${pattern}`);
@@ -153,6 +155,7 @@ test('license posture stays consistent across public surfaces (ADR-020/ADR-021)'
 test('file license headers match the legal boundary', () => {
   const isAdoption = (rel) =>
     rel.startsWith('.agentlintel/') ||
+    rel.startsWith('.agents/skills/') ||
     rel.startsWith('.github/') ||
     rel === '.pre-commit-hooks.yaml' ||
     rel.startsWith('tools/agentlintel-cli/templates/');

@@ -42,11 +42,13 @@ the standards agents already read — `AGENTS.md` for always-load guidance and
 AgentLintel is designed for Claude Code, Cursor, Codex, GitHub Copilot, and any
 coding-agent workflow that can read `AGENTS.md` or a pointer to it. The
 enforcement path is agent-independent: the CLI and CI gate decide pass/fail.
+For Claude Code, `init` writes that pointer as the one-line `@AGENTS.md`
+import, preserving one instruction source.
 AgentLintel enforces your architecture, not its own: vertical slices, layers,
 MVVM, or in-house rules. Built-in engines provide a starter floor; set
 `engine: external` to wrap the stack-native analyzers your team already trusts.
 
-**Status:** `v2.0.0-alpha.11` - npm `@agentlintel/cli@alpha` -
+**Status:** `v2.0.0-alpha.12` - npm `@agentlintel/cli@alpha` -
 Source-available free use - Node.js >= 18
 
 ## The problem: AI coding agents drift
@@ -76,10 +78,11 @@ AgentLintel moves architectural intent out of chat history and into a small
 contract the repository carries. The contract has three properties prose never
 has:
 
-- **Verified.** Every claim about the repo is re-checked on every run. A stale
+- **Verified.** Every enabled claim about the repo is re-checked on every run. A stale
   instruction is a red build, not a silent lie.
-- **Deterministic.** Rules are executed by engines, not judged by a model.
-  Same input, same verdict, exit code `0` or `1`. No scores, no vibes.
+- **Deterministic.** Built-in rules are executed by engines, not judged by a
+  model. Repository bytes, comparison base, date-sensitive exemptions, and
+  configured command output are explicit evidence. No scores, no vibes.
 - **Enforced.** CI runs the same gate and fails the pull request. An
   instruction an agent could ignore becomes a diff that cannot merge.
 
@@ -99,7 +102,7 @@ npx agentlintel explain --path src/example.ts  # debug what applies to a file
 Need an exact release artifact or a registry-free fallback?
 
 ```bash
-npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.11/agentlintel-cli.tgz
+npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.12/agentlintel-cli.tgz
 ```
 
 `init` offers pattern packs — `vertical-slice`, `layered-3tier`, `mvvm`, or
@@ -112,7 +115,8 @@ First-afternoon checklist:
 2. Register one exemplar — the existing code that best shows your
    conventions.
 3. Trim the starter rules to the ones you actually believe.
-4. Wire CI with `agentlintel verify --strict`.
+4. Wire CI with the Action below, or pass the target branch SHA with
+   `agentlintel verify --strict --base <sha>`.
 
 From then on, the contract changes only when your intent changes.
 
@@ -151,18 +155,22 @@ Fixture-backed starter rules catch drift like:
 - `secrets.no-logging`: code logs a token, key, password, or regulated data.
 
 Pattern packs are starting templates: `vertical-slice`, `layered-3tier`,
-`mvvm`, or `custom`. Every pack includes universal safety rules for secret
-logging and audited exemptions (reason, approver, owner, expiry). Keep only the
-rules you believe, because an unenforced rule nobody holds is noise.
+`mvvm`, or `custom`. Every pack includes cross-pattern starter checks for
+likely secret-value logging and structured exemptions. They are deterministic
+heuristics, not a secret scanner or proof of approval. Keep only the rules you
+believe, because an unenforced rule nobody holds is noise.
 
-Engines: `regex`, `layers`, `error-codes`, `exemptions`, and `external`. Treat
-built-ins as a portable starter floor, not a type system or security scanner.
+Engines: `regex`, `layers`, `error-codes`, `exemptions`, and `external`. The
+built-in layer importer is deliberately JS/TS-only. Treat built-ins as a
+portable starter floor, not a type system or security scanner.
 Use `external` for deep checks from tools your stack already trusts:
 architecture tests, dependency-cruiser, `dotnet test`, commit and PR policies.
 
-Rule changes are ratcheted: tightening is free, but deleting, weakening, or
-narrowing a rule requires an ADR in the same diff. Guardrails cannot erode
-silently.
+Contract changes are ratcheted: weakening or relabeling a fact, mutating or
+removing an exemplar, weakening a rule, or broadening the write guard requires
+a **new** ADR in the same diff. Additions and monotonic tightening stay free.
+Existing ADRs cannot be edited or deleted. Every rule must prove both a
+passing and failing fixture; guardrails cannot erase their own evidence.
 
 ## Running the gate
 
@@ -173,22 +181,40 @@ Two loops, one gate:
 npx agentlintel verify --diff --quiet --bail --no-run --skip-fixtures
 
 # Outer loop — the CI merge gate (full, strict)
-npx agentlintel verify --strict
+npx agentlintel verify --strict --base <target-sha>
 ```
 
 GitHub Actions:
 
 ```yaml
 - uses: actions/checkout@v4
-- uses: lishan-fernando/AGENTLINTEL/.github/actions/agentlintel@v2
+  with:
+    fetch-depth: 0
+- uses: lishan-fernando/AGENTLINTEL/.github/actions/agentlintel@v2.0.0-alpha.12
   with:
     strict: "true"
 ```
 
-Exit codes are the contract: `0` gate passed, `1` gate failed, `2` internal
-error. `agentlintel report` renders the same checks as a Markdown summary
+The Action derives an exact comparison SHA for pull requests, merge groups,
+and pushes. Its default `no_run: auto` does not execute candidate-declared
+commands on fork PRs or merge groups. If your contract contains command facts
+or external rules, strict CI stays incomplete until a trusted run executes
+them. Executable checks require a committed Git snapshot and fail the gate if
+they change versionable state. Pin the Action to a commit SHA when policy requires it.
+
+Run a Git-backed gate from the repository top-level with full history. Strict
+mode requires the actual target/PR base SHA; `--diff`, `--skip-fixtures`, and
+`--no-run` are intentionally incomplete. Governance used by the verdict must
+be tracked rather than supplied only through ignored or untracked files.
+
+Exit codes are the contract: `0` gate passed, `1` gate finding, `2`
+invalid invocation or internal error. `agentlintel report` renders the same checks as a Markdown summary
 (facts freshness, violations, fixtures, guard, ratchet) for humans and
 dashboards. Multi-repo workspaces aggregate with `verify --workspace`.
+
+An ADR records rationale, not authenticated approval. Protect the contract,
+fixtures, verifier, and CI workflow with base-branch CODEOWNERS and required
+review; the repository ships a concrete example.
 
 ## Is AgentLintel right for your project?
 
@@ -223,7 +249,8 @@ Scope is a feature. AgentLintel is not an agent orchestrator, an instruction
 compiler, a static-analysis replacement, a code-review replacement, a
 certification scheme, a token meter, or a hosted telemetry service. It is
 metadata plus a CLI — no runtime, no model calls, no lock-in: delete
-`.agentlintel/` and you have exactly the repo you had before.
+`.agentlintel/`, `.agents/skills/`, and its generated instruction files to
+remove AgentLintel.
 
 The claim today, stated precisely: AgentLintel makes architecture instructions
 durable, visible to agents, and enforceable in CI.
@@ -233,20 +260,21 @@ durable, visible to agents, and enforceable in CI.
 | Path | What |
 |---|---|
 | [SPEC.md](SPEC.md) | The normative v2 spec (<= 500 lines) |
+| [.agents/skills/](.agents/skills/) | Standard on-demand Agent Skills |
 | [.agentlintel/](.agentlintel/) | This repo's own contract — AgentLintel governs itself |
 | [tools/agentlintel-cli/](tools/agentlintel-cli/) | The CLI: `init`, `verify`, `report`, `explain` — plain Node.js, one dependency |
 | [docs/](docs/) | Adoption playbook, design rationale, benchmark protocol, security and privacy notes |
 
 This repository dogfoods the governance mechanics: the six concepts above are
-live here, the CLI is fixture-tested, and CI runs `verify --strict` on every
-pull request. It is not itself a production vertical-slice application; the
+live here, the CLI is fixture-tested, and CI runs the strict Action with the
+pull request base SHA. It is not itself a production vertical-slice application; the
 slice-shaped reference rules stay as conformance-backed starter rules —
 reported as dormant by `verify` on every run — until an adopter repo flips
 them to `must_match: true`.
 
 ## Status
 
-`v2.0.0-alpha.11`, npm `@agentlintel/cli@alpha`, source-available free use,
+`v2.0.0-alpha.12`, npm `@agentlintel/cli@alpha`, source-available free use,
 Node.js >= 18.
 
 AgentLintel is free for personal, internal, commercial, client, and

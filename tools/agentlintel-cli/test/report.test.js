@@ -16,6 +16,9 @@ function result(overrides = {}) {
     fixtures: [],
     guard: { status: 'checked 1 changed file(s)', violations: [] },
     ratchet: { status: 'unchanged', ok: true },
+    fact_ratchet: { status: 'unchanged', ok: true },
+    exemplar_ratchet: { status: 'unchanged', ok: true },
+    guard_ratchet: { status: 'unchanged', ok: true },
     exemplars: [],
     adapters: [],
     errors: [],
@@ -30,14 +33,19 @@ test('report renders deterministic next steps for common gate failures', () => {
     rule_violations: [{ rule: 'slice.no-deep-imports', file: 'a.ts', line: 1, message: 'deep import' }],
     guard: { status: 'checked 2 changed file(s)', violations: [{ file: 'other.ts' }] },
     ratchet: { status: 'changed', ok: false },
+    fact_ratchet: { status: 'changed', ok: false },
+    guard_ratchet: { status: 'changed', ok: false },
     errors: ['FACT [stack] missing', 'RULE [slice.no-deep-imports] a.ts:1 deep import'],
   });
   const markdown = renderReport(r);
   assert.match(markdown, /## Next Steps/);
-  assert.match(markdown, /Refresh stale facts/);
+  assert.match(markdown, /Make stale facts true again/);
   assert.match(markdown, /Fix rule violations in code/);
   assert.match(markdown, /inside `guard\.json` write zones/);
-  assert.match(markdown, /Rule weakening requires an append-only ADR/);
+  assert.match(markdown, /Rule weakening requires a new append-only ADR/);
+  assert.match(markdown, /Fact weakening requires a new append-only ADR/);
+  assert.match(markdown, /Guard ratchet \| changed, ADR required/);
+  assert.match(markdown, /Guard weakening requires a new append-only ADR/);
 });
 
 test('next steps call out warning-only strict-mode risks', () => {
@@ -80,6 +88,16 @@ test('pending facts and table-breaking fact text render clearly', () => {
   assert.match(markdown, /PENDING - needs check/);
   assert.match(markdown, /Uses A \\\| B<br>second line/);
   assert.match(markdown, /needs check \\\| ADR/);
+});
+
+test('skipped command facts are not reported as fresh', () => {
+  const markdown = renderReport(result({
+    facts: [{ claim: 'Command passes', ok: true, skipped: true, detail: 'skipped (--no-run)' }],
+  }));
+  assert.match(markdown, /Facts \| 0\/1 fresh/);
+  assert.match(markdown, /\| Command passes \| SKIPPED \(--no-run\) \|/);
+  assert.doesNotMatch(markdown, /SKIPPED --no-run -/);
+  assert.doesNotMatch(markdown, /Command passes \| fresh/);
 });
 
 test('tableCell escapes markdown table delimiters and newlines', () => {

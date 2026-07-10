@@ -1,0 +1,4 @@
+violations:
+  - rule: dotnet.architecture-tests
+    file: "(dotnet-test)"
+    message_contains: DomainPurityTests

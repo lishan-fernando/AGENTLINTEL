@@ -1,9 +1,9 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://agentlintel.dev/conformance.fixtures.schema.json",
   "title": "AgentLintel Conformance Fixture Expected Output",
-  "description": "Declares the violations a AgentLintel-compatible verifier should produce for a fixture case.",
+  "description": "Declares the violations an AgentLintel-compatible verifier should produce for a fixture case.",
   "type": "object",
+  "additionalProperties": false,
   "required": ["violations"],
   "properties": {
     "violations": {
@@ -11,12 +11,13 @@
       "description": "Empty array means the case must produce no violations for the rule under test.",
       "items": {
         "type": "object",
+        "additionalProperties": false,
         "required": ["rule", "file"],
         "properties": {
           "rule": {
             "type": "string",
             "description": "Rule id from .agentlintel/rules.yaml (e.g., slice.no-deep-imports).",
-            "pattern": "^[a-z][a-z0-9.-]+$"
+            "pattern": "^(?!(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\\.|$))[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"
           },
           "file": {
             "type": "string",

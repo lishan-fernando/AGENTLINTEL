@@ -1,0 +1,5 @@
+violations:
+  - rule: error-code.format
+    file: slices/Capability/contract/errors.ts
+    line: 2
+    message_contains: "suffix 'ABC' must be 1-5 digits"

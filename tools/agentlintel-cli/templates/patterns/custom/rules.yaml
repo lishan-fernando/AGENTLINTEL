@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Custom architecture contract. Prefer engine: external for native analyzers or
-# tests; use engine: layers when the built-in JS/TS/Python import checker fits.
+# tests; use engine: layers when the built-in JS/TS import checker fits.
 #   - id: architecture.contract
 #     severity: error
 #     engine: external
@@ -14,7 +14,7 @@
 #   - id: arch.layers
 #     severity: error
 #     engine: layers
-#     applies_to: ["**/*.ts", "**/*.js", "**/*.py", "**/*.cs", "**/*.go", "**/*.java", "**/*.kt", "**/*.swift"]
+#     applies_to: ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx", "**/*.mjs", "**/*.cjs", "**/*.mts", "**/*.cts"]
 #     must_match: false
 #     layers:
 #       - { name: adapters, path: ["src/adapters/**"] }
@@ -33,7 +33,7 @@ rules:
     severity: error
     engine: regex
     flags: i
-    excludes: ["**/*.test.*", "**/*.spec.*", "**/tests/**"]
+    excludes: ["**/*.md", "**/*.test.*", "**/*.spec.*", "**/tests/**"]
     forbidden:
       - "(console\\.(log|info|warn|error|debug)|logger?\\.(log|info|warn|error|debug|trace)|_logger\\.[a-z]+)\\s*\\(\\s*(?!['\"`])(?:(?!['\"`]).)*\\b(password|passwd|[a-z0-9_]*token[a-z0-9_]*|api[_-]?key|[a-z0-9_]*secret[a-z0-9_]*|private[_-]?key|ssn|card[_-]?number|cvv)\\b"
       - "(console\\.(log|info|warn|error|debug)|logger?\\.(log|info|warn|error|debug|trace)|_logger\\.[a-z]+)\\s*\\([^)]*['\"`][^'\"`]*['\"`]\\s*,[^)]*\\b(password|passwd|[a-z0-9_]*token[a-z0-9_]*|api[_-]?key|[a-z0-9_]*secret[a-z0-9_]*|private[_-]?key|ssn|card[_-]?number|cvv)\\b"

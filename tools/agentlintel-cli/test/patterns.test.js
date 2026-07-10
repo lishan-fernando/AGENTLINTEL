@@ -24,7 +24,7 @@ const THREE_TIER = {
   id: 'arch.layers',
   severity: 'error',
   engine: 'layers',
-  applies_to: ['**/*.ts', '**/*.tsx', '**/*.py', '**/*.cs', '**/*.go', '**/*.java', '**/*.kt', '**/*.swift'],
+  applies_to: ['**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx', '**/*.mjs', '**/*.cjs', '**/*.mts', '**/*.cts'],
   layers: [
     { name: 'presentation', path: ['src/ui/**'] },
     { name: 'business', path: ['src/services/**'] },
@@ -51,6 +51,21 @@ test('layers: same layer, out-of-layer files, and package imports are ignored', 
   assert.deepStrictEqual(runRule(THREE_TIER, 'src/ui/page.ts', "import { z } from 'zod';"), []);
 });
 
+test('layers: overlapping coverage fails instead of using rule order', () => {
+  const rule = {
+    ...THREE_TIER,
+    layers: [
+      { name: 'broad', path: ['src/**'] },
+      { name: 'presentation', path: ['src/ui/**'] },
+      { name: 'data', path: ['src/data/**'] },
+    ],
+    allowed: { broad: [], presentation: [], data: [] },
+  };
+  const violations = runRule(rule, 'src/ui/page.ts', "import { db } from '../data/db';");
+  assert.strictEqual(violations.length, 1);
+  assert.match(violations[0].message, /matches multiple layers/);
+});
+
 test('layers: aliases and bare root-relative specifiers resolve into layers', () => {
   const viaAlias = runRule(THREE_TIER, 'src/ui/page.ts', "import { db } from '@/data/db';");
   assert.strictEqual(viaAlias.length, 1);
@@ -58,27 +73,11 @@ test('layers: aliases and bare root-relative specifiers resolve into layers', ()
   assert.strictEqual(bare.length, 1);
 });
 
-test('layers: python relative and dotted imports resolve', () => {
-  const rel = runRule(THREE_TIER, 'src/ui/page.py', 'from ..data.db import query');
-  assert.strictEqual(rel.length, 1);
-  assert.match(rel[0].message, /'presentation' must not depend on layer 'data'/);
-  const dotted = runRule(THREE_TIER, 'src/ui/page.py', 'import src.data.db');
-  assert.strictEqual(dotted.length, 1);
-  assert.deepStrictEqual(runRule(THREE_TIER, 'src/ui/page.py', 'import os'), []);
-});
-
-test('layers: native namespace imports resolve for C#, Java, Kotlin, Swift, and Go', () => {
-  for (const [file, src] of [
-    ['src/ui/Page.cs', 'using src.data;'],
-    ['src/ui/Page.java', 'import src.data.OrderRepo;'],
-    ['src/ui/Page.kt', 'import src.data.OrderRepo'],
-    ['src/ui/Page.swift', 'import src.data'],
-    ['src/ui/page.go', 'import (\n  "src/data"\n)'],
-  ]) {
-    const v = runRule(THREE_TIER, file, src);
-    assert.strictEqual(v.length, 1, `${file} should catch a data-layer import`);
-    assert.match(v[0].message, /'presentation' must not depend on layer 'data'/);
-  }
+test('layers: unsupported native inputs fail closed instead of pretending coverage', () => {
+  const nativeRule = { ...THREE_TIER, applies_to: ['**/*.py'] };
+  const violations = runRule(nativeRule, 'src/ui/page.py', 'from src.data import repo');
+  assert.strictEqual(violations.length, 1);
+  assert.match(violations[0].message, /JavaScript\/TypeScript.*external native/);
 });
 
 test('init --pattern layered-3tier and mvvm are green out of the box, then catch violations', () => {
@@ -134,11 +133,9 @@ test('layers: multi-line (Prettier-style) imports are caught', () => {
   assert.match(v[0].message, /'presentation' must not depend on layer 'data'/);
 });
 
-test('layers: barrel imports and python from-package imports classify into the layer', () => {
+test('layers: barrel imports classify into the layer', () => {
   const barrel = runRule(THREE_TIER, 'src/ui/page.ts', "import { repo } from '../data';");
   assert.strictEqual(barrel.length, 1, "'../data' resolves to the data layer root");
-  const pyFrom = runRule(THREE_TIER, 'src/ui/page.py', 'from src.data import repo');
-  assert.strictEqual(pyFrom.length, 1, "'from src.data import repo' lands in the data layer");
 });
 
 test('layers: alias resolution is longest-prefix and misconfig fails loud', () => {
@@ -217,6 +214,49 @@ test('refused pattern does not copy mismatched fixtures beside existing rules', 
   assert.ok(!fs.existsSync(path.join(root, '.agentlintel', 'conformance', 'arch.layers')), 'mvvm fixtures were not stranded');
   const result = verify(root, {});
   assert.ok(result.errors.some((e) => e.includes('LAW VIOLATION') && e.includes('existing.rule')), result.errors.join('\n'));
+});
+
+test('forced pattern switches reset generated fixtures but preserve project contract files', () => {
+  const root = tmpDir();
+  init(root, { pattern: 'layered-3tier' });
+  const factsPath = path.join(root, '.agentlintel', 'facts.yaml');
+  fs.writeFileSync(factsPath, 'version: 2\nfacts: []\n');
+  write(root, '.agentlintel/conformance/custom.rule/cases/pass/expected.yaml', 'violations: []\n');
+
+  const switched = init(root, { pattern: 'mvvm', force: true });
+  assert.strictEqual(switched.ok, true, switched.log.join('\n'));
+  assert.strictEqual(fs.readFileSync(factsPath, 'utf8'), 'version: 2\nfacts: []\n');
+  assert.ok(fs.existsSync(path.join(root, '.agentlintel', 'conformance', 'custom.rule')),
+    'unknown project fixtures survive generated-pack reset');
+  const result = verify(root, {});
+  assert.deepStrictEqual(result.fixtures.filter((fixture) => !fixture.ok), []);
+
+  const back = init(root, {
+    pattern: 'vertical-slice',
+    patternExplicit: true,
+    force: true,
+  });
+  assert.strictEqual(back.ok, true, back.log.join('\n'));
+  assert.strictEqual(fs.readFileSync(factsPath, 'utf8'), 'version: 2\nfacts: []\n');
+});
+
+test('forcing an optional adapter never resets rules, facts, or skills', () => {
+  const root = tmpDir();
+  init(root, { pattern: 'mvvm' });
+  const rulesPath = path.join(root, '.agentlintel', 'rules.yaml');
+  const factsPath = path.join(root, '.agentlintel', 'facts.yaml');
+  const skillPath = path.join(root, '.agents', 'skills', 'mirror-exemplar', 'SKILL.md');
+  const before = [rulesPath, factsPath, skillPath].map((file) => fs.readFileSync(file, 'utf8'));
+  fs.appendFileSync(factsPath, '# project-owned\n');
+  const customFacts = fs.readFileSync(factsPath, 'utf8');
+
+  const regenerated = init(root, { hooks: true, force: true });
+  assert.strictEqual(regenerated.ok, true, regenerated.log.join('\n'));
+  assert.strictEqual(fs.readFileSync(rulesPath, 'utf8'), before[0]);
+  assert.strictEqual(fs.readFileSync(factsPath, 'utf8'), customFacts);
+  assert.strictEqual(fs.readFileSync(skillPath, 'utf8'), before[2]);
+  assert.ok(regenerated.log.some((line) => line.includes('preserved existing')),
+    regenerated.log.join('\n'));
 });
 
 test('universal rules are byte-equal across the base template and every pattern pack', () => {

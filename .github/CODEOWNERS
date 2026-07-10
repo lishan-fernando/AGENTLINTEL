@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: Apache-2.0
+# Base-branch review boundary for the architecture contract and its verifier.
+/AGENTS.md @lishan-fernando
+/CLAUDE.md @lishan-fernando
+/SPEC.md @lishan-fernando
+/.agentlintel/ @lishan-fernando
+/.agents/skills/ @lishan-fernando
+/.github/ @lishan-fernando
+/.pre-commit-hooks.yaml @lishan-fernando
+/tools/agentlintel-cli/ @lishan-fernando

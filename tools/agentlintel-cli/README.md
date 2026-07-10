@@ -8,12 +8,15 @@ patterns; when you are tired of repeating the same architecture instructions;
 or when you want pull requests to fail on repo-convention drift.
 
 AgentLintel is local-first: verified facts, deterministic rules with fixtures,
-guard zones, exemplars, standard Agent Skills, and append-only decisions. No
-model calls, no hosted service, no telemetry.
+guard zones, exemplars, standard Agent Skills, and append-only decisions. Its
+built-ins make no model calls, network calls, or telemetry uploads; configured
+command facts and external engines execute repository-declared tools.
 
 Fixture-backed starter checks catch drift like deep imports, raw request casts
-before validation, and secret logging. Use `engine: external` for deeper checks
-from tools your stack already trusts.
+before validation, and likely secret-value logging. Use `engine: external` for
+deeper checks from tools your stack already trusts. The built-in `layers`
+engine checks JS/TS imports only; use a native external checker for other
+languages.
 
 ## Install
 
@@ -30,7 +33,7 @@ intentionally trail until a stable release.
 Exact GitHub Release tarball, for pinned or registry-free installs:
 
 ```bash
-npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.11/agentlintel-cli.tgz
+npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.12/agentlintel-cli.tgz
 ```
 
 ## Quick Start
@@ -41,6 +44,9 @@ npx agentlintel verify
 npx agentlintel report
 npx agentlintel explain --path src/example.ts
 ```
+
+`init` installs on-demand workflows under `.agents/skills/` and writes
+`CLAUDE.md` as the one-line `@AGENTS.md` compatibility import.
 
 Architecture packs:
 
@@ -65,17 +71,22 @@ of stretching regex into semantic analysis.
 
 ```yaml
 - uses: actions/checkout@v4
-- uses: lishan-fernando/AGENTLINTEL/.github/actions/agentlintel@v2
+  with:
+    fetch-depth: 0
+- uses: lishan-fernando/AGENTLINTEL/.github/actions/agentlintel@v2.0.0-alpha.12
   with:
     strict: "true"
 ```
 
-CI should run the strict gate on every pull request.
+CI should check out full history and run the strict gate on every pull request.
+The Action supplies the actual event base SHA. A direct CLI gate must run from
+the repository top-level as
+`agentlintel verify --strict --base <target-sha>`.
 
 ## Commands
 
 ```text
-agentlintel init      scaffold .agentlintel/ kernel + AGENTS.md
+agentlintel init      scaffold the kernel, .agents/skills/, and AGENTS.md
 agentlintel verify    facts fresh + rules pass + fixtures green + guard held
 agentlintel report    the same gate as markdown (--json for machines)
 agentlintel explain   show which contract parts apply to a path
@@ -90,7 +101,13 @@ Explain flag: `--path <file>`.
 Init extras: `--pattern`, `--from-v1`, `--adapters`, `--hooks`,
 `--engine-adapters`, `--force`.
 
-Exit codes: `0` gate passed, `1` gate failed, `2` internal/config error.
+Exit codes: `0` gate passed, `1` gate findings, `2` invalid invocation or
+internal error.
+
+`--diff`, `--skip-fixtures`, and `--no-run` are incomplete under `--strict`.
+Ignored or untracked governance cannot establish a Git-backed strict verdict.
+Command facts and external engines require a committed Git snapshot and may
+not change versionable state during verification.
 
 Plain Node >= 18, one dependency (`yaml`), no build step.
 Full spec and file formats: https://github.com/lishan-fernando/AGENTLINTEL.

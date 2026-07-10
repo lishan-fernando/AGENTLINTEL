@@ -10,7 +10,8 @@
         "CLAUDE.md",
         "SPEC.md",
         "docs/**",
-        ".agentlintel/**"
+        ".agentlintel/**",
+        ".agents/skills/**"
       ]
     },
     {

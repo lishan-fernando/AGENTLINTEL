@@ -11,7 +11,7 @@ rules:
   - id: arch.layers
     severity: error
     engine: layers
-    applies_to: ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx", "**/*.mts", "**/*.cts", "**/*.py", "**/*.cs", "**/*.go", "**/*.java", "**/*.kt", "**/*.swift"]
+    applies_to: ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx", "**/*.mjs", "**/*.cjs", "**/*.mts", "**/*.cts"]
     must_match: false  # flip to true once your layer paths exist
     layers:
       - { name: view, path: ["src/views/**", "src/components/**", "src/pages/**"] }
@@ -28,7 +28,7 @@ rules:
     severity: error
     engine: regex
     flags: i
-    excludes: ["**/*.test.*", "**/*.spec.*", "**/tests/**"]
+    excludes: ["**/*.md", "**/*.test.*", "**/*.spec.*", "**/tests/**"]
     forbidden:
       - "(console\\.(log|info|warn|error|debug)|logger?\\.(log|info|warn|error|debug|trace)|_logger\\.[a-z]+)\\s*\\(\\s*(?!['\"`])(?:(?!['\"`]).)*\\b(password|passwd|[a-z0-9_]*token[a-z0-9_]*|api[_-]?key|[a-z0-9_]*secret[a-z0-9_]*|private[_-]?key|ssn|card[_-]?number|cvv)\\b"
       - "(console\\.(log|info|warn|error|debug)|logger?\\.(log|info|warn|error|debug|trace)|_logger\\.[a-z]+)\\s*\\([^)]*['\"`][^'\"`]*['\"`]\\s*,[^)]*\\b(password|passwd|[a-z0-9_]*token[a-z0-9_]*|api[_-]?key|[a-z0-9_]*secret[a-z0-9_]*|private[_-]?key|ssn|card[_-]?number|cvv)\\b"

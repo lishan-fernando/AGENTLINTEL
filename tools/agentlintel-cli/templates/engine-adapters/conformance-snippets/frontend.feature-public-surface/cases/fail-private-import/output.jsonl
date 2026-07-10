@@ -1,0 +1,1 @@
+{"modules":[{"source":"src/components/login-form.tsx","dependencies":[{"resolved":"src/features/auth/hooks.ts","rules":[{"name":"agentlintel/no-feature-internal-imports-from-app","severity":"error","comment":"Use the feature index."}]}]}]}

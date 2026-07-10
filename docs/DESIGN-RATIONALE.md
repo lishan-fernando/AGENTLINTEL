@@ -1,7 +1,7 @@
 # Design Rationale
 
 AgentLintel's current architecture is intentionally small: one always-load
-file, three CLI commands, six concepts, and no hand-maintained metadata that
+file, four CLI commands, six concepts, and no hand-maintained metadata that
 mirrors code.
 
 ## Laws
@@ -19,7 +19,7 @@ mirrors code.
 - `.agentlintel/rules.yaml`: deterministic rules.
 - `.agentlintel/guard.json`: write zones.
 - `.agentlintel/exemplars.yaml`: canonical examples agents mirror.
-- `.agentlintel/skills/*/SKILL.md`: workflows.
+- `.agents/skills/*/SKILL.md`: workflows.
 - `.agentlintel/decisions/ADR-*.md`: append-only rationale.
 - `.agentlintel/conformance/<rule>/cases`: fixtures proving rules.
 
@@ -31,9 +31,10 @@ by `agentlintel verify` and is not an ADR, it should not exist.
 
 ## CLI
 
-`init`, `verify`, and `report` only. Extra behavior is a flag, not a new
-command. `verify --strict` is the merge gate; `verify --diff --quiet --bail
---no-run --skip-fixtures` is the fast agent-loop path.
+`init`, `verify`, `report`, and `explain` only. Extra behavior is a flag, not a
+new command. `verify --strict --base <target-sha>` is the full merge gate;
+`verify --diff --quiet --bail --no-run --skip-fixtures` is the intentionally
+incomplete fast agent-loop path.
 
 ## Rationale
 

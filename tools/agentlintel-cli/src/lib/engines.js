@@ -41,7 +41,7 @@ function regexEngine(rule, filePath, content, options = {}) {
 }
 
 const CODE_LITERAL =
-  /['"]([A-Za-z][A-Za-z0-9]*)-([A-Za-z][A-Za-z0-9]*)-(\d{1,5})['"]/g;
+  /['"]([A-Za-z][^-'"\s]*)-([A-Za-z][^-'"\s]*)-([^'"\s]+)['"]/g;
 
 function errorCodesEngine(rule, filePath, content, options = {}) {
   if (!options.skipApplies && !applies(rule, filePath)) return [];
@@ -52,11 +52,11 @@ function errorCodesEngine(rule, filePath, content, options = {}) {
 
   for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
     for (const match of lines[lineIndex].matchAll(CODE_LITERAL)) {
-      const [, slice, category] = match;
+      const [, slice, category, suffix] = match;
       const problems = [];
 
-      if (slice !== slice.toUpperCase())
-        problems.push(`slice segment '${slice}' must be uppercase`);
+      if (!/^[A-Z][A-Z0-9]*$/.test(slice))
+        problems.push(`slice segment '${slice}' must be uppercase alphanumeric`);
       if (
         !(
           category === category.toUpperCase() &&
@@ -66,6 +66,8 @@ function errorCodesEngine(rule, filePath, content, options = {}) {
         problems.push(
           `category '${category}' is not a registered category (${[...categories].join(", ")})`,
         );
+      if (!/^\d{1,5}$/.test(suffix))
+        problems.push(`suffix '${suffix}' must be 1-5 digits`);
 
       if (problems.length)
         violations.push({
@@ -85,7 +87,30 @@ function escapeForRegex(text) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-const EXPIRES_FIELD = /\bExpires\s*:\s*(\d{4}-\d{2}-\d{2})/;
+function metadataRegex(label, valuePattern) {
+  return new RegExp(
+    `^[ \\t]*(?:(?://+|#+|--+|/\\*+|\\*+)[ \\t]*)?${escapeForRegex(label)}[ \\t]*:[ \\t]*${valuePattern}`,
+    "m",
+  );
+}
+
+const EXPIRES_FIELD = metadataRegex(
+  "Expires",
+  "(\\d{4}-\\d{2}-\\d{2})(?=[ \\t]*(?:\\n|$))",
+);
+
+function expiryDate(value) {
+  const date = new Date(value + "T23:59:59Z");
+  if (!Number.isFinite(date.getTime())) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() + 1 !== month ||
+    date.getUTCDate() !== day
+  )
+    return null;
+  return date;
+}
 
 function exemptionsEngine(
   rule,
@@ -103,10 +128,13 @@ function exemptionsEngine(
   const withinLines = rule._withinLines || rule.within_lines || 5;
   const annotation =
     rule._exemptionAnnotation ||
-    new RegExp((rule._markerEsc || escapeForRegex(marker)) + "\\s*:\\s*\\S");
+    metadataRegex(marker, "\\S");
   const fieldRegexes =
     rule._fieldRegexes ||
-    requiredFields.map((field) => [field, new RegExp(`\\b${field}\\s*:`)]);
+    requiredFields.map((field) => [
+      field,
+      metadataRegex(field, "\\S"),
+    ]);
 
   const violations = [];
   const lines = content.split(/\r?\n/);
@@ -131,10 +159,26 @@ function exemptionsEngine(
       });
 
     const expiresMatch = window.match(rule._expiresRegex || EXPIRES_FIELD);
+    if (!expiresMatch && requiredFields.includes("Expires") && !missingFields.includes("Expires"))
+      violations.push({
+        rule: rule.id,
+        file: filePath,
+        line: lineIndex + 1,
+        message: `Exemption expiry must use YYYY-MM-DD. ${rule.message}`,
+        severity: "error",
+      });
     if (expiresMatch) {
       // End-of-day UTC: an exemption is valid through its Expires date.
-      const expiry = new Date(expiresMatch[1] + "T23:59:59Z");
-      if (Number.isFinite(expiry.getTime()) && expiry < today)
+      const expiry = expiryDate(expiresMatch[1]);
+      if (!expiry)
+        violations.push({
+          rule: rule.id,
+          file: filePath,
+          line: lineIndex + 1,
+          message: `Exemption has invalid expiry date '${expiresMatch[1]}'. ${rule.message}`,
+          severity: "error",
+        });
+      else if (expiry < today)
         violations.push({
           rule: rule.id,
           file: filePath,
@@ -164,12 +208,13 @@ function collectExemptionSpans(
   const withinLines = rule._withinLines || rule.within_lines || 5;
   const spanPattern =
     rule._exemptionSpan ||
-    new RegExp(
-      (rule._markerEsc || escapeForRegex(marker)) + "\\s*:\\s*(\\S[^\\n]*)",
-    );
+    metadataRegex(marker, "(\\S[^\\n]*)");
   const fieldRegexes =
     rule._fieldRegexes ||
-    requiredFields.map((field) => [field, new RegExp(`\\b${field}\\s*:`)]);
+    requiredFields.map((field) => [
+      field,
+      metadataRegex(field, "\\S"),
+    ]);
 
   const spans = [];
   const lines = content.split(/\r?\n/);
@@ -190,8 +235,8 @@ function collectExemptionSpans(
       continue;
     const expiresMatch = window.match(rule._expiresRegex || EXPIRES_FIELD);
     if (!expiresMatch) continue;
-    const expiry = new Date(expiresMatch[1] + "T23:59:59Z");
-    if (!Number.isFinite(expiry.getTime()) || expiry < today) continue;
+    const expiry = expiryDate(expiresMatch[1]);
+    if (!expiry || expiry < today) continue;
 
     let lastFieldLine = lineIndex;
     for (let offset = 0; offset < windowLines.length; offset++)
@@ -216,11 +261,6 @@ const JS_IMPORT_PATTERNS = [
   /\bimport\s+['"]([^'"]+)['"]/g,
   /\brequire\s*\(\s*['"]([^'"]+)['"]/g,
 ];
-const PY_FROM_IMPORT = /^[ \t]*from\s+([.\w]+)\s+import\s+([\w*][\w*, \t]*)/gm;
-const PY_IMPORT = /^[ \t]*import\s+([.\w]+)[ \t]*(?:as\s+\w+)?[ \t]*$/gm;
-const NS_IMPORT =
-  /^[ \t]*(?:using|import)\s+([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+)\s*;?/gm;
-const GO_IMPORT = /^[ \t]*"([^".][^"]+)"/gm;
 const IMPORT_TARGET_SUFFIXES = [
   "",
   ".ts",
@@ -231,17 +271,10 @@ const IMPORT_TARGET_SUFFIXES = [
   ".cts",
   ".mjs",
   ".cjs",
-  ".py",
-  ".cs",
-  ".go",
-  ".java",
-  ".kt",
-  ".swift",
   "/index.ts",
   "/index.tsx",
   "/index.js",
   "/index.jsx",
-  "/__init__.py",
 ];
 
 function lineOfIndex(content, index) {
@@ -249,24 +282,6 @@ function lineOfIndex(content, index) {
   for (let i = 0; i < index && i < content.length; i++)
     if (content.charCodeAt(i) === 10) line++;
   return line;
-}
-
-function modulePath(moduleName) {
-  return String(moduleName || "")
-    .replace(/::/g, "/")
-    .replace(/\./g, "/");
-}
-
-function pyModuleToPath(filePath, moduleName) {
-  if (moduleName.startsWith(".")) {
-    const dots = moduleName.match(/^\.+/)[0].length;
-    const suffix = moduleName.slice(dots).replace(/\./g, "/");
-    let baseSegments = filePath.split("/").slice(0, -1);
-    for (let level = 1; level < dots; level++)
-      baseSegments = baseSegments.slice(0, -1);
-    return normalizePosix([...baseSegments, suffix].filter(Boolean).join("/"));
-  }
-  return modulePath(moduleName);
 }
 
 function normalizePosix(rawPath) {
@@ -284,29 +299,35 @@ function normalizePosix(rawPath) {
   return segments.join("/");
 }
 
-function layerOfPath(layers, relPath) {
-  if (!relPath || relPath.startsWith("..")) return null;
+function layersOfPath(layers, relPath) {
+  if (!relPath || relPath.startsWith("..")) return [];
   const lowerPath = relPath.toLowerCase();
-  return (
-    layers.find((layer) =>
-      (layer.path || []).some((glob) => {
+  return layers.filter((layer) =>
+      (Array.isArray(layer && layer.path) ? layer.path : []).some((glob) => {
         const lowerGlob = String(glob).toLowerCase();
         // "src/domain/**" also claims the bare directory path "src/domain".
         if (lowerGlob.endsWith("/**") && lowerPath === lowerGlob.slice(0, -3))
           return true;
         return matchGlob(lowerGlob, lowerPath);
       }),
-    ) || null
-  );
+    );
+}
+
+function layerOfPath(layers, relPath) {
+  return layersOfPath(layers, relPath)?.[0] || null;
+}
+
+function layersOfImport(layers, importPath) {
+  if (!importPath) return [];
+  for (const suffix of IMPORT_TARGET_SUFFIXES) {
+    const matches = layersOfPath(layers, importPath + suffix);
+    if (matches.length) return matches;
+  }
+  return [];
 }
 
 function layerOfImport(layers, importPath) {
-  if (!importPath) return null;
-  for (const suffix of IMPORT_TARGET_SUFFIXES) {
-    const layer = layerOfPath(layers, importPath + suffix);
-    if (layer) return layer;
-  }
-  return null;
+  return layersOfImport(layers, importPath)[0] || null;
 }
 
 function resolveSpec(filePath, spec, aliasEntries, layers) {
@@ -327,21 +348,35 @@ function resolveSpec(filePath, spec, aliasEntries, layers) {
 
 function validateLayersRule(rule) {
   const problems = [];
-  const layers = rule.layers || [];
+  const layers = Array.isArray(rule.layers) ? rule.layers : [];
   if (!layers.length) problems.push("declares no layers");
 
   const declaredNames = new Set();
   for (const layer of layers) {
-    if (layer && layer.name) declaredNames.add(layer.name);
-    else problems.push("a layer is missing a name");
-    if (!(layer && Array.isArray(layer.path) && layer.path.length))
+    if (!(layer && typeof layer === "object" && !Array.isArray(layer))) {
+      problems.push("a layer must be an object");
+      continue;
+    }
+    if (typeof layer.name !== "string" || !layer.name) {
+      problems.push("a layer is missing a name");
+    } else if (declaredNames.has(layer.name)) {
+      problems.push(`duplicate layer name '${layer.name}'`);
+    } else {
+      declaredNames.add(layer.name);
+    }
+    if (!Array.isArray(layer.path) || !layer.path.length ||
+        layer.path.some((glob) => typeof glob !== "string" || !glob))
       problems.push(`layer '${layer && layer.name}' has no path globs`);
   }
 
   for (const [layerName, targets] of Object.entries(rule.allowed || {})) {
     if (!declaredNames.has(layerName))
       problems.push(`allowed references undeclared layer '${layerName}'`);
-    for (const target of targets || [])
+    if (!Array.isArray(targets)) {
+      problems.push(`allowed.${layerName} must be an array`);
+      continue;
+    }
+    for (const target of targets)
       if (!declaredNames.has(target))
         problems.push(
           `allowed.${layerName} references undeclared layer '${target}'`,
@@ -363,20 +398,53 @@ function aliasEntriesOf(rule) {
 function layersEngine(rule, filePath, content, options = {}) {
   if (!options.skipApplies && !applies(rule, filePath)) return [];
 
+  if (!/\.(?:[cm]?[jt]sx?)$/i.test(filePath))
+    return [{
+      rule: rule.id,
+      file: filePath,
+      line: 0,
+      message: "The built-in layers engine supports JavaScript/TypeScript imports only; use an external native architecture checker.",
+      severity: "error",
+    }];
+
   const layers = rule.layers || [];
-  const fromLayer = layerOfPath(layers, filePath);
+  const fromLayers = layersOfPath(layers, filePath);
+  const fromLayer = fromLayers[0];
   if (!fromLayer) return [];
+  if (fromLayers.length > 1)
+    return [{
+      rule: rule.id,
+      file: filePath,
+      line: 0,
+      message: `Path matches multiple layers (${fromLayers.map((layer) => layer.name).join(", ")}); layer coverage must not overlap.`,
+      severity: "error",
+    }];
 
   const allowed =
     rule._allowedByLayer?.[fromLayer.name] ||
     new Set(rule.allowed?.[fromLayer.name] || []);
   const aliasEntries = aliasEntriesOf(rule);
-  const isPython = /\.py$/i.test(filePath);
   const violations = [];
   const reported = new Set();
 
   const check = (importText, resolvedTarget, matchIndex) => {
-    const toLayer = layerOfImport(layers, resolvedTarget);
+    const toLayers = layersOfImport(layers, resolvedTarget);
+    const toLayer = toLayers[0];
+    if (toLayers.length > 1) {
+      const line = lineOfIndex(content, matchIndex);
+      const key = `ambiguous:${line}:${resolvedTarget}`;
+      if (!reported.has(key)) {
+        reported.add(key);
+        violations.push({
+          rule: rule.id,
+          file: filePath,
+          line,
+          message: `Import target '${resolvedTarget}' matches multiple layers (${toLayers.map((layer) => layer.name).join(", ")}); layer coverage must not overlap.`,
+          severity: "error",
+        });
+      }
+      return;
+    }
     if (!toLayer || toLayer.name === fromLayer.name || allowed.has(toLayer.name))
       return;
     const line = lineOfIndex(content, matchIndex);
@@ -393,32 +461,10 @@ function layersEngine(rule, filePath, content, options = {}) {
     });
   };
 
-  if (isPython) {
-    for (const match of content.matchAll(PY_FROM_IMPORT)) {
-      const base = pyModuleToPath(filePath, match[1]);
-      check(match[1], base, match.index);
-      for (const imported of match[2].split(",")) {
-        const name = imported.trim().split(/\s+/)[0];
-        if (name && name !== "*")
-          check(`${match[1]}.${name}`, base ? `${base}/${name}` : name, match.index);
-      }
-    }
-    for (const match of content.matchAll(PY_IMPORT))
-      check(match[1], pyModuleToPath(filePath, match[1]), match.index);
-  } else {
-    if (!/\.go$/i.test(filePath)) {
-      for (const pattern of JS_IMPORT_PATTERNS) {
-        pattern.lastIndex = 0;
-        for (const match of content.matchAll(pattern))
-          check(match[1], resolveSpec(filePath, match[1], aliasEntries, layers), match.index);
-      }
-    }
-    if (/\.(cs|java|kt|swift)$/i.test(filePath))
-      for (const match of content.matchAll(NS_IMPORT))
-        check(match[1], resolveSpec(filePath, modulePath(match[1]), aliasEntries, layers), match.index);
-    if (/\.go$/i.test(filePath))
-      for (const match of content.matchAll(GO_IMPORT))
-        check(match[1], resolveSpec(filePath, match[1], aliasEntries, layers), match.index);
+  for (const pattern of JS_IMPORT_PATTERNS) {
+    pattern.lastIndex = 0;
+    for (const match of content.matchAll(pattern))
+      check(match[1], resolveSpec(filePath, match[1], aliasEntries, layers), match.index);
   }
 
   return violations;
@@ -452,16 +498,11 @@ function prepareRule(rule) {
       "Owner",
     ];
     prepared._withinLines = rule.within_lines || 5;
-    prepared._markerEsc = escapeForRegex(prepared._marker);
-    prepared._exemptionAnnotation = new RegExp(
-      prepared._markerEsc + "\\s*:\\s*\\S",
-    );
-    prepared._exemptionSpan = new RegExp(
-      prepared._markerEsc + "\\s*:\\s*(\\S[^\\n]*)",
-    );
+    prepared._exemptionAnnotation = metadataRegex(prepared._marker, "\\S");
+    prepared._exemptionSpan = metadataRegex(prepared._marker, "(\\S[^\\n]*)");
     prepared._fieldRegexes = prepared._requiredFields.map((field) => [
       field,
-      new RegExp(`\\b${field}\\s*:`),
+      metadataRegex(field, "\\S"),
     ]);
     prepared._expiresRegex = EXPIRES_FIELD;
   } else if (rule.engine === "layers") {

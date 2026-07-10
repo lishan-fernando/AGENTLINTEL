@@ -3,7 +3,7 @@
 Distribution has three surfaces, all driven by one tag push: the npm registry
 (`@agentlintel/cli`, provenance-attested, primary adopter install path), a
 GitHub Release tarball under a stable name (exact-version or registry-free
-fallback), and the GitHub Action tag (`v2`).
+fallback), and the GitHub Action at the immutable version tag.
 The release workflow (`.github/workflows/release.yml`) refuses to ship
 anything the gate has not passed.
 
@@ -14,9 +14,11 @@ workflow, in order:
 
 1. Installs from the committed lockfile (`npm ci`) and rejects a tag that
    does not match the package version.
-2. Runs `npm run release:check` for parse checks, the full suite,
-   `agentlintel verify --strict`, and `npm pack --dry-run --json` — the gate
-   must be green to release.
+2. Runs `npm run release:check` for parse checks, the full suite, a strict
+   comparison against the release commit's parent, and
+   `npm pack --dry-run --json` — the gate must be green to release. The
+   protected PR gate has already compared the candidate to its actual target
+   SHA with full history.
 3. Packs the tarball, writes a `sha256` checksum, and attaches both to the
    GitHub Release under stable names (`agentlintel-cli.tgz`,
    `agentlintel-cli.tgz.sha256`).
@@ -65,9 +67,7 @@ npm run release:check                         # parse, tests, strict gate, packa
 VERSION="v$(node -p 'require("./tools/agentlintel-cli/package.json").version')"
 git tag "$VERSION"
 git push origin "$VERSION"
-git tag -f v2 "$VERSION"
-git push --force origin v2
-git ls-remote --tags origin "$VERSION" v2
+git ls-remote --tags origin "$VERSION"
 ```
 
 Do not move versioned alpha tags after publication. Keep branch protection
@@ -120,11 +120,13 @@ npmjs.com and in the GitHub repo settings, in this order:
 
 ## GitHub Action
 
-Tag the repo (`v2`, `v2.x.y`); adopters reference
-`lishan-fernando/AGENTLINTEL/.github/actions/agentlintel@v2`.
+Adopters pin the immutable release tag:
+`lishan-fernando/AGENTLINTEL/.github/actions/agentlintel@v2.0.0-alpha.12`.
+The workflow must check out full history; the Action derives the actual event
+base SHA.
 
 ## Skills
 
-`.agentlintel/skills/*/SKILL.md` follow the Agent Skills spec and can be
+`.agents/skills/*/SKILL.md` follow the Agent Skills spec and can be
 published to skill marketplaces as-is. Keep descriptions under 200 chars;
 they are the only text loaded until invocation.

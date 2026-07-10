@@ -23,12 +23,13 @@ adoption context, or anything your team would not want public.
 ## Before you push
 
 ```bash
-cd tools/agentlintel-cli && npm install
+cd tools/agentlintel-cli && npm ci --no-audit --no-fund
 npm test
-node bin/agentlintel.js verify --dir ../.. --strict
+node bin/agentlintel.js verify --dir ../.. --strict --base <target-sha>
 ```
 
-CI runs exactly this.
+Replace `<target-sha>` with the actual target-branch commit and check out full
+history first. CI derives the pull-request base SHA from the event.
 
 ## Licensing of contributions
 
@@ -37,7 +38,8 @@ license of the files it modifies or creates -
 `LicenseRef-AgentLintel-Free-Use-No-Resale-1.0` for the core, `Apache-2.0`
 for AgentLintel-supplied adoption templates and examples:
 `tools/agentlintel-cli/templates/**`, this repository's own `.agentlintel/**`,
-this repository's own `.github/**`, and `.pre-commit-hooks.yaml` (see
+this repository's own `.agents/skills/**`, `.github/**`, and
+`.pre-commit-hooks.yaml` (see
 [docs/LEGAL.md](docs/LEGAL.md) for the boundary). Keep the SPDX header style
 of the area you touch. Sign each commit off (`git commit -s`) to certify the
 Developer Certificate of Origin (developercertificate.org) - that you have the

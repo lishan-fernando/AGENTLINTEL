@@ -28,8 +28,8 @@ npm test
 
 Run both before declaring any task done. CI runs the same (with --strict).
 Fast agent-loop path: `verify --diff --quiet --bail --no-run --skip-fixtures`.
-Templates under tools/agentlintel-cli/templates/{conformance,skills} are a
-machine-verified mirror of .agentlintel/ - change both or the sync test fails.
+Templates under tools/agentlintel-cli/templates/{conformance,skills} mirror
+`.agentlintel/conformance/` and `.agents/skills/` - change both or sync fails.
 
 ## Map
 
@@ -39,7 +39,7 @@ machine-verified mirror of .agentlintel/ - change both or the sync test fails.
 | `.agentlintel/rules.yaml` | 7 deterministic rules (regex / error-codes / exemptions engines) |
 | `.agentlintel/guard.json` | write-boundary zones checked against git diff |
 | `.agentlintel/exemplars.yaml` | canonical exemplar registry |
-| `.agentlintel/skills/` | 3 Agent Skills: strangler-extraction, mirror-exemplar, audit-architecture |
+| `.agents/skills/` | 3 Agent Skills: strangler-extraction, mirror-exemplar, audit-architecture |
 | `.agentlintel/decisions/` | append-only ADRs |
 | `.agentlintel/conformance/` | pass/fail fixtures per rule (the framework's test suite) |
 | `tools/agentlintel-cli/` | the CLI: `init`, `verify`, `report`, `explain` |
@@ -51,7 +51,7 @@ machine-verified mirror of .agentlintel/ - change both or the sync test fails.
 - Plain Node >= 18, CommonJS, single dependency (`yaml`). No build step.
 - Every engine change must keep `npm test` green; fixtures are the contract.
 - New rule = rule entry + fixtures + tests, in the same PR, or it doesn't merge.
-- Exit codes: 0 gate passed, 1 gate failed, 2 internal error. Documented in `SPEC.md`.
+- Exit codes: 0 passed, 1 findings, 2 invalid invocation/internal error. See `SPEC.md`.
 
 ## The five architecture principles
 

@@ -7,9 +7,47 @@ const { readYaml, readJson } = require("./../lib/io");
 
 const V1_DIRS = [".agentlintel", ".ai-governance"];
 
+function objectMap(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function sourceSafe(root, filePath) {
+  try {
+    if (!fs.lstatSync(filePath).isFile()) return false;
+    const relative = path.relative(fs.realpathSync(root), fs.realpathSync(filePath));
+    if (relative.startsWith("..") || path.isAbsolute(relative)) return false;
+    let cursor = path.resolve(root);
+    for (const segment of path.relative(path.resolve(root), path.resolve(filePath)).split(path.sep)) {
+      if (!segment) continue;
+      cursor = path.join(cursor, segment);
+      if (fs.lstatSync(cursor).isSymbolicLink()) return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function uniqueId(value, fallback, seen) {
+  let base = String(value || fallback)
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/[._-]+/g, "-")
+    .replace(/^[^a-z]+/, "")
+    .replace(/[._-]+$/g, "");
+  if (!base || /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/.test(base))
+    base = fallback;
+  let id = base;
+  for (let suffix = 2; seen.has(id); suffix++) id = `${base}-${suffix}`;
+  seen.add(id);
+  return id;
+}
+
 function findV1(root) {
   for (const dirName of V1_DIRS) {
     const contextPath = path.join(root, dirName, "context.yaml");
+    if (fs.existsSync(contextPath) && !sourceSafe(root, contextPath))
+      return { error: `unsafe v1 source: ${dirName}/context.yaml` };
     if (fs.existsSync(contextPath))
       return { dir: path.join(root, dirName), name: dirName };
   }
@@ -25,9 +63,29 @@ function isFilled(value) {
   );
 }
 
+function migratedScope(value) {
+  if (!isFilled(value)) return null;
+  const candidate = value.trim().replace(/\\/g, "/");
+  if (!candidate || candidate === "." || candidate.startsWith("/") ||
+      candidate.endsWith("/") || candidate.includes(":") ||
+      path.win32.isAbsolute(candidate) ||
+      /^[A-Za-z]:/.test(candidate) || /[\[\]{}]/.test(candidate)) return null;
+  const segments = candidate.split("/");
+  if (segments.some((segment) => !segment || segment === "." || segment === ".."))
+    return null;
+  return path.posix.normalize(candidate) === candidate ? candidate : null;
+}
+
+function migratedRepoPath(value) {
+  const candidate = migratedScope(value);
+  return candidate && !/[*?]/.test(candidate) ? candidate : null;
+}
+
 function migrate(root) {
   const report = ["# AgentLintel v1 -> v2 migration report", ""];
   const v1 = findV1(root);
+  if (v1 && v1.error)
+    return { ok: false, log: [`ERROR ${v1.error}`], files: {} };
   if (!v1)
     return {
       ok: false,
@@ -42,14 +100,36 @@ function migrate(root) {
     "",
   );
 
-  const context = readYaml(path.join(v1.dir, "context.yaml")) || {};
+  let context;
+  try {
+    context = readYaml(path.join(v1.dir, "context.yaml"));
+  } catch (error) {
+    return { ok: false, log: [`ERROR invalid v1 context.yaml: ${error.message || error}`], files: {} };
+  }
+  if (!context || typeof context !== "object" || Array.isArray(context))
+    return { ok: false, log: ["ERROR v1 context.yaml must contain an object"], files: {} };
   const facts = [];
+  const factIds = new Set();
   const pendingFact = (id, claim, note) =>
-    facts.push({ id, claim, check: { type: "pending", note } });
-  const pathFact = (id, claim, factPath) =>
-    facts.push({ id, claim, check: { type: "path_exists", path: factPath } });
+    facts.push({ id: uniqueId(id, "fact", factIds), claim, check: { type: "pending", note } });
+  const pathFact = (id, claim, factPath) => {
+    const migratedPath = migratedRepoPath(factPath);
+    if (!migratedPath) {
+      pendingFact(
+        id,
+        claim,
+        `v1 path '${factPath}' is not a safe repository-relative path; replace it before enabling this check`,
+      );
+      return;
+    }
+    facts.push({
+      id: uniqueId(id, "fact", factIds),
+      claim,
+      check: { type: "path_exists", path: migratedPath },
+    });
+  };
 
-  const primitives = context.primitives || {};
+  const primitives = objectMap(context.primitives);
   if (primitives.result && isFilled(primitives.result.path))
     pathFact(
       "result-primitive",
@@ -87,18 +167,22 @@ function migrate(root) {
       "informational - keep in AGENTS.md prose instead, or write a check",
     );
 
-  for (const command of (context.verification && context.verification.commands) || []) {
+  const verification = objectMap(context.verification);
+  const commands = Array.isArray(verification.commands) ? verification.commands : [];
+  for (const command of commands) {
+    if (!command || typeof command !== "object" || Array.isArray(command)) continue;
     if (!isFilled(command.command)) continue;
     const commandText = command.command.trim();
+    const seconds = Number(command.timeout_seconds || verification.timeout_seconds || 120);
     facts.push({
-      id: `verify-${command.id || facts.length}`,
+      id: uniqueId(`verify-${command.id || facts.length}`, "verify-command", factIds),
       claim: `'${commandText.split("\n")[0]}${commandText.includes("\n") ? " ..." : ""}' passes`,
       check: {
         type: "command",
         run: commandText,
-        timeout_ms:
-          1000 *
-          (command.timeout_seconds || context.verification.timeout_seconds || 120),
+        timeout_ms: Number.isFinite(seconds) && seconds > 0
+          ? Math.min(Math.trunc(seconds * 1000), 2147483647)
+          : 120000,
       },
     });
   }
@@ -113,17 +197,25 @@ function migrate(root) {
   );
 
   const exemplars = [];
-  for (const exemplar of context.exemplars || [])
-    if (isFilled(exemplar.path))
+  const unsafeExemplarPaths = [];
+  const exemplarIds = new Set();
+  const sourceExemplars = Array.isArray(context.exemplars) ? context.exemplars : [];
+  for (const [index, exemplar] of sourceExemplars.entries()) {
+    if (exemplar && typeof exemplar === "object" && !Array.isArray(exemplar) && isFilled(exemplar.path)) {
+      const exemplarPath = migratedRepoPath(exemplar.path);
+      if (!exemplarPath) {
+        unsafeExemplarPaths.push(exemplar.path);
+        continue;
+      }
       exemplars.push({
-        id: (exemplar.name || path.basename(exemplar.path))
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, "-"),
-        shape: exemplar.shape || "crud",
-        path: exemplar.path,
+        id: uniqueId(exemplar.name || path.posix.basename(exemplarPath), `exemplar-${index + 1}`, exemplarIds),
+        shape: typeof exemplar.shape === "string" && exemplar.shape ? exemplar.shape : "crud",
+        path: exemplarPath,
         demonstrates:
           exemplar.why || "canonical exemplar (migrated from v1 context.yaml)",
       });
+    }
+  }
 
   report.push(
     "## exemplars.yaml",
@@ -131,36 +223,96 @@ function migrate(root) {
     `${exemplars.length} exemplar(s) migrated. verify checks each path exists.`,
     "",
   );
+  if (unsafeExemplarPaths.length)
+    report.push(
+      `Skipped ${unsafeExemplarPaths.length} unsafe or non-canonical exemplar path(s): ${unsafeExemplarPaths.map((entry) => `\`${entry}\``).join(", ")}. Add safe repository-relative paths manually.`,
+      "",
+    );
 
   let guard = null;
   const unmappedKeys = [];
+  const unsafeGuardScopes = [];
+  const unsafeForbiddenScopes = [];
   for (const guardFile of ["guard.json", "architecture.guard.json"]) {
     const guardPath = path.join(v1.dir, guardFile);
     if (!fs.existsSync(guardPath)) continue;
 
-    const v1Guard = readJson(guardPath);
-    guard = { version: 2, zones: [], forbidden: [] };
-    if (Array.isArray(v1Guard.zones))
-      guard.zones = v1Guard.zones.map((zone) => ({
-        id: zone.id,
-        allow: zone.allow || zone.paths || [],
-      }));
-    if (Array.isArray(v1Guard.forbidden)) guard.forbidden = v1Guard.forbidden;
+    if (!sourceSafe(root, guardPath))
+      return { ok: false, log: [`ERROR unsafe v1 source: ${v1.name}/${guardFile}`], files: {} };
+    let v1Guard;
+    try {
+      v1Guard = readJson(guardPath);
+    } catch (error) {
+      return { ok: false, log: [`ERROR invalid v1 ${guardFile}: ${error.message || error}`], files: {} };
+    }
+    if (!v1Guard || typeof v1Guard !== "object" || Array.isArray(v1Guard))
+      return { ok: false, log: [`ERROR v1 ${guardFile} must contain an object`], files: {} };
+    const migratedGuard = { version: 2, zones: [], forbidden: [] };
+    if (Array.isArray(v1Guard.zones)) {
+      const zoneIds = new Set();
+      migratedGuard.zones = v1Guard.zones
+        .filter((zone) => zone && typeof zone === "object" && !Array.isArray(zone))
+        .map((zone, index) => ({
+          id: uniqueId(zone.id, `zone-${index + 1}`, zoneIds),
+          allow: (Array.isArray(zone.allow) ? zone.allow : Array.isArray(zone.paths) ? zone.paths : [])
+            .filter((glob) => typeof glob === "string" && glob)
+            .map((glob) => {
+              const migrated = migratedScope(glob);
+              if (!migrated) unsafeGuardScopes.push(glob);
+              return migrated;
+            })
+            .filter(Boolean),
+        }))
+        .filter((zone) => zone.allow.length);
+    }
+    if (Array.isArray(v1Guard.forbidden))
+      migratedGuard.forbidden = v1Guard.forbidden
+        .filter((glob) => typeof glob === "string" && glob)
+        .map((glob) => {
+          const migrated = migratedScope(glob);
+          if (!migrated) unsafeForbiddenScopes.push(glob);
+          return migrated;
+        })
+        .filter(Boolean);
+    if (unsafeForbiddenScopes.length)
+      return {
+        ok: false,
+        log: [
+          `ERROR v1 ${guardFile} contains forbidden scope(s) v2 cannot represent safely: ${unsafeForbiddenScopes.join(", ")}`,
+        ],
+        files: {},
+      };
     for (const key of Object.keys(v1Guard))
       if (!["version", "zones", "forbidden", "$comment"].includes(key))
         unmappedKeys.push(key);
 
-    report.push(
-      "## guard.json",
-      "",
-      `Migrated from ${guardFile}: ${guard.zones.length} zone(s), ${guard.forbidden.length} forbidden glob(s).`,
-    );
+    if (!migratedGuard.zones.length && migratedGuard.forbidden.length)
+      migratedGuard.zones.push({ id: "migration-review", allow: ["**/*"] });
+    guard = migratedGuard.zones.length ? migratedGuard : null;
+    report.push("## guard.json", "");
+    if (guard)
+      report.push(
+        `Migrated from ${guardFile}: ${guard.zones.length} zone(s), ${guard.forbidden.length} forbidden glob(s).`,
+      );
+    else
+      report.push(
+        `No guard emitted from ${guardFile}: it contains no zone with a non-empty allow list. Init will retain the safe starter guard; map the old intent manually.`,
+      );
+    if (guard && guard.zones.some((zone) => zone.id === "migration-review"))
+      report.push(
+        "The v1 guard had forbidden paths but no usable allow zone, so migration preserved those denials behind a temporary catch-all zone. Replace it before strict CI.",
+      );
     if (unmappedKeys.length)
       report.push(
         "",
         `**Needs manual mapping** (v1 keys with no v2 guard equivalent): ${unmappedKeys.map((key) => `\`${key}\``).join(", ")}.`,
         "- `forbiddenImports`-style regex groups belong in `rules.yaml` as regex rules - each needs pass/fail fixtures (a rule without fixtures fails the gate).",
         "- Policy prose belongs in AGENTS.md principles or an ADR.",
+      );
+    if (unsafeGuardScopes.length)
+      report.push(
+        "",
+        `**Needs manual mapping** (unsafe or unsupported guard scopes omitted): ${unsafeGuardScopes.map((scope) => `\`${scope}\``).join(", ")}.`,
       );
     report.push("");
     break;
@@ -201,7 +353,7 @@ function migrate(root) {
     report.push(
       "## Cards -> Skills",
       "",
-      `v1 task cards in \`${v1.name}/cards/\` become standard Agent Skills under \`.agentlintel/skills/<name>/SKILL.md\`.`,
+      `v1 task cards in \`${v1.name}/cards/\` become standard Agent Skills under \`.agents/skills/<name>/SKILL.md\`.`,
       "The three reference skills (strangler-extraction, mirror-exemplar, audit-architecture) are scaffolded by init; port project-specific cards by hand - most card prose becomes the SKILL.md body unchanged.",
       "",
     );
@@ -211,8 +363,10 @@ function migrate(root) {
     "",
     "1. Review pending facts - write a check or move the claim to an ADR.",
     "2. Port forbiddenImports regexes to rules.yaml WITH fixtures.",
-    "3. Wire CI: `agentlintel verify --strict` on every PR. A rule that does not run in CI does not exist.",
-    "4. Delete the dead v1 files listed above once nothing references them.",
+    "3. Wire CI with full history: `agentlintel verify --strict --base <target-sha>` on every PR. A rule that does not run in CI does not exist.",
+    v1.name === ".ai-governance"
+      ? "4. Delete the entire `.ai-governance/` source tree after review; verify rejects a second governance control plane."
+      : "4. Delete `.agentlintel/context.yaml`, legacy cards/control files, and any old guard source after review; verify rejects a second control plane.",
   );
 
   return {
@@ -247,8 +401,9 @@ function factsYaml(facts) {
     "",
     "facts:",
   ];
+  if (!facts.length) lines[lines.length - 1] = "facts: []";
   for (const fact of facts) {
-    lines.push(`  - id: ${fact.id}`);
+    lines.push(`  - id: ${yamlEscape(fact.id)}`);
     lines.push(`    claim: ${yamlEscape(fact.claim)}`);
     const check = fact.check;
     if (check.type === "path_exists")
@@ -273,8 +428,8 @@ function exemplarsYaml(exemplars) {
   ];
   if (!exemplars.length) lines[lines.length - 1] = "exemplars: []";
   for (const exemplar of exemplars) {
-    lines.push(`  - id: ${exemplar.id}`);
-    lines.push(`    shape: ${exemplar.shape}`);
+    lines.push(`  - id: ${yamlEscape(exemplar.id)}`);
+    lines.push(`    shape: ${yamlEscape(exemplar.shape)}`);
     lines.push(`    path: ${yamlEscape(exemplar.path)}`);
     lines.push(`    demonstrates: ${yamlEscape(exemplar.demonstrates)}`);
     lines.push("");

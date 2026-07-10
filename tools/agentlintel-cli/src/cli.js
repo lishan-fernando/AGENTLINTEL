@@ -23,7 +23,7 @@ verify/report options:
 explain options:
   --dir <root>  --path <file>  --json
 
-Exit codes: 0 gate passed, 1 gate failed, 2 internal/config error.`;
+Exit codes: 0 gate passed, 1 gate findings, 2 invalid invocation/internal error.`;
 
 const VALUE_FLAGS = new Set(["--dir", "--base", "--pattern", "--path", "--mode"]);
 const BOOLEAN_FLAGS = {
@@ -40,6 +40,12 @@ const BOOLEAN_FLAGS = {
   "--adapters": "adapters",
   "--hooks": "hooks",
   "--engine-adapters": "engineAdapters",
+};
+const COMMAND_OPTIONS = {
+  init: new Set(["dir", "pattern", "fromV1", "adapters", "hooks", "engineAdapters", "force"]),
+  verify: new Set(["dir", "base", "diff", "quiet", "bail", "workspace", "json", "strict", "noRun", "skipFixtures", "mode"]),
+  report: new Set(["dir", "base", "diff", "quiet", "bail", "workspace", "json", "strict", "noRun", "skipFixtures", "mode"]),
+  explain: new Set(["dir", "path", "json"]),
 };
 
 function parseArgs(argv) {
@@ -119,6 +125,14 @@ function main(argv = process.argv.slice(2), cwd = process.cwd()) {
     return 2;
   }
 
+  const allowed = COMMAND_OPTIONS[command];
+  const inapplicable = allowed && Object.keys(options)
+    .find((key) => !["_", "errors"].includes(key) && !allowed.has(key));
+  if (inapplicable) {
+    console.error(`Option '--${inapplicable.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}' does not apply to '${command}'`);
+    return 2;
+  }
+
   if (options.mode && options.mode !== "warn") {
     console.error(`Unknown --mode '${options.mode}'. Supported: warn`);
     return 2;
@@ -158,6 +172,7 @@ function runInit(root, options) {
     hooks: options.hooks,
     engineAdapters: options.engineAdapters,
     pattern: options.pattern,
+    patternExplicit: options.pattern !== undefined,
   });
 
   for (const line of result.log) console.log(line);

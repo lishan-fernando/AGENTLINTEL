@@ -13,8 +13,8 @@ const REPO = path.join(ROOT, '..', '..');
 const PKG = require('../package.json');
 // Recalibrated for readable shipped source with meaningful identifiers
 // (ADR-014), explain/warn/hook DX surface (ADR-016), and license clarity text
-// (ADR-020 and ADR-021).
-const NPM_UNPACKED_BYTE_BUDGET = 155000;
+// (ADR-020 and ADR-021), then the ADR-022 verifier-integrity checks.
+const NPM_UNPACKED_BYTE_BUDGET = 249000;
 
 let packCache = null;
 
@@ -88,7 +88,6 @@ test('npm package contains runtime files and excludes tests', () => {
     'templates/conformance/CONFORMANCE.md',
     'templates/skills/mirror-exemplar/SKILL.md',
     'templates/hooks/verify-hook.sh',
-    'templates/hooks/pretooluse-hook.sh',
     'README.md',
     'package.json',
     'LICENSE',
@@ -145,7 +144,9 @@ test('packaged README contains install, quick start, and CI anchors', () => {
   assert.match(readme, /npm i -D @agentlintel\/cli@alpha/);
   assert.match(readme, /npx agentlintel init/);
   assert.match(readme, /npx agentlintel verify/);
-  assert.match(readme, /lishan-fernando\/AGENTLINTEL\/\.github\/actions\/agentlintel@v2/);
+  assert.ok(readme.includes(
+    `lishan-fernando/AGENTLINTEL/.github/actions/agentlintel@v${PKG.version}`,
+  ));
 });
 
 test('packed tarball installs and boots the adopter quick start', () => {

@@ -15,7 +15,7 @@ Use the GitHub Release tarball only when you need an exact pinned artifact or a
 registry-free fallback:
 
 ```bash
-npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.11/agentlintel-cli.tgz
+npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.12/agentlintel-cli.tgz
 ```
 
 Choose a pattern only when the default vertical-slice rules do not fit:
@@ -34,19 +34,30 @@ migrator keeps derivable checks, marks the rest `pending`, and writes
 
 - Fill `facts.yaml` with paths/commands the machine can check.
 - Register one real exemplar in `exemplars.yaml`.
+- Replace the starter `**/*` guard zone with the smallest writable paths.
 - Delete starter rules that do not apply.
 - Keep `must_match: false` only for deliberate future-carrier rules; flip to
   `true` once matching paths exist.
-- Wire CI with `agentlintel verify --strict`.
+- Wire CI with the exact-version Action, or run
+  `agentlintel verify --strict --base <target-sha>` with the actual PR base.
+- Check out full history (`fetch-depth: 0` in GitHub Actions); the CLI never
+  fetches a missing comparison ref.
+- Protect `AGENTS.md`, `.agentlintel/**`, `.agents/skills/**`, and the gate
+  workflow with CODEOWNERS and required code-owner review. ADRs provide
+  rationale, not authenticated approval.
+- Protect every `engine: external` checker entrypoint, its config, and its
+  dependency lockfile with the same required review.
 - Add `init --hooks` only after local verify is green.
 
 ## Brownfield Rollout
 
-1. Run the gate in advisory mode: `verify --no-run --skip-fixtures`.
+1. Run an intentionally incomplete advisory pass:
+   `verify --no-run --skip-fixtures`.
 2. Fix stale facts and missing exemplars.
 3. Turn on fixtures and project-native external engines before treating deep
    architecture claims as blockers.
-4. Turn warnings into blockers with `--strict`.
+4. Turn warnings into blockers with a full trusted
+   `verify --strict --base <target-sha>` run; strict rejects skipped work.
 5. Use bounded exemptions only for reviewed debt:
    `Reason`, `Approver`, `Expires`, `Owner`.
 
@@ -60,7 +71,10 @@ AST-aware rules, start here instead of stretching a regex. Typical mappings:
 - Custom tools: JSONL findings `{file,line,message}` on stdout.
 
 Each external rule still needs fixtures. Fixtures validate output mapping; live
-engines run during tree verify unless `--no-run` or `--diff` is used.
+engines run during tree verify unless `--no-run` or `--diff` is used. Both
+flags make the run incomplete under `--strict`. The built-in `layers` engine
+checks JS/TS imports only; native-language boundaries need an external native
+checker.
 
 ## Multi-Repo
 
@@ -73,7 +87,8 @@ members:
   - app-web
 ```
 
-Run `agentlintel verify --workspace` from the workspace root.
+Run `agentlintel verify --workspace` from the workspace root. Each member must
+be a real Git repository top-level.
 
 ## Claim Boundary
 
