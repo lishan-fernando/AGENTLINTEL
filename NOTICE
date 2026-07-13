@@ -8,11 +8,11 @@ LicenseRef-AgentLintel-Free-Use-No-Resale-1.0). See LICENSE.
 
 AgentLintel-supplied templates and examples are licensed under the Apache
 License, Version 2.0: tools/agentlintel-cli/templates/**, this repository's
-own .agentlintel/**, this repository's own .github/**, and
-.pre-commit-hooks.yaml. In adopter repositories, project-specific files are
-not Apache-2.0 merely because they live under .agentlintel/ or were checked by
-AgentLintel. See tools/agentlintel-cli/LICENSE-APACHE and docs/LEGAL.md for
-the exact boundary.
+own .agentlintel/**, this repository's own .agents/skills/**, this repository's
+own .github/**, and .pre-commit-hooks.yaml. In adopter repositories,
+project-specific files are not Apache-2.0 merely because they live under
+.agentlintel/ or .agents/skills/, or were checked by AgentLintel. See
+tools/agentlintel-cli/LICENSE-APACHE and docs/LEGAL.md for the exact boundary.
 
 Previously published copies keep their published licenses: releases up to and
 including v2.0.0-alpha.4 were Apache-2.0, and releases v2.0.0-alpha.5 through

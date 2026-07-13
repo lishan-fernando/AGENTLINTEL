@@ -30,19 +30,41 @@ function arrayOf(value) {
 }
 
 function decisionIdFromFile(fileName) {
-  const match = String(fileName).match(/^(ADR-\d+)(?:-|\.md$)/i);
-  return match ? match[1].toUpperCase() : null;
+  const match = String(fileName).match(/^(ADR-\d+)-[a-z0-9]+(?:-[a-z0-9]+)*\.md$/);
+  return match ? match[1] : null;
+}
+
+function safeRegularPath(root, filePath) {
+  const relative = path.relative(path.resolve(root), path.resolve(filePath));
+  if (relative.startsWith("..") || path.isAbsolute(relative)) return false;
+  let cursor = path.resolve(root);
+  try {
+    for (const segment of relative.split(path.sep).filter(Boolean)) {
+      cursor = path.join(cursor, segment);
+      if (fs.lstatSync(cursor).isSymbolicLink()) return false;
+    }
+    const inside = path.relative(fs.realpathSync(root), fs.realpathSync(filePath));
+    return fs.lstatSync(filePath).isFile() &&
+      !inside.startsWith("..") && !path.isAbsolute(inside);
+  } catch {
+    return false;
+  }
 }
 
 function decisionIndex(root) {
   const dir = path.join(root, KERNEL_DIR, "decisions");
   const index = new Map();
-  if (!fs.existsSync(dir)) return index;
+  try {
+    if (!fs.lstatSync(dir).isDirectory()) return index;
+  } catch {
+    return index;
+  }
 
   for (const fileName of fs.readdirSync(dir).sort()) {
     const id = decisionIdFromFile(fileName);
     if (!id) continue;
     const relPath = `${KERNEL_DIR}/decisions/${fileName}`;
+    if (!safeRegularPath(root, path.join(root, relPath))) continue;
     let title = "";
     try {
       title = fs
@@ -98,17 +120,21 @@ function explainGuard(guard, relPath) {
       note: "no guard.json found",
     };
 
-  const forbidden = (guard.forbidden || []).filter((glob) =>
+  const forbiddenGlobs = Array.isArray(guard.forbidden) ? guard.forbidden : [];
+  const guardZones = Array.isArray(guard.zones) ? guard.zones : [];
+  const forbidden = forbiddenGlobs.filter((glob) =>
     matchGlob(glob, relPath),
   );
-  const zones = (guard.zones || [])
+  const zones = guardZones
     .map((zone) => ({
       id: zone.id,
-      matched_allow: (zone.allow || []).filter((glob) => matchGlob(glob, relPath)),
+      matched_allow: (Array.isArray(zone.allow) ? zone.allow : [])
+        .filter((glob) => matchGlob(glob, relPath)),
     }))
     .filter((zone) => zone.matched_allow.length);
 
-  const allowGlobs = (guard.zones || []).flatMap((zone) => zone.allow || []);
+  const allowGlobs = guardZones.flatMap((zone) =>
+    Array.isArray(zone.allow) ? zone.allow : []);
   const outsideZones = allowGlobs.length > 0 && zones.length === 0;
 
   return {
@@ -180,6 +206,8 @@ function explain(root, { path: inputPath } = {}) {
     return { ok: false, errors: ["explain requires --path <file>"] };
 
   const kernel = loadKernel(root);
+  if (kernel.schemaErrors.length)
+    return { ok: false, errors: kernel.schemaErrors };
   const rules = explainRules(kernel.rules, relPath);
   return {
     ok: true,

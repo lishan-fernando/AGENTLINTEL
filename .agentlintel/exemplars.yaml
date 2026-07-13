@@ -8,10 +8,7 @@
 version: 2
 
 exemplars:
-  - id: exemplar-slice
-    shape: crud
-    path: .agentlintel/templates/exemplar-slice
-    demonstrates: >
-      Compact bootstrap exemplar for one public entry, private internals,
-      Result-based expected failures, boundary validation, slice-local error
-      codes, and tests. Replace with a real working slice in adopter repos.
+  - id: explain-command
+    shape: cli-command
+    path: tools/agentlintel-cli/src/commands/explain.js
+    demonstrates: "Read-only command logic, explicit result data, and separate rendering."

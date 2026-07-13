@@ -2,7 +2,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { runRule } = require('../src/lib/engines');
+const { runRule, collectExemptionSpans } = require('../src/lib/engines');
 
 const exemptionRule = {
   id: 'exemption.audited',
@@ -44,6 +44,54 @@ test('expired exemption fails even when complete', () => {
   const v = runRule(exemptionRule, 'a.ts', src);
   assert.strictEqual(v.length, 1);
   assert.match(v[0].message, /expired/i);
+});
+
+test('empty exemption fields and impossible dates fail', () => {
+  const empty = runRule(exemptionRule, 'a.ts', [
+    '// AGENTLINTEL-EXEMPT: x',
+    '// Reason:',
+    '// Approver:',
+    '// Expires: 2099-01-01',
+    '// Owner:',
+  ].join('\n'));
+  assert.ok(
+    empty.some((violation) => violation.message.startsWith('Exemption missing required field(s): Reason, Approver, Owner.')),
+    empty.map((v) => v.message).join('\n'),
+  );
+  assert.deepStrictEqual(collectExemptionSpans(exemptionRule, 'a.ts', [
+    '// AGENTLINTEL-EXEMPT: x',
+    '// Reason:',
+    '// Approver:',
+    '// Expires: 2099-01-01',
+    '// Owner:',
+    'forbiddenCall()',
+  ].join('\n')), []);
+
+  const invalidDate = runRule(exemptionRule, 'a.ts', [
+    '// AGENTLINTEL-EXEMPT: x',
+    '// Reason: r',
+    '// Approver: a',
+    '// Expires: 2099-02-30',
+    '// Owner: o',
+  ].join('\n'));
+  assert.ok(invalidDate.some((violation) => /invalid expiry date/.test(violation.message)), invalidDate.map((v) => v.message).join('\n'));
+});
+
+test('prefixed marker or field names never authorize suppression', () => {
+  const prefixedFields = [
+    '// AGENTLINTEL-EXEMPT: x',
+    '// Not-Reason: r',
+    '// Not-Approver: a',
+    '// Not-Expires: 2099-01-01',
+    '// Not-Owner: o',
+  ].join('\n');
+  const violations = runRule(exemptionRule, 'a.ts', prefixedFields);
+  assert.ok(violations.some((violation) => violation.message.startsWith('Exemption missing required field(s):')));
+  assert.deepStrictEqual(collectExemptionSpans(exemptionRule, 'a.ts', prefixedFields), []);
+
+  const prefixedMarker = prefixedFields.replace('AGENTLINTEL-EXEMPT:', 'NOT-AGENTLINTEL-EXEMPT:');
+  assert.deepStrictEqual(runRule(exemptionRule, 'a.ts', prefixedMarker), []);
+  assert.deepStrictEqual(collectExemptionSpans(exemptionRule, 'a.ts', prefixedMarker), []);
 });
 
 test('markdown files are excluded from exemption scan', () => {

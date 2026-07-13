@@ -1,6 +1,37 @@
 # Changelog
 
-## v2.0.0-alpha.11 - Unreleased
+## v2.0.0-alpha.12 - Unreleased
+
+Release-candidate integrity and standards pass.
+
+- Makes ADR history genuinely append-only and accepts only a newly added ADR
+  as provenance for fact, exemplar, rule, or guard weakening.
+- Requires every rule to prove passing and failing behavior with non-vacuous
+  conformance fixtures; rejects malformed kernel IDs, no-op rules, empty
+  guards, empty exemption metadata, and invalid expiry dates.
+- Removes the ineffective before-write hook, makes the end-of-turn hook fail
+  closed, eliminates hidden Git fetches, and hardens composite-action inputs.
+- Requires a real target base and tracked governance for strict Git gates;
+  rejects nested pseudo-roots, incomplete strict scans, sparse/hidden index
+  state, and opaque governed symlink or gitlink boundaries.
+- Fails closed on oversized scan inputs, aliased governance YAML, malformed
+  external output, or unsupported native-language `layers` input instead of
+  treating unexamined evidence as clean.
+- Runs command facts and external engines only against a committed Git
+  snapshot and fails if they mutate versionable evidence during the gate.
+- Moves skills to the cross-client `.agents/skills/` convention and uses
+  Claude Code's literal `@AGENTS.md` import.
+- Adds a base-branch CODEOWNERS boundary around the contract and verifier.
+- Pins copyable Action examples to `v2.0.0-alpha.12`, derives exact event base
+  SHAs, and keeps fork PR and merge-group command execution untrusted by
+  default.
+
+Alpha upgrade: delete `.agentlintel/hooks/pretooluse-hook.sh` and its Claude
+`PreToolUse` registration. Move any project skills to `.agents/skills/`, then
+delete the legacy `.agentlintel/skills/` directory. The gate now reports both
+retired paths so stale duplicate behavior cannot hide.
+
+## v2.0.0-alpha.11 - 2026-07-07
 
 Legal clarity pass.
 

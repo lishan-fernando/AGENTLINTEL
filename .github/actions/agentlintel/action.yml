@@ -1,16 +1,18 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # AgentLintel GitHub Action - runs the deterministic architecture gate
-# against the calling repository. Three lines of YAML in any adopter workflow:
+# against the calling repository. Minimal adopter workflow:
 #
 #   - uses: actions/checkout@v4
-#   - uses: lishan-fernando/AGENTLINTEL/.github/actions/agentlintel@v2
+#     with:
+#       fetch-depth: 0
+#   - uses: lishan-fernando/AGENTLINTEL/.github/actions/agentlintel@v2.0.0-alpha.12
 #     with:
 #       strict: "true"
 #
 # The CLI runs from this action's own checkout, so the gate works without any
 # npm publish in the loop. On pull_request events the guard automatically
-# diffs against the PR base (GITHUB_BASE_REF).
+# diffs against the exact event base SHA.
 
 name: AgentLintel
 description: Deterministic architecture gate - verified facts, enforceable rules, fixtures, write-boundary guard.
@@ -25,15 +27,19 @@ inputs:
     required: false
     default: "verify"
   dir:
-    description: Repo root containing .agentlintel/ and AGENTS.md.
+    description: Git repository top-level containing .agentlintel/ and AGENTS.md.
     required: false
     default: "."
+  base:
+    description: Comparison ref/SHA. Auto-derived for pull_request, merge_group, and push events; required otherwise.
+    required: false
+    default: ""
   strict:
     description: Warnings also fail the gate. (true|false)
     required: false
     default: "true"
   no_run:
-    description: Skip command-type facts and external engines, since command checks execute shell declared in facts.yaml. (auto|true|false; auto skips them on fork PRs)
+    description: Skip command facts and external engines, since they execute repo-declared shell. (auto|true|false; auto skips fork PRs and merge groups)
     required: false
     default: "auto"
 
@@ -49,22 +55,43 @@ runs:
     - name: Run agentlintel verify
       shell: bash
       env:
-        # fork PRs must not gain CI code execution via facts.yaml command checks
-        IS_FORK: ${{ github.event.pull_request.head.repo.full_name != github.repository && github.event_name == 'pull_request' }}
+        AGENTLINTEL_COMMAND: ${{ inputs.command }}
+        AGENTLINTEL_DIR: ${{ inputs.dir }}
+        AGENTLINTEL_BASE: ${{ inputs.base || github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
+        AGENTLINTEL_STRICT: ${{ inputs.strict }}
+        AGENTLINTEL_NO_RUN: ${{ inputs.no_run }}
+        AGENTLINTEL_EVENT: ${{ github.event_name }}
+        # Fork PRs must not execute candidate fact/external commands.
+        IS_UNTRUSTED: ${{ github.event_name == 'merge_group' || github.event.pull_request.head.repo.fork == true }}
       run: |
         set -euo pipefail
-        command="${{ inputs.command }}"
-        case "$command" in
+        if [ "$AGENTLINTEL_EVENT" = "pull_request_target" ]; then
+          echo "pull_request_target is unsupported: its default checkout is the base branch, not the candidate" >&2
+          exit 2
+        fi
+        if [ -z "$AGENTLINTEL_BASE" ] || [[ "$AGENTLINTEL_BASE" =~ ^0{40}$ ]]; then
+          echo "AgentLintel needs a comparison base; set the action's base input for this event" >&2
+          exit 2
+        fi
+        case "$AGENTLINTEL_COMMAND" in
           verify|report) ;;
-          *) echo "Unsupported agentlintel command: $command" >&2; exit 2 ;;
+          *) printf 'Unsupported agentlintel command: %s\n' "$AGENTLINTEL_COMMAND" >&2; exit 2 ;;
+        esac
+        case "$AGENTLINTEL_STRICT" in
+          true|false) ;;
+          *) printf 'Unsupported strict value: %s (expected true or false)\n' "$AGENTLINTEL_STRICT" >&2; exit 2 ;;
+        esac
+        case "$AGENTLINTEL_NO_RUN" in
+          auto|true|false) ;;
+          *) printf 'Unsupported no_run value: %s (expected auto, true, or false)\n' "$AGENTLINTEL_NO_RUN" >&2; exit 2 ;;
         esac
 
-        args=(node "${{ github.action_path }}/../../../tools/agentlintel-cli/bin/agentlintel.js" "$command" --dir "${{ inputs.dir }}")
-        if [ "${{ inputs.strict }}" = "true" ]; then args+=(--strict); fi
-        if [ "${{ inputs.no_run }}" = "true" ]; then args+=(--no-run); fi
-        if [ "${{ inputs.no_run }}" = "auto" ] && [ "$IS_FORK" = "true" ]; then args+=(--no-run); fi
+        args=(node "${{ github.action_path }}/../../../tools/agentlintel-cli/bin/agentlintel.js" "$AGENTLINTEL_COMMAND" --dir "$AGENTLINTEL_DIR" --base "$AGENTLINTEL_BASE")
+        if [ "$AGENTLINTEL_STRICT" = "true" ]; then args+=(--strict); fi
+        if [ "$AGENTLINTEL_NO_RUN" = "true" ]; then args+=(--no-run); fi
+        if [ "$AGENTLINTEL_NO_RUN" = "auto" ] && [ "$IS_UNTRUSTED" = "true" ]; then args+=(--no-run); fi
 
-        if [ "$command" = "report" ]; then
+        if [ "$AGENTLINTEL_COMMAND" = "report" ]; then
           set +e
           output="$("${args[@]}" 2>&1)"
           status=$?

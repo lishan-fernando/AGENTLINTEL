@@ -8,6 +8,7 @@
 #   file_contains  - { type: file_contains, path: <file>, pattern: <regex> }
 #   line_count_max - { type: line_count_max, path: <file>, max: N }
 #   byte_count_max - { type: byte_count_max, path: <file>, max: N }  ~4 bytes/token for context budgets
+#   frontmatter_byte_count_max - { type: frontmatter_byte_count_max, pattern: <glob>, max: N }
 #   glob_count     - { type: glob_count, pattern: <glob>, min: N, max: N }
 #   command        - { type: command, run: <shell command>, expect_exit: 0 }  skipped by --no-run
 #   pending        - { type: pending, note: <what check to write> }  WARNS until replaced - for migrations

@@ -16,9 +16,12 @@ const DEFAULT_SKIP = new Set([
   "target",
   "vendor",
 ]);
+const ROOT_ONLY_SKIP = new Set(["dist", "build", "bin-cache", "target", "vendor"]);
 
 function readYaml(filePath) {
-  return YAML.parse(fs.readFileSync(filePath, "utf8"));
+  // Governance is data, not a YAML object graph. Disabling aliases avoids
+  // cyclic or exponentially expanded values reaching verification/reporting.
+  return YAML.parse(fs.readFileSync(filePath, "utf8"), { maxAliasCount: 0 });
 }
 
 function readJson(filePath) {
@@ -27,6 +30,23 @@ function readJson(filePath) {
 
 function toPosix(filePath) {
   return filePath.split(path.sep).join("/");
+}
+
+function sameDirectory(left, right) {
+  try {
+    const leftStat = fs.statSync(left, { bigint: true });
+    const rightStat = fs.statSync(right, { bigint: true });
+    if (!leftStat.isDirectory() || !rightStat.isDirectory()) return false;
+    if ((leftStat.dev !== 0n || leftStat.ino !== 0n) &&
+        leftStat.dev === rightStat.dev && leftStat.ino === rightStat.ino)
+      return true;
+  } catch {}
+
+  try {
+    return path.relative(fs.realpathSync(left), fs.realpathSync(right)) === "";
+  } catch {
+    return path.relative(path.resolve(left), path.resolve(right)) === "";
+  }
 }
 
 function walk(root, { skipDirs = DEFAULT_SKIP, skipPrefixes = [] } = {}) {
@@ -50,14 +70,15 @@ function walk(root, { skipDirs = DEFAULT_SKIP, skipPrefixes = [] } = {}) {
         : entry.name;
 
       if (entry.isDirectory()) {
-        if (skipDirs.has(entry.name)) continue;
+        if (skipDirs.has(entry.name) &&
+            (!ROOT_ONLY_SKIP.has(entry.name) || relativeDir === "")) continue;
         if (matchesSkipPrefix(relativePath, skipPrefixes, true)) continue;
         stack.push(relativePath);
         continue;
       }
 
       if (
-        entry.isFile() &&
+        (entry.isFile() || entry.isSymbolicLink()) &&
         !matchesSkipPrefix(relativePath, skipPrefixes, false)
       )
         files.push(relativePath);
@@ -88,7 +109,7 @@ function globToRegex(glob) {
           pattern += "(?:[^/]+/)*";
           index += 3;
         } else {
-          pattern += ".*";
+          pattern += "[\\s\\S]*";
           index += 2;
         }
       } else {
@@ -134,4 +155,5 @@ module.exports = {
   matchGlob,
   matchAny,
   toPosix,
+  sameDirectory,
 };

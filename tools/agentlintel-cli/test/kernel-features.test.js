@@ -123,7 +123,7 @@ test('line_count_max, byte_count_max, file_absent, glob_count, pending', () => {
 
 test('pending facts are warnings, not errors', () => {
   const root = tmpDir();
-  write(root, '.agentlintel/facts.yaml', ['version: 2', 'facts:', '  - id: todo', '    claim: "later"', '    check: { type: pending }'].join('\n'));
+  write(root, '.agentlintel/facts.yaml', ['version: 2', 'facts:', '  - id: todo', '    claim: "later"', '    check: { type: pending, note: "replace with a machine check" }'].join('\n'));
   const result = verify(root, { skipFixtures: true });
   assert.strictEqual(result.ok, true);
   assert.ok(result.warnings.some((w) => w.includes('PENDING FACT')));
@@ -218,6 +218,21 @@ test('unknown rule engines are gate findings, not internal errors', () => {
   const result = verify(root, { skipFixtures: true });
   assert.strictEqual(result.ok, false);
   assert.ok(result.errors.some((e) => e.includes("RULE-CONFIG [typo.engine] unknown engine 'regx'")), result.errors.join('\n'));
+});
+
+test('exemplar paths cannot escape the repository', () => {
+  const root = tmpDir();
+  write(root, '.agentlintel/rules.yaml', 'version: 2\nrules: []\n');
+  write(root, '.agentlintel/exemplars.yaml', [
+    'version: 2',
+    'exemplars:',
+    '  - id: outside',
+    '    shape: service',
+    '    path: ../outside',
+    '    demonstrates: boundary behavior',
+  ].join('\n'));
+  const result = verify(root, { skipFixtures: true });
+  assert.ok(result.errors.some((error) => error.includes('path must stay inside the repository')), result.errors.join('\n'));
 });
 
 test('excluded files are skipped before file contents are read', () => {

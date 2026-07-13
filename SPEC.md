@@ -20,15 +20,18 @@ CLAUDE.md
 .agentlintel/rules.yaml
 .agentlintel/guard.json
 .agentlintel/exemplars.yaml
-.agentlintel/skills/<name>/SKILL.md
+.agents/skills/<name>/SKILL.md
 .agentlintel/decisions/ADR-*.md
 .agentlintel/conformance/<rule-id>/cases/<case>/
 ```
 
+`CLAUDE.md` is the one-line `@AGENTS.md` compatibility import, not a second
+instruction source.
+
 ## Facts
 
 `facts.yaml` stores checked claims. `verify` reruns each check; stale facts fail
-the gate unless the check is `pending`, which warns.
+the gate unless the check is `pending`, which requires a note and warns.
 
 ```yaml
 version: 2
@@ -45,11 +48,15 @@ Check types:
 - `file_contains`
 - `line_count_max`
 - `byte_count_max`
+- `frontmatter_byte_count_max`
 - `glob_count`
 - `command`
 - `pending`
 
-Run untrusted PRs with `--no-run`; command facts execute shell.
+Run untrusted PRs with `--no-run`; command facts execute shell. Executable
+checks run only from a committed Git snapshot, and changing versionable state
+during the gate is an error. YAML aliases are rejected in governance and
+fixture files so the contract stays a finite, acyclic data structure.
 
 ## Rules
 
@@ -81,8 +88,9 @@ Engines:
 - `regex`: line-scoped forbidden regexes.
 - `error-codes`: validates `<SLICE>-<CATEGORY>-<NUMBER>` literals.
 - `exemptions`: audits `AGENTLINTEL-EXEMPT` metadata and expiry.
-- `layers`: declarative architecture boundaries using layer path globs and an
-  `allowed` dependency map.
+- `layers`: JS/TS import boundaries using layer path globs and an `allowed`
+  dependency map. Overlapping layer coverage fails; native languages use an
+  external architecture checker.
 - `external`: runs a repo command. Default output is JSONL `{file,line,message}`;
   adapters exist for `command-status`, dependency-cruiser, and `dotnet test`.
   This is the primary language-agnostic path for native architecture tests and
@@ -105,10 +113,19 @@ are `tree`, `commit`, or `pr`, so commit and PR policies are ordinary rules.
 
 Empty scope handling: `must_match: true` fails, unset warns, and
 `must_match: false` declares a scaffold/future-carrier rule.
+Governance evidence must be regular, tracked, in-repository files. Ignored or
+untracked governance cannot establish a Git-backed strict verdict. A governed
+or global scope that reaches an opaque symlink or gitlink directory fails
+unless that subtree is explicitly excluded; an exact file exclusion does not
+waive an opaque directory. Govern each submodule as a workspace member or with
+an external checker.
 
-Rule-set ratchet: deleting, weakening, narrowing, excluding, downgrading,
-changing engine/command, or expanding layer dependencies requires an
-`.agentlintel/decisions/ADR-*.md` in the same diff.
+Contract ratchets require a newly added `.agentlintel/decisions/ADR-*.md` when
+an existing fact claim/check or exemplar is weakened, removed, or relabeled;
+a rule is weakened; or the write guard is broadened. Additions and monotonic
+tightening are free. Existing ADR files are immutable; a new ADR needs a real
+accepted date no later than today plus a concrete `Decision:` section. ADRs
+record provenance and rationale, not authenticated human approval.
 
 Reference rules: `slice.no-deep-imports`, `domain.purity`,
 `identity.no-auth-import`, `secrets.no-logging`, `boundary.validation`,
@@ -130,15 +147,18 @@ violations:
 ```
 
 `violations: []` means the case must produce no violations for the rule under
-test. External-rule fixtures validate recorded output mapping, not live engine
-execution.
+test. Every rule requires at least one explicit passing case and one failing
+case. File-engine cases contain a file in the declared scope; external cases
+record `status.txt`. External fixtures validate recorded output mapping, not a
+live engine execution.
 
 ## Guard
 
 `guard.json` defines allowed write zones and forbidden globs. `verify` checks
-changed and untracked files. In CI pass `--base <ref>`; GitHub PRs also use
-`GITHUB_BASE_REF` when available. If the base cannot be resolved, verify warns,
-and `--strict` fails.
+changed and untracked files. In CI pass the actual target/PR commit as
+`--base <sha>` and check out full history; the commit must already exist
+locally because the CLI never fetches. If the base cannot be resolved, verify
+warns, and `--strict` fails.
 
 ```json
 {
@@ -175,7 +195,8 @@ Owner: <team>
 
 Complete, unexpired markers suppress the named rule within the configured span
 but stay visible as `exempted` in JSON. Invalid or expired markers suppress
-nothing. `exemption.audited` cannot be suppressed.
+nothing. `Approver` is audit metadata, not an authentication mechanism.
+`exemption.audited` cannot be suppressed.
 
 ## CLI
 
@@ -195,11 +216,17 @@ Verify/report flags: `--dir`, `--base`, `--diff`, `--quiet`, `--bail`,
 
 Explain flags: `--dir`, `--path`, `--json`.
 
-Exit codes: `0` passed, `1` gate failed, `2` internal/config error.
+Exit codes: `0` passed, `1` gate findings, `2` invalid invocation or internal
+error.
 
 Fast agent loop: `verify --diff --quiet --bail --no-run --skip-fixtures`.
-Merge gate: `verify --strict`; CI must run this on every PR before merge.
+Merge gate: `verify --strict --base <target-sha>`; CI must run this on every PR
+before merge. Strict mode rejects a missing comparison base and any skipped
+fixtures, diff-only scan, command fact, or external engine.
 Adoption ramp: `verify --mode warn` reports findings without failing.
+
+In Git, run `verify` from the repository top-level. A nested directory is not
+a separate verification root.
 
 ## Workspaces
 
@@ -211,8 +238,8 @@ members:
   - app-web
 ```
 
-`verify --workspace` checks each member exists, is a git repo, has its own
-kernel, and then aggregates member results.
+`verify --workspace` checks each member exists, is a real Git repository
+top-level, has its own kernel, and then aggregates member results.
 
 ## Skills
 

@@ -9,7 +9,7 @@ extra root license tabs on GitHub.
 | What | License | Text |
 |---|---|---|
 | **Core** - CLI source, package tests, spec, docs, legal files, and every file not carved out below | AgentLintel Free Use No-Resale License, Version 1.0 (SPDX: `LicenseRef-AgentLintel-Free-Use-No-Resale-1.0`) | [LICENSE](../LICENSE) |
-| **AgentLintel-supplied adoption templates and examples** - `tools/agentlintel-cli/templates/**`, this repository's own `.agentlintel/**`, this repository's own `.github/**`, and `.pre-commit-hooks.yaml` | Apache License, Version 2.0 | [tools/agentlintel-cli/LICENSE-APACHE](../tools/agentlintel-cli/LICENSE-APACHE) |
+| **AgentLintel-supplied adoption templates and examples** - `tools/agentlintel-cli/templates/**`, this repository's own `.agentlintel/**`, `.agents/skills/**`, `.github/**`, and `.pre-commit-hooks.yaml` | Apache License, Version 2.0 | [tools/agentlintel-cli/LICENSE-APACHE](../tools/agentlintel-cli/LICENSE-APACHE) |
 
 Many source and config files carry `SPDX-License-Identifier` headers. A file's
 header wins; otherwise the boundary above wins. Compact fixtures and generated
@@ -39,9 +39,9 @@ AgentLintel rights to your project.
 
 In an adopter repository, only AgentLintel-supplied template content is
 Apache-2.0. Project-specific files authored by the adopter - including facts,
-rules, ADRs, exemplars, reports, generated application files, and documentation
-- are not made Apache-2.0 merely because they live under `.agentlintel/` or
-were checked by AgentLintel.
+rules, ADRs, exemplars, skills, reports, generated application files, and
+documentation - are not made Apache-2.0 merely because they live under
+`.agentlintel/` or `.agents/skills/`, or were checked by AgentLintel.
 
 Template-derived files remain subject to normal Apache-2.0 notice/license
 preservation for the copied AgentLintel template content.
@@ -110,5 +110,5 @@ Inbound = outbound: contributions are accepted under the license of the files
 they touch - `LicenseRef-AgentLintel-Free-Use-No-Resale-1.0` for core files
 and `Apache-2.0` for AgentLintel-supplied adoption templates and examples:
 `tools/agentlintel-cli/templates/**`, this repository's own `.agentlintel/**`,
-this repository's own `.github/**`, and `.pre-commit-hooks.yaml`. See
+`.agents/skills/**`, `.github/**`, and `.pre-commit-hooks.yaml`. See
 [CONTRIBUTING.md](../CONTRIBUTING.md).

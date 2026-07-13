@@ -1,6 +1,6 @@
 {
   "name": "agentlintel",
-  "version": "2.0.0-alpha.11",
+  "version": "2.0.0-alpha.12",
   "private": true,
   "description": "AgentLintel - deterministic architecture gate for AI-agent codebases. Monorepo root.",
   "license": "SEE LICENSE IN LICENSE",
@@ -38,7 +38,7 @@
     "ci": "npm ci --no-audit --no-fund --prefix tools/agentlintel-cli && npm run release:check",
     "test": "npm test --prefix tools/agentlintel-cli",
     "verify:self": "node tools/agentlintel-cli/bin/agentlintel.js verify --dir .",
-    "verify:strict": "node tools/agentlintel-cli/bin/agentlintel.js verify --dir . --strict",
+    "verify:strict": "node tools/agentlintel-cli/bin/agentlintel.js verify --dir . --strict --base HEAD~1",
     "pack:dry-run": "npm run pack:dry-run --prefix tools/agentlintel-cli",
     "release:check": "npm run release:check --prefix tools/agentlintel-cli"
   },

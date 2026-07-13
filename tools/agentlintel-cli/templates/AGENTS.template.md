@@ -50,4 +50,4 @@ Expired or incomplete exemptions fail.
 
 ## Skills
 
-Task workflows live in `.agentlintel/skills/` and load on demand.
+Task workflows live in `.agents/skills/` and load on demand.

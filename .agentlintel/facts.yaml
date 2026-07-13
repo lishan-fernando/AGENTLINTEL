@@ -20,10 +20,6 @@ facts:
     claim: "The CLI requires Node >= 18, no build step"
     check: { type: file_contains, path: tools/agentlintel-cli/package.json, pattern: "\"node\":\\s*\">=18\"" }
 
-  - id: cli-parses
-    claim: "The CLI entry point is valid JavaScript"
-    check: { type: command, run: "node --check tools/agentlintel-cli/bin/agentlintel.js" }
-
   - id: rules-kernel
     claim: "Deterministic rules live in .agentlintel/rules.yaml (v2 format)"
     check: { type: file_contains, path: .agentlintel/rules.yaml, pattern: "version: 2" }
@@ -34,15 +30,15 @@ facts:
 
   - id: skill-strangler-extraction
     claim: "The monolith extraction playbook ships as a standard Agent Skill"
-    check: { type: path_exists, path: .agentlintel/skills/strangler-extraction/SKILL.md }
+    check: { type: file_contains, path: .agents/skills/strangler-extraction/SKILL.md, pattern: "^---\\r?\\nname: strangler-extraction\\r?\\ndescription: [^\\r\\n]+\\r?\\n---" }
 
   - id: skill-mirror-exemplar
     claim: "Exemplar-mirroring workflow ships as a standard Agent Skill"
-    check: { type: path_exists, path: .agentlintel/skills/mirror-exemplar/SKILL.md }
+    check: { type: file_contains, path: .agents/skills/mirror-exemplar/SKILL.md, pattern: "^---\\r?\\nname: mirror-exemplar\\r?\\ndescription: [^\\r\\n]+\\r?\\n---" }
 
   - id: skill-audit-architecture
     claim: "The architecture audit workflow ships as a standard Agent Skill"
-    check: { type: path_exists, path: .agentlintel/skills/audit-architecture/SKILL.md }
+    check: { type: file_contains, path: .agents/skills/audit-architecture/SKILL.md, pattern: "^---\\r?\\nname: audit-architecture\\r?\\ndescription: [^\\r\\n]+\\r?\\n---" }
 
   - id: spec
     claim: "The framework spec is SPEC.md at repo root (<= 500 lines)"
@@ -55,12 +51,16 @@ facts:
     check: { type: line_count_max, path: AGENTS.md, max: 150 }
 
   - id: agents-md-bytes
-    claim: "AGENTS.md (the dominant always-load component) stays under 8KB; skill frontmatters are the unmeasured remainder, bounded by the three-skills fact"
-    check: { type: byte_count_max, path: AGENTS.md, max: 8192 }
+    claim: "AGENTS.md uses at most 7KB of the 8KB approximate always-load budget"
+    check: { type: byte_count_max, path: AGENTS.md, max: 7168 }
+
+  - id: skill-frontmatter-bytes
+    claim: "All standard skill frontmatters share the remaining 1KB always-load budget"
+    check: { type: frontmatter_byte_count_max, pattern: ".agents/skills/*/SKILL.md", max: 1024 }
 
   - id: three-skills
     claim: "Exactly the three reference skills ship - concept creep is a bug"
-    check: { type: glob_count, pattern: ".agentlintel/skills/*/SKILL.md", min: 3, max: 3 }
+    check: { type: glob_count, pattern: ".agents/skills/*/SKILL.md", min: 3, max: 3 }
 
   - id: no-root-package-lock
     claim: "The repo root is a script wrapper, not an npm workspace install root; dependency locking lives in tools/agentlintel-cli/package-lock.json"
@@ -81,10 +81,6 @@ facts:
   - id: v1-split-doc-deleted
     claim: "The stale v1 REPOSITORY-SPLIT.md stays deleted (verified, append-only, or deleted)"
     check: { type: file_absent, path: REPOSITORY-SPLIT.md }
-
-  - id: exemplar-template
-    claim: "The canonical slice exemplar template lives in .agentlintel/templates/exemplar-slice/"
-    check: { type: path_exists, path: .agentlintel/templates/exemplar-slice/slice.manifest.yaml }
 
   # The legal surface is governance too - machine-checked like everything else (ADR-020).
   - id: license-core

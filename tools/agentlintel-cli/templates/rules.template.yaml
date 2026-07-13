@@ -10,7 +10,7 @@ rules:
   - id: slice.no-deep-imports
     severity: error
     engine: regex
-    applies_to: ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx", "**/*.mts", "**/*.cts"]
+    applies_to: ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx", "**/*.mjs", "**/*.cjs", "**/*.mts", "**/*.cts"]
     forbidden:
       - "from\\s+['\"](?:\\.\\./)*slices/[^/'\"]+/(application|domain|infrastructure|interface|tests)\\b"
       - "require\\(\\s*['\"](?:\\.\\./)*slices/[^/'\"]+/(application|domain|infrastructure|interface|tests)\\b"
@@ -39,7 +39,7 @@ rules:
     severity: error
     engine: regex
     flags: i
-    excludes: ["**/*.test.*", "**/*.spec.*", "**/tests/**"]
+    excludes: ["**/*.md", "**/*.test.*", "**/*.spec.*", "**/tests/**"]
     forbidden:
       - "(console\\.(log|info|warn|error|debug)|logger?\\.(log|info|warn|error|debug|trace)|_logger\\.[a-z]+)\\s*\\(\\s*(?!['\"`])(?:(?!['\"`]).)*\\b(password|passwd|[a-z0-9_]*token[a-z0-9_]*|api[_-]?key|[a-z0-9_]*secret[a-z0-9_]*|private[_-]?key|ssn|card[_-]?number|cvv)\\b"
       - "(console\\.(log|info|warn|error|debug)|logger?\\.(log|info|warn|error|debug|trace)|_logger\\.[a-z]+)\\s*\\([^)]*['\"`][^'\"`]*['\"`]\\s*,[^)]*\\b(password|passwd|[a-z0-9_]*token[a-z0-9_]*|api[_-]?key|[a-z0-9_]*secret[a-z0-9_]*|private[_-]?key|ssn|card[_-]?number|cvv)\\b"
@@ -53,7 +53,6 @@ rules:
     forbidden:
       - "\\b(req\\.body|rawBody|rawPayload|rawInput)\\s+as\\s+(?!Record\\b|unknown\\b)[A-Za-z]"
     message: "Validate untrusted input before it reaches business logic. A bare type-cast is not validation."
-    note: "Heuristic check - catches raw casts of untrusted input. Parse-don't-cast: route input through a validate/parse function."
 
   - id: error-code.format
     severity: error

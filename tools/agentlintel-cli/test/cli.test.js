@@ -10,6 +10,9 @@ const { spawnSync } = require('node:child_process');
 
 const BIN = path.join(__dirname, '..', 'bin', 'agentlintel.js');
 
+// Temp repositories have no origin; do not leak the pull request base into them.
+delete process.env.GITHUB_BASE_REF;
+
 function tmpDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'agentlintel-cli-'));
 }
@@ -42,6 +45,19 @@ test('CLI rejects unknown verify modes', () => {
   const r = run(['verify', '--mode', 'advice']);
   assert.strictEqual(r.status, 2);
   assert.match(r.stderr, /Unknown --mode 'advice'/);
+});
+
+test('CLI rejects known options on commands that do not use them', () => {
+  for (const args of [
+    ['verify', '--force'],
+    ['init', '--strict'],
+    ['explain', '--base', 'HEAD'],
+    ['report', '--pattern', 'mvvm'],
+  ]) {
+    const result = run(args);
+    assert.strictEqual(result.status, 2, args.join(' '));
+    assert.match(result.stderr, /does not apply/);
+  }
 });
 
 test('verify --mode warn downgrades gate findings without failing', () => {
@@ -120,7 +136,20 @@ test('explain reports matching rules, guard zones, exemplars, and decisions', ()
   assert.strictEqual(parsed.decisions[0].id, 'ADR-123');
 });
 
-test('quiet strict failures include the warning that caused the block', () => {
+test('explain reports malformed governance instead of crashing', () => {
+  const root = tmpDir();
+  write(root, '.agentlintel/guard.json', JSON.stringify({
+    version: 2,
+    zones: 'not-an-array',
+    forbidden: 'also-not-an-array',
+  }));
+  const result = run(['explain', '--dir', root, '--path', 'src/a.js']);
+  assert.strictEqual(result.status, 2);
+  assert.match(result.stderr, /KERNEL-SCHEMA/);
+  assert.doesNotMatch(result.stderr, /TypeError/);
+});
+
+test('quiet strict failures include a warning that caused the block', () => {
   const root = tmpDir();
   write(root, '.agentlintel/rules.yaml', [
     'version: 2',
@@ -134,12 +163,13 @@ test('quiet strict failures include the warning that caused the block', () => {
   ].join('\n'));
   const r = run(['verify', '--dir', root, '--strict', '--quiet', '--skip-fixtures']);
   assert.strictEqual(r.status, 1);
-  assert.match(r.stdout, /WARN RULE-SCOPE/);
+  assert.match(r.stdout, /WARN FIXTURES-SKIPPED/);
   assert.match(r.stdout, /GATE FAILED/);
 });
 
-test('dormant must_match: false rules pass the gate but are visible in output', () => {
+test('dormant must_match: false rules pass the local gate but remain visible', () => {
   const root = tmpDir();
+  spawnSync('git', ['init', '-q'], { cwd: root });
   write(root, '.agentlintel/rules.yaml', [
     'version: 2',
     'rules:',
@@ -151,7 +181,14 @@ test('dormant must_match: false rules pass the gate but are visible in output', 
     '    forbidden: ["boom"]',
     '    message: never fires',
   ].join('\n'));
-  const r = run(['verify', '--dir', root, '--strict', '--skip-fixtures']);
+  write(root, '.agentlintel/guard.json', JSON.stringify({
+    version: 2,
+    zones: [{ id: 'governance', allow: ['.agentlintel/**'] }],
+    forbidden: [],
+  }));
+  write(root, '.agentlintel/facts.yaml', 'version: 2\nfacts:\n  - { id: rules, claim: rules, check: { type: path_exists, path: .agentlintel/rules.yaml } }\n');
+  write(root, '.agentlintel/exemplars.yaml', 'version: 2\nexemplars:\n  - { id: rules, shape: config, path: .agentlintel/rules.yaml, demonstrates: executable rules }\n');
+  const r = run(['verify', '--dir', root, '--skip-fixtures']);
   assert.strictEqual(r.status, 0);
   assert.match(r.stdout, /1 dormant \(must_match: false\)/);
 });

@@ -3,7 +3,7 @@
 
 function renderReport(result) {
   const lines = [];
-  const freshFacts = result.facts.filter((fact) => fact.ok).length;
+  const freshFacts = result.facts.filter((fact) => fact.ok && !fact.skipped).length;
   const activeViolations = result.rule_violations.filter(
     (violation) => !violation.exempted,
   ).length;
@@ -32,6 +32,18 @@ function renderReport(result) {
   if (result.ratchet)
     lines.push(
       `| Ratchet | ${result.ratchet.status}${result.ratchet.ok ? "" : ", ADR required"} |`,
+    );
+  if (result.fact_ratchet)
+    lines.push(
+      `| Fact ratchet | ${result.fact_ratchet.status}${result.fact_ratchet.ok ? "" : ", ADR required"} |`,
+    );
+  if (result.exemplar_ratchet)
+    lines.push(
+      `| Exemplar ratchet | ${result.exemplar_ratchet.status}${result.exemplar_ratchet.ok ? "" : ", ADR required"} |`,
+    );
+  if (result.guard_ratchet)
+    lines.push(
+      `| Guard ratchet | ${result.guard_ratchet.status}${result.guard_ratchet.ok ? "" : ", ADR required"} |`,
     );
   lines.push(
     `| Exemplars | ${presentExemplars}/${result.exemplars.length} present |`,
@@ -66,9 +78,11 @@ function renderReport(result) {
     lines.push("| Fact | Status |");
     lines.push("|---|---|");
     for (const fact of result.facts) {
-      const status = fact.ok
-        ? "fresh"
-        : fact.pending
+      const status = fact.skipped
+        ? "SKIPPED (--no-run)"
+        : fact.ok
+          ? "fresh"
+          : fact.pending
           ? `PENDING - ${fact.detail}`
           : `STALE - ${fact.detail}`;
       lines.push(`| ${tableCell(fact.claim)} | ${tableCell(status)} |`);
@@ -106,7 +120,7 @@ function nextSteps(result) {
 
   if (facts.some((fact) => !fact.ok && !fact.pending)) {
     addStep(
-      "Refresh stale facts: make the checked claim true, update its machine check, move intent to an ADR, or delete the claim.",
+      "Make stale facts true again; changing or removing an existing fact contract requires a new ADR.",
     );
   }
 
@@ -136,7 +150,49 @@ function nextSteps(result) {
 
   if (result.ratchet && !result.ratchet.ok) {
     addStep(
-      "Rule weakening requires an append-only ADR in `.agentlintel/decisions/` in the same diff.",
+      "Rule weakening requires a new append-only ADR in `.agentlintel/decisions/` in the same diff.",
+    );
+  }
+
+  if (result.fact_ratchet && !result.fact_ratchet.ok) {
+    addStep(
+      "Fact weakening requires a new append-only ADR in `.agentlintel/decisions/` in the same diff.",
+    );
+  }
+
+  if (result.exemplar_ratchet && !result.exemplar_ratchet.ok) {
+    addStep(
+      "Exemplar removal or mutation requires a new append-only ADR in `.agentlintel/decisions/`.",
+    );
+  }
+
+  if (warnings.some((warning) => warning.includes("FACTS-EMPTY"))) {
+    addStep(
+      "Add only the project facts agents must not get wrong, each with a machine check.",
+    );
+  }
+
+  if (warnings.some((warning) => /(?:FACTS|RULES|EXEMPLARS)-ABSENT/.test(warning))) {
+    addStep(
+      "Restore missing core contract files; strict CI rejects a partial `.agentlintel/` kernel.",
+    );
+  }
+
+  if (warnings.some((warning) => warning.includes("EXEMPLARS-EMPTY"))) {
+    addStep(
+      "Register one real canonical implementation in `exemplars.yaml` before asking agents to generate that shape.",
+    );
+  }
+
+  if (result.guard_ratchet && !result.guard_ratchet.ok) {
+    addStep(
+      "Guard weakening requires a new append-only ADR in `.agentlintel/decisions/` in the same diff.",
+    );
+  }
+
+  if (result.decisions && result.decisions.violations.length) {
+    addStep(
+      "Never edit or delete an existing ADR; restore it and add a new superseding decision.",
     );
   }
 
@@ -146,8 +202,23 @@ function nextSteps(result) {
     );
   }
 
+  const brokenAdapters = (result.adapters || []).filter((adapter) => !adapter.ok);
+  if (brokenAdapters.some((adapter) => adapter.file.includes("pretooluse-hook") ||
+      adapter.file === ".agentlintel/skills")) {
+    addStep(
+      "Delete retired PreToolUse hook wiring and move legacy `.agentlintel/skills/` content to `.agents/skills/`.",
+    );
+  }
+
+  if (brokenAdapters.some((adapter) => adapter.detail.includes("legacy v1")))
+    addStep(
+      "Finish the v1 migration review, then delete the retired v1 governance tree so only one control plane remains.",
+    );
+
   if (
-    (result.adapters || []).some((adapter) => !adapter.ok) ||
+    brokenAdapters.some((adapter) => !adapter.file.includes("pretooluse-hook") &&
+      adapter.file !== ".agentlintel/skills" &&
+      !adapter.detail.includes("legacy v1")) ||
     errors.some((error) => error.includes("ADAPTER"))
   ) {
     addStep(
@@ -161,9 +232,34 @@ function nextSteps(result) {
     );
   }
 
-  if (warnings.some((warning) => warning.includes("GUARD-BASE"))) {
+  if (warnings.some((warning) =>
+    warning.includes("GUARD-BASE") || warning.includes("RATCHET-BASE"))) {
     addStep(
-      "CI should pass `--base <ref>` or use a checkout with enough history so guard checks the actual PR diff.",
+      "CI should pass the actual target or PR base SHA with `--base <sha>` and use a checkout with enough history for diff guards and contract ratchets.",
+    );
+  }
+
+  if (warnings.some((warning) => warning.includes("GOVERNANCE-UNTRACKED"))) {
+    addStep(
+      "Commit every governance input; ignored or untracked policy cannot participate in diff checks or ratchets.",
+    );
+  }
+
+  if (warnings.some((warning) => warning.includes("GUARD-VCS"))) {
+    addStep(
+      "Run the strict merge gate inside a Git checkout; diff guards and contract ratchets cannot work from a source archive.",
+    );
+  }
+
+  if (warnings.some((warning) => warning.includes("GUARD-ABSENT"))) {
+    addStep(
+      "Restore `.agentlintel/guard.json`; strict verification rejects a disabled write-boundary guard.",
+    );
+  }
+
+  if (warnings.some((warning) => warning.includes("GUARD-PERMISSIVE"))) {
+    addStep(
+      "Replace the catch-all guard zone with the smallest repository paths agents are allowed to change.",
     );
   }
 

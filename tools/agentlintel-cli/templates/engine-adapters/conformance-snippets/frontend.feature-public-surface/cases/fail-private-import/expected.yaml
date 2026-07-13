@@ -1,0 +1,3 @@
+violations:
+  - rule: frontend.feature-public-surface
+    file: src/components/login-form.tsx
