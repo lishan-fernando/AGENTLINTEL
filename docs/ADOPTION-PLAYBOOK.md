@@ -15,7 +15,7 @@ Use the GitHub Release tarball only when you need an exact pinned artifact or a
 registry-free fallback:
 
 ```bash
-npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.12/agentlintel-cli.tgz
+npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.13/agentlintel-cli.tgz
 ```
 
 Choose a pattern only when the default vertical-slice rules do not fit:

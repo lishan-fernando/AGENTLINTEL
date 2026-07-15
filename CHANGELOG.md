@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.0.0-alpha.13 - 2026-07-15
+
+Release pipeline repair.
+
+- Removes the generated GitHub Release tarball and checksum from the checkout
+  before npm's `prepublishOnly` lifecycle reruns the repository byte budgets.
+- Adds a regression contract that keeps cleanup after release upload and before
+  npm publication, preserving both the downloadable artifact and a clean gate.
+
 ## v2.0.0-alpha.12 - 2026-07-15
 
 Release-candidate integrity and standards pass.

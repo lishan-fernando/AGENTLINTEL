@@ -81,6 +81,11 @@ jobs:
             tools/agentlintel-cli/agentlintel-cli.tgz.sha256 \
             --clobber
 
+      - name: Remove release artifacts before package lifecycle checks
+        run: |
+          rm -f tools/agentlintel-cli/agentlintel-cli.tgz
+          rm -f tools/agentlintel-cli/agentlintel-cli.tgz.sha256
+
       - name: Publish to npm with provenance
         if: vars.NPM_PUBLISH == 'true'
         env:

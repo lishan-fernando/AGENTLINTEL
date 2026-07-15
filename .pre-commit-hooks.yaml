@@ -5,7 +5,7 @@
 #
 #   repos:
 #     - repo: https://github.com/lishan-fernando/AGENTLINTEL
-#       rev: v2.0.0-alpha.12
+#       rev: v2.0.0-alpha.13
 #       hooks:
 #         - id: agentlintel-verify
 #
@@ -17,7 +17,7 @@
   description: Facts fresh + rules pass + guard held + exemplars exist.
   entry: agentlintel verify --no-run --skip-fixtures
   language: node
-  additional_dependencies: ["https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.12/agentlintel-cli.tgz"]
+  additional_dependencies: ["https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.13/agentlintel-cli.tgz"]
   pass_filenames: false
   always_run: true
   stages: [pre-commit]

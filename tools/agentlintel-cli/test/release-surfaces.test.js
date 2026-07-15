@@ -28,6 +28,15 @@ test('release workflow preserves the tested tarball distribution path', () => {
   assert.match(CLI_PACKAGE.scripts.prepublishOnly, /npm run release:check/);
   assert.match(yml, /agentlintel-cli\.tgz/);
   assert.match(yml, /npm publish --access public/);
+
+  const steps = workflow.jobs.release.steps;
+  const uploadIndex = steps.findIndex((step) => step.name === 'Create GitHub Release with tarball');
+  const cleanupIndex = steps.findIndex((step) => step.name === 'Remove release artifacts before package lifecycle checks');
+  const publishIndex = steps.findIndex((step) => step.name === 'Publish to npm with provenance');
+  assert.ok(uploadIndex >= 0 && cleanupIndex > uploadIndex && publishIndex > cleanupIndex,
+    'temporary release assets must be removed after upload and before prepublishOnly reruns byte budgets');
+  assert.match(steps[cleanupIndex].run, /rm -f tools\/agentlintel-cli\/agentlintel-cli\.tgz/);
+  assert.match(steps[cleanupIndex].run, /rm -f tools\/agentlintel-cli\/agentlintel-cli\.tgz\.sha256/);
 });
 
 test('release workflow publishes deliberately and with provenance (ADR-013)', () => {

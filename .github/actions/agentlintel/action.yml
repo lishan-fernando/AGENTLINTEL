@@ -6,7 +6,7 @@
 #   - uses: actions/checkout@v4
 #     with:
 #       fetch-depth: 0
-#   - uses: lishan-fernando/AGENTLINTEL/.github/actions/agentlintel@v2.0.0-alpha.12
+#   - uses: lishan-fernando/AGENTLINTEL/.github/actions/agentlintel@v2.0.0-alpha.13
 #     with:
 #       strict: "true"
 #

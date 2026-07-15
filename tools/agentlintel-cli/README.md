@@ -33,7 +33,7 @@ intentionally trail until a stable release.
 Exact GitHub Release tarball, for pinned or registry-free installs:
 
 ```bash
-npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.12/agentlintel-cli.tgz
+npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.13/agentlintel-cli.tgz
 ```
 
 ## Quick Start
@@ -73,7 +73,7 @@ of stretching regex into semantic analysis.
 - uses: actions/checkout@v4
   with:
     fetch-depth: 0
-- uses: lishan-fernando/AGENTLINTEL/.github/actions/agentlintel@v2.0.0-alpha.12
+- uses: lishan-fernando/AGENTLINTEL/.github/actions/agentlintel@v2.0.0-alpha.13
   with:
     strict: "true"
 ```

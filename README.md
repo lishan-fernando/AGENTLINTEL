@@ -48,7 +48,7 @@ AgentLintel enforces your architecture, not its own: vertical slices, layers,
 MVVM, or in-house rules. Built-in engines provide a starter floor; set
 `engine: external` to wrap the stack-native analyzers your team already trusts.
 
-**Status:** `v2.0.0-alpha.12` - npm `@agentlintel/cli@alpha` -
+**Status:** `v2.0.0-alpha.13` - npm `@agentlintel/cli@alpha` -
 Source-available free use - Node.js >= 18
 
 ## The problem: AI coding agents drift
@@ -103,7 +103,7 @@ npx agentlintel explain --path src/example.ts --shape service --compact
 Need an exact release artifact or a registry-free fallback?
 
 ```bash
-npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.12/agentlintel-cli.tgz
+npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.13/agentlintel-cli.tgz
 ```
 
 `init` offers pattern packs — `vertical-slice`, `layered-3tier`, `mvvm`, or
@@ -195,7 +195,7 @@ GitHub Actions:
 - uses: actions/checkout@v4
   with:
     fetch-depth: 0
-- uses: lishan-fernando/AGENTLINTEL/.github/actions/agentlintel@v2.0.0-alpha.12
+- uses: lishan-fernando/AGENTLINTEL/.github/actions/agentlintel@v2.0.0-alpha.13
   with:
     strict: "true"
 ```
@@ -279,7 +279,7 @@ them to `must_match: true`.
 
 ## Status
 
-`v2.0.0-alpha.12`, npm `@agentlintel/cli@alpha`, source-available free use,
+`v2.0.0-alpha.13`, npm `@agentlintel/cli@alpha`, source-available free use,
 Node.js >= 18.
 
 AgentLintel is free for personal, internal, commercial, client, and

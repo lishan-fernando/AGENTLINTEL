@@ -1,6 +1,6 @@
 {
   "name": "agentlintel",
-  "version": "2.0.0-alpha.12",
+  "version": "2.0.0-alpha.13",
   "private": true,
   "description": "AgentLintel - deterministic architecture gate for AI-agent codebases. Monorepo root.",
   "license": "SEE LICENSE IN LICENSE",
