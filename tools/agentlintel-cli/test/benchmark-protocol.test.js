@@ -46,7 +46,7 @@ const RULES = [
   '    severity: error',
   '    engine: exemptions',
   '    marker: "AGENTLINTEL-EXEMPT"',
-  '    required_fields: [Reason, Approver, Expires, Owner]',
+  '    required_fields: [Reason, Approver, Expires, Owner, Decision]',
   '    within_lines: 5',
   '    excludes: ["**/*.md"]',
   '    message: "Exemptions must be complete and unexpired."',
@@ -74,6 +74,7 @@ test('synthetic benchmark seed catches stale facts, rule drift, guard drift, and
     '// Approver: architecture',
     '// Expires: 2020-01-01',
     '// Owner: platform',
+    '// Decision: ADR-99',
     'export const leaked = "SECRET_VALUE";',
   ].join('\n'));
   write(root, 'outside.md', 'out of scope\n');

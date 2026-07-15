@@ -5,7 +5,7 @@
 # principles, not here. Every rule has fixtures in .agentlintel/conformance/<id>/.
 #
 # Engines:
-#   regex       - forbidden patterns per line, glob-scoped
+#   regex       - forbidden patterns and required evidence, line/file scoped
 #   error-codes - finds <SLICE>-<CATEGORY>-<NUMBER> literals, validates grammar
 #   exemptions  - AGENTLINTEL-EXEMPT blocks: required fields + expiry
 #   external    - tree-scoped command emitting JSONL {file,line,message}
@@ -83,7 +83,7 @@ rules:
     severity: error
     engine: exemptions
     marker: "AGENTLINTEL-EXEMPT"
-    required_fields: [Reason, Approver, Expires, Owner]
+    required_fields: [Reason, Approver, Expires, Owner, Decision]
     within_lines: 5
     excludes: ["**/*.md", "**/*.test.*", "**/*.spec.*", ".agentlintel/**", "tools/agentlintel-cli/templates/**"]
-    message: "Exemptions must declare Reason, Approver, Expires, Owner within 5 lines. Expired exemptions block CI."
+    message: "Exemptions must declare Reason, Approver, Expires, Owner, Decision within 5 lines and match exact ADR authority."

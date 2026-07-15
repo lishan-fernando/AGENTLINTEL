@@ -9,6 +9,10 @@
 #     run: "npm run architecture:check"
 #     message: "Repository architecture contract must pass."
 #
+# Positive structural evidence: use `required` with optional `when` triggers and
+# `match: file`. Each pattern must appear somewhere in the full effective scope;
+# add pass/fail fixtures first. `--diff` deliberately skips absence claims.
+#
 # Declarative layers: uncomment arch.layers, add fixtures, flip must_match.
 # rules:
 #   - id: arch.layers
@@ -43,7 +47,7 @@ rules:
     severity: error
     engine: exemptions
     marker: "AGENTLINTEL-EXEMPT"
-    required_fields: [Reason, Approver, Expires, Owner]
+    required_fields: [Reason, Approver, Expires, Owner, Decision]
     within_lines: 5
     excludes: ["**/*.md", "**/*.test.*", "**/*.spec.*", ".agentlintel/**"]
-    message: "Exemptions must declare Reason, Approver, Expires, Owner within 5 lines. Expired exemptions block CI."
+    message: "Exemptions must declare Reason, Approver, Expires, Owner, Decision within 5 lines and match exact ADR authority."

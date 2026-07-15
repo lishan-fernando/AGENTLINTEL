@@ -1,6 +1,6 @@
 # Changelog
 
-## v2.0.0-alpha.12 - Unreleased
+## v2.0.0-alpha.12 - 2026-07-15
 
 Release-candidate integrity and standards pass.
 
@@ -25,6 +25,18 @@ Release-candidate integrity and standards pass.
 - Pins copyable Action examples to `v2.0.0-alpha.12`, derives exact event base
   SHAs, and keeps fork PR and merge-group command execution untrusted by
   default.
+- Adds positive cross-file architecture evidence with conditional activation,
+  while preserving the matched eShop benchmark's negative result: the gate
+  improved frozen-contract compliance but did not meet the preregistered
+  architecture-quality threshold.
+- Binds exemptions and every ratchet weakening to exact append-only ADR
+  authorization; protects registered exemplar implementations and declared
+  external-checker evidence; and prevents deletion of a baseline trigger from
+  silently deactivating a positive rule.
+- Adds the `scope-change` and `prove-stateful-workflow` Agent Skills plus a
+  shape-aware compact context frontier. The release enforces at least 50
+  percent reduction under its versionable-byte token proxy and records the
+  latest measured result without claiming equivalent model-token savings.
 
 Alpha upgrade: delete `.agentlintel/hooks/pretooluse-hook.sh` and its Claude
 `PreToolUse` registration. Move any project skills to `.agents/skills/`, then

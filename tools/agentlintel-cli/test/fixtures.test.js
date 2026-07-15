@@ -89,6 +89,32 @@ test('fixtures must prove both acceptance and rejection with real scoped inputs'
   assert.deepStrictEqual(failures, []);
 });
 
+test('fixtures evaluate required regex evidence across the whole case tree', () => {
+  const root = tmpDir();
+  const rules = { rules: [{
+    id: 'required.rule',
+    severity: 'error',
+    engine: 'regex',
+    applies_to: ['src/**'],
+    required: ['QuerySurface', 'WebSurface'],
+    message: 'Feature must reach both surfaces.',
+  }] };
+  const base = '.agentlintel/conformance/required.rule/cases';
+  write(root, `${base}/pass/src/query.cs`, 'QuerySurface');
+  write(root, `${base}/pass/src/web.cs`, 'WebSurface');
+  write(root, `${base}/pass/expected.yaml`, 'violations: []\n');
+  write(root, `${base}/fail/src/query.cs`, 'QuerySurface');
+  write(root, `${base}/fail/expected.yaml`, [
+    'violations:',
+    '  - rule: required.rule',
+    '    file: src/query.cs',
+    '    message_contains: WebSurface',
+  ].join('\n'));
+
+  const failures = runFixtures(root, rules).filter((result) => !result.ok);
+  assert.deepStrictEqual(failures, []);
+});
+
 test('external fixtures replay live fail-closed exit and parser semantics', () => {
   const root = tmpDir();
   const rules = { rules: [{
@@ -96,6 +122,7 @@ test('external fixtures replay live fail-closed exit and parser semantics', () =
     severity: 'error',
     engine: 'external',
     adapter: 'jsonl',
+    evidence: ['checker.js'],
     run: 'tool',
     message: 'external finding',
   }] };
@@ -123,7 +150,7 @@ test('external fixtures replay live fail-closed exit and parser semantics', () =
   assert.match(result.detail, /unexpected violation: \(engine\):0/);
 
   const depRules = { rules: [{
-    id: 'deps.rule', severity: 'error', engine: 'external', adapter: 'dependency-cruiser', run: 'tool',
+    id: 'deps.rule', severity: 'error', engine: 'external', adapter: 'dependency-cruiser', evidence: ['checker.js'], run: 'tool',
     message: 'dependency policy failed',
   }] };
   const depBase = '.agentlintel/conformance/deps.rule/cases/pass';

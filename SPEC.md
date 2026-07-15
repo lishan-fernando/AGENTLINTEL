@@ -85,7 +85,14 @@ explains why a rule exists; it does not compile decisions into rules.
 
 Engines:
 
-- `regex`: line-scoped forbidden regexes.
+- `regex`: glob-scoped forbidden regexes plus optional positive `required`
+  evidence. Matching is line-scoped by default; `match: file` enables bounded
+  multi-line structural checks. Every required pattern must appear at least
+  once across the rule's effective file scope during a full-tree gate. Optional
+  `when` patterns activate positive requirements only after any trigger appears,
+  so feature contracts can stay green before the feature exists. Once a trigger
+  matched the Git baseline it is sticky; deleting it fails instead of silently
+  deactivating the rule. Diff mode skips absence claims and remains incomplete.
 - `error-codes`: validates `<SLICE>-<CATEGORY>-<NUMBER>` literals.
 - `exemptions`: audits `AGENTLINTEL-EXEMPT` metadata and expiry.
 - `layers`: JS/TS import boundaries using layer path globs and an `allowed`
@@ -94,13 +101,28 @@ Engines:
 - `external`: runs a repo command. Default output is JSONL `{file,line,message}`;
   adapters exist for `command-status`, dependency-cruiser, and `dotnet test`.
   This is the primary language-agnostic path for native architecture tests and
-  other deep analyzers.
+  other deep analyzers. `evidence` names exact, regular repository files that
+  implement/configure the checker; changing them is a contract weakening.
 
 ```yaml
 rules:
+  - id: cancellation.complete-surfaces
+    severity: error
+    engine: regex
+    applies_to: ["src/Ordering/**", "src/WebApp/**"]
+    match: file
+    when: ["CancellationPending"]
+    required:
+      - "CancellationReason"
+      - "CancellationRequestedAt"
+    forbidden:
+      - "CancellationPending[\\s\\S]{0,400}SetCancelledStatus\\("
+    message: "Cancellation must remain pending and reach its read surfaces."
+
   - id: architecture.contract
     severity: error
     engine: external
+    evidence: [package.json, package-lock.json]
     adapter: command-status
     scope: tree
     run: "npm run architecture:check"
@@ -122,7 +144,10 @@ an external checker.
 
 Contract ratchets require a newly added `.agentlintel/decisions/ADR-*.md` when
 an existing fact claim/check or exemplar is weakened, removed, or relabeled;
-a rule is weakened; or the write guard is broadened. Additions and monotonic
+a registered exemplar implementation or external-checker evidence changes; a
+rule is weakened; or the write guard is broadened. Each finding needs an exact
+one-line `Authorizes-Weakening` JSON record naming `artifact` and `finding` in
+the new ADR; an unrelated ADR authorizes nothing. Additions and monotonic
 tightening are free. Existing ADR files are immutable; a new ADR needs a real
 accepted date no later than today plus a concrete `Decision:` section. ADRs
 record provenance and rationale, not authenticated human approval.
@@ -191,11 +216,14 @@ Reason: <why>
 Approver: <who>
 Expires: <YYYY-MM-DD>
 Owner: <team>
+Decision: ADR-<number>
 ```
 
-Complete, unexpired markers suppress the named rule within the configured span
-but stay visible as `exempted` in JSON. Invalid or expired markers suppress
-nothing. `Approver` is audit metadata, not an authentication mechanism.
+Complete, unexpired markers suppress the named rule only when the named ADR has
+an exact `Authorizes-Exemption` JSON record for `rule`, `file`, and `expires`.
+Suppressed findings stay visible as `exempted` in JSON. Invalid, expired, or
+unauthorized markers suppress nothing. `Approver` is audit metadata, not an
+authentication mechanism.
 `exemption.audited` cannot be suppressed.
 
 ## CLI
@@ -205,6 +233,7 @@ agentlintel init
 agentlintel verify
 agentlintel report
 agentlintel explain --path <file>
+agentlintel explain --path <file> --shape <shape> --compact
 ```
 
 Init flags: `--pattern`, `--from-v1`, `--adapters`, `--hooks`,
@@ -248,6 +277,8 @@ Reference skills:
 - `strangler-extraction`
 - `mirror-exemplar`
 - `audit-architecture`
+- `scope-change`
+- `prove-stateful-workflow`
 
 They are normal Agent Skills and load only when invoked.
 

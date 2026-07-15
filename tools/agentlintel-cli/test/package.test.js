@@ -13,8 +13,9 @@ const REPO = path.join(ROOT, '..', '..');
 const PKG = require('../package.json');
 // Recalibrated for readable shipped source with meaningful identifiers
 // (ADR-014), explain/warn/hook DX surface (ADR-016), and license clarity text
-// (ADR-020 and ADR-021), then the ADR-022 verifier-integrity checks.
-const NPM_UNPACKED_BYTE_BUDGET = 249000;
+// (ADR-020 and ADR-021), ADR-022 verifier integrity, ADR-024/025 positive
+// evidence, and ADR-026/027 trust-boundary and compact-context surfaces.
+const NPM_UNPACKED_BYTE_BUDGET = 274000;
 
 let packCache = null;
 
@@ -87,6 +88,8 @@ test('npm package contains runtime files and excludes tests', () => {
     'templates/AGENTS.template.md',
     'templates/conformance/CONFORMANCE.md',
     'templates/skills/mirror-exemplar/SKILL.md',
+    'templates/skills/scope-change/SKILL.md',
+    'templates/skills/prove-stateful-workflow/SKILL.md',
     'templates/hooks/verify-hook.sh',
     'README.md',
     'package.json',

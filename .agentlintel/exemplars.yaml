@@ -12,3 +12,19 @@ exemplars:
     shape: cli-command
     path: tools/agentlintel-cli/src/commands/explain.js
     demonstrates: "Read-only command logic, explicit result data, and separate rendering."
+  - id: rule-engine
+    shape: rule-engine
+    path: tools/agentlintel-cli/src/lib/engines.js
+    demonstrates: "Pure deterministic rule evaluation, prepared configuration, and explicit violation data."
+  - id: rule-engine-test
+    shape: rule-engine-test
+    path: tools/agentlintel-cli/test/engines.test.js
+    demonstrates: "Node test cases with inline rule configuration and exact violation assertions."
+  - id: cli-command-test
+    shape: cli-command-test
+    path: tools/agentlintel-cli/test/cli.test.js
+    demonstrates: "CLI argument, JSON output, and human-readable rendering assertions."
+  - id: agent-skill
+    shape: agent-skill
+    path: .agents/skills/audit-architecture/SKILL.md
+    demonstrates: "Concise Agent Skill frontmatter with an imperative, evidence-bounded workflow."

@@ -39,7 +39,7 @@ Templates under tools/agentlintel-cli/templates/{conformance,skills} mirror
 | `.agentlintel/rules.yaml` | 7 deterministic rules (regex / error-codes / exemptions engines) |
 | `.agentlintel/guard.json` | write-boundary zones checked against git diff |
 | `.agentlintel/exemplars.yaml` | canonical exemplar registry |
-| `.agents/skills/` | 3 Agent Skills: strangler-extraction, mirror-exemplar, audit-architecture |
+| `.agents/skills/` | 5 on-demand Agent Skills; exact count is verified in facts.yaml |
 | `.agentlintel/decisions/` | append-only ADRs |
 | `.agentlintel/conformance/` | pass/fail fixtures per rule (the framework's test suite) |
 | `tools/agentlintel-cli/` | the CLI: `init`, `verify`, `report`, `explain` |
@@ -66,8 +66,8 @@ Templates under tools/agentlintel-cli/templates/{conformance,skills} mirror
 - Don't abstract until duplication occurs three times and is semantically identical.
 - `shared/` is generic; business-specific code belongs in a slice.
 - Slices write only to their own schema; cross-slice access via public contracts.
-- Exemptions use `AGENTLINTEL-EXEMPT` with Reason, Approver, Expires, Owner —
-  expired or incomplete exemptions fail the gate.
+- Exemptions add Decision to Reason, Approver, Expires, Owner and must match
+  exact ADR authority for rule, file, and expiry.
 
 ## Intent
 

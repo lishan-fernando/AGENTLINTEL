@@ -9,6 +9,7 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
 const BIN = path.join(__dirname, '..', 'bin', 'agentlintel.js');
+const REPO = path.join(__dirname, '..', '..', '..');
 
 // Temp repositories have no origin; do not leak the pull request base into them.
 delete process.env.GITHUB_BASE_REF;
@@ -34,7 +35,7 @@ test('CLI rejects unknown flags instead of silently ignoring them', () => {
 });
 
 test('CLI rejects missing option values', () => {
-  for (const flag of ['--dir', '--base', '--pattern', '--path', '--mode']) {
+  for (const flag of ['--dir', '--base', '--pattern', '--path', '--shape', '--mode']) {
     const r = run(['verify', flag]);
     assert.strictEqual(r.status, 2, flag);
     assert.match(r.stderr, new RegExp(`${flag} requires a value`));
@@ -147,6 +148,24 @@ test('explain reports malformed governance instead of crashing', () => {
   assert.strictEqual(result.status, 2);
   assert.match(result.stderr, /KERNEL-SCHEMA/);
   assert.doesNotMatch(result.stderr, /TypeError/);
+});
+
+test('compact explain selects by shape and cuts the context byte proxy by at least 50 percent', () => {
+  const result = run([
+    'explain',
+    '--dir', REPO,
+    '--path', 'tools/agentlintel-cli/src/lib/verify.js',
+    '--shape', 'rule-engine',
+    '--compact',
+    '--json',
+  ], REPO);
+  assert.strictEqual(result.status, 0, result.stderr);
+  const parsed = JSON.parse(result.stdout);
+  assert.deepStrictEqual(parsed.exemplars.map((entry) => entry.id), ['rule-engine']);
+  assert.ok(parsed.context_budget.frontier_files.includes('tools/agentlintel-cli/src/lib/engines.js'));
+  assert.strictEqual(parsed.context_budget.target_percent, 50);
+  assert.strictEqual(parsed.context_budget.meets_target, true, JSON.stringify(parsed.context_budget));
+  assert.ok(parsed.context_budget.reduction_percent >= 50, JSON.stringify(parsed.context_budget));
 });
 
 test('quiet strict failures include a warning that caused the block', () => {

@@ -40,6 +40,14 @@ facts:
     claim: "The architecture audit workflow ships as a standard Agent Skill"
     check: { type: file_contains, path: .agents/skills/audit-architecture/SKILL.md, pattern: "^---\\r?\\nname: audit-architecture\\r?\\ndescription: [^\\r\\n]+\\r?\\n---" }
 
+  - id: skill-scope-change
+    claim: "The token-bounded change-scoping workflow ships as a standard Agent Skill"
+    check: { type: file_contains, path: .agents/skills/scope-change/SKILL.md, pattern: "^---\\r?\\nname: scope-change\\r?\\ndescription: [^\\r\\n]+\\r?\\n---" }
+
+  - id: skill-prove-stateful-workflow
+    claim: "The held-out stateful-workflow proof ships as a standard Agent Skill"
+    check: { type: file_contains, path: .agents/skills/prove-stateful-workflow/SKILL.md, pattern: "^---\\r?\\nname: prove-stateful-workflow\\r?\\ndescription: [^\\r\\n]+\\r?\\n---" }
+
   - id: spec
     claim: "The framework spec is SPEC.md at repo root (<= 500 lines)"
     check: { type: line_count_max, path: SPEC.md, max: 500 }
@@ -59,8 +67,8 @@ facts:
     check: { type: frontmatter_byte_count_max, pattern: ".agents/skills/*/SKILL.md", max: 1024 }
 
   - id: three-skills
-    claim: "Exactly the three reference skills ship - concept creep is a bug"
-    check: { type: glob_count, pattern: ".agents/skills/*/SKILL.md", min: 3, max: 3 }
+    claim: "Exactly the five reference skills ship - concept creep is a bug"
+    check: { type: glob_count, pattern: ".agents/skills/*/SKILL.md", min: 5, max: 5 }
 
   - id: no-root-package-lock
     claim: "The repo root is a script wrapper, not an npm workspace install root; dependency locking lives in tools/agentlintel-cli/package-lock.json"

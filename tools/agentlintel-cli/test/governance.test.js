@@ -115,7 +115,7 @@ const RATCHET_BASE_RULES = [
   '    message: "Deep imports forbidden."',
 ].join('\n');
 
-test('weakening rules.yaml fails unless the same diff carries an ADR', () => {
+test('weakening rules.yaml fails unless the same diff carries exact ADR authority', () => {
   const root = tmpDir();
   git(root, 'init -q');
   git(root, 'config user.email t@t.t');
@@ -130,9 +130,95 @@ test('weakening rules.yaml fails unless the same diff carries an ADR', () => {
   assert.strictEqual(weakened.ok, false);
   assert.ok(weakened.errors.some((e) => e.includes('RATCHET') && e.includes('slice.no-deep-imports')), weakened.errors.join('\n'));
 
-  write(root, '.agentlintel/decisions/ADR-999-rule-retirement.md', '# ADR-999: Retire Deep Import Rule\n\nAccepted: 2026-07-09\n\nDecision:\n\nRetire the obsolete rule.\n');
+  write(root, '.agentlintel/decisions/ADR-998-unrelated.md', '# ADR-998: Unrelated\n\nAccepted: 2026-07-09\n\nDecision:\n\nDocument an unrelated choice.\n');
+  const unrelated = verify(root, { skipFixtures: true });
+  assert.ok(unrelated.errors.some((e) => e.includes('RATCHET') && e.includes('slice.no-deep-imports')),
+    unrelated.errors.join('\n'));
+
+  write(root, '.agentlintel/decisions/ADR-999-rule-retirement.md', '# ADR-999: Retire Deep Import Rule\n\nAccepted: 2026-07-09\n\nDecision:\n\nRetire the obsolete rule.\n\nAuthorizes-Weakening: {"artifact":".agentlintel/rules.yaml","finding":"rule \'slice.no-deep-imports\' was deleted"}\n');
   const governed = verify(root, { skipFixtures: true });
   assert.ok(!governed.errors.some((e) => e.includes('RATCHET')), governed.errors.join('\n'));
+});
+
+test('registered exemplar implementation bytes require exact new-ADR authority', () => {
+  const root = tmpDir();
+  git(root, 'init -q');
+  git(root, 'config user.email t@t.t');
+  git(root, 'config user.name t');
+  write(root, '.agentlintel/rules.yaml', 'version: 2\nrules: []\n');
+  write(root, '.agentlintel/exemplars.yaml', 'version: 2\nexemplars:\n  - { id: command, shape: cli, path: src/a.js, demonstrates: "command shape" }\n');
+  write(root, 'src/a.js', 'module.exports = { safe: true };\n');
+  git(root, 'add -A');
+  git(root, 'commit -q -m init');
+
+  write(root, 'src/a.js', 'module.exports = { safe: false };\n');
+  let result = verify(root, { skipFixtures: true });
+  assert.ok(result.errors.some((error) =>
+    error.includes('RATCHET [exemplars.yaml]') && error.includes("implementation changed at 'src/a.js'")),
+  result.errors.join('\n'));
+
+  write(root, '.agentlintel/decisions/ADR-202-change-exemplar-code.md', '# ADR-202: Change exemplar code\n\nAccepted: 2026-07-09\n\nDecision:\n\nChange the canonical implementation.\n\nAuthorizes-Weakening: {"artifact":".agentlintel/exemplars.yaml","finding":"exemplar \'command\' implementation changed at \'src/a.js\'"}\n');
+  result = verify(root, { skipFixtures: true });
+  assert.ok(!result.errors.some((error) => error.includes('RATCHET [exemplars.yaml]')),
+    result.errors.join('\n'));
+});
+
+test('external checker evidence bytes are protected and exact-authorized', () => {
+  const root = tmpDir();
+  git(root, 'init -q');
+  git(root, 'config user.email t@t.t');
+  git(root, 'config user.name t');
+  write(root, '.agentlintel/rules.yaml', [
+    'version: 2',
+    'rules:',
+    '  - id: external.architecture',
+    '    severity: error',
+    '    engine: external',
+    '    evidence: [checker.js]',
+    '    run: "node checker.js"',
+    '    message: architecture',
+  ].join('\n'));
+  write(root, 'checker.js', 'process.exit(0);\n');
+  git(root, 'add -A');
+  git(root, 'commit -q -m init');
+
+  write(root, 'checker.js', 'process.exit(1);\n');
+  let result = verify(root, { skipFixtures: true, run: false });
+  assert.ok(result.errors.some((error) =>
+    error.includes('RATCHET [rules.yaml]') && error.includes("external evidence changed at 'checker.js'")),
+  result.errors.join('\n'));
+
+  write(root, '.agentlintel/decisions/ADR-203-change-checker.md', '# ADR-203: Change checker\n\nAccepted: 2026-07-09\n\nDecision:\n\nChange the native checker.\n\nAuthorizes-Weakening: {"artifact":".agentlintel/rules.yaml","finding":"rule \'external.architecture\' external evidence changed at \'checker.js\'"}\n');
+  result = verify(root, { skipFixtures: true, run: false });
+  assert.ok(!result.errors.some((error) => error.includes('RATCHET [rules.yaml]')),
+    result.errors.join('\n'));
+});
+
+test('deleting a baseline required-evidence trigger cannot deactivate the rule', () => {
+  const root = tmpDir();
+  git(root, 'init -q');
+  git(root, 'config user.email t@t.t');
+  git(root, 'config user.name t');
+  write(root, '.agentlintel/rules.yaml', [
+    'version: 2',
+    'rules:',
+    '  - id: state.requires-contract',
+    '    severity: error',
+    '    engine: regex',
+    '    applies_to: ["src/**/*.ts"]',
+    '    required: ["StateContract"]',
+    '    when: ["StateFeature"]',
+    '    message: state feature needs a contract',
+  ].join('\n'));
+  write(root, 'src/state.ts', 'export const StateFeature = StateContract;\n');
+  git(root, 'add -A');
+  git(root, 'commit -q -m init');
+
+  write(root, 'src/state.ts', 'export const renamed = StateContract;\n');
+  const result = verify(root, { skipFixtures: true });
+  assert.ok(result.errors.some((error) =>
+    error.includes('state.requires-contract') && error.includes('trigger matched the baseline but disappeared')),
+  result.errors.join('\n'));
 });
 
 test('weakening or relabeling a fact requires a new ADR', () => {
@@ -167,7 +253,7 @@ test('weakening or relabeling a fact requires a new ADR', () => {
     result.errors.join('\n'));
 
   write(root, '.agentlintel/decisions/ADR-200-adjust-budget.md',
-    '# ADR-200: Adjust budget\n\nAccepted: 2026-07-09\n\nDecision:\n\nRaise the measured entry budget.\n');
+    '# ADR-200: Adjust budget\n\nAccepted: 2026-07-09\n\nDecision:\n\nRaise the measured entry budget.\n\nAuthorizes-Weakening: {"artifact":".agentlintel/facts.yaml","finding":"fact \'entry-budget\' raised max from 10 to 100"}\n');
   result = verify(root, { skipFixtures: true });
   assert.ok(!result.errors.some((error) => error.includes('RATCHET [facts.yaml]')),
     result.errors.join('\n'));
@@ -198,7 +284,7 @@ test('removing or mutating canonical exemplar evidence requires a new ADR', () =
     result.errors.join('\n'));
 
   write(root, '.agentlintel/decisions/ADR-201-change-exemplar.md',
-    '# ADR-201: Change exemplar\n\nAccepted: 2026-07-09\n\nDecision:\n\nChange the canonical CLI evidence.\n');
+    '# ADR-201: Change exemplar\n\nAccepted: 2026-07-09\n\nDecision:\n\nChange the canonical CLI evidence.\n\nAuthorizes-Weakening: {"artifact":".agentlintel/exemplars.yaml","finding":"exemplar \'command\' changed canonical evidence"}\n');
   result = verify(root, { skipFixtures: true });
   assert.ok(!result.errors.some((error) => error.includes('RATCHET [exemplars.yaml]')),
     result.errors.join('\n'));
@@ -362,7 +448,7 @@ test('guard expansion needs a new ADR and an empty guard fails closed', () => {
   const weakened = verify(root, { skipFixtures: true });
   assert.ok(weakened.errors.some((e) => e.includes('RATCHET [guard.json]')), weakened.errors.join('\n'));
 
-  write(root, '.agentlintel/decisions/ADR-999-expand-writes.md', '# ADR-999: Expand writes\n\nAccepted: 2026-07-09\n\nDecision:\n\nExpand the reviewed write boundary.\n');
+  write(root, '.agentlintel/decisions/ADR-999-expand-writes.md', '# ADR-999: Expand writes\n\nAccepted: 2026-07-09\n\nDecision:\n\nExpand the reviewed write boundary.\n\nAuthorizes-Weakening: {"artifact":".agentlintel/guard.json","finding":"guard added or changed allow glob \'**/*\' outside prior coverage"}\nAuthorizes-Weakening: {"artifact":".agentlintel/guard.json","finding":"guard removed or narrowed forbidden glob \'secrets/**\'"}\n');
   const governed = verify(root, { skipFixtures: true });
   assert.ok(!governed.errors.some((e) => e.includes('RATCHET [guard.json]')), governed.errors.join('\n'));
 
@@ -392,7 +478,7 @@ test('detectRuleWeakening catches common silent-weaken channels', () => {
           layers: [{ name: 'ui', path: ['src/ui/**'] }, { name: 'data', path: ['src/data/**'] }],
           allowed: { ui: [] },
         },
-        { id: 'secrets.no-logging', severity: 'error', engine: 'regex', forbidden: ['token', 'password'] },
+        { id: 'secrets.no-logging', severity: 'error', engine: 'regex', forbidden: ['token', 'password'], required: ['redact'], when: ['logger'], match: 'file' },
       ],
     },
     {
@@ -406,7 +492,7 @@ test('detectRuleWeakening catches common silent-weaken channels', () => {
           layers: [{ name: 'ui', path: ['src/ui/**'] }],
           allowed: { ui: ['data'] },
         },
-        { id: 'secrets.no-logging', severity: 'error', engine: 'regex', forbidden: ['token'] },
+        { id: 'secrets.no-logging', severity: 'error', engine: 'regex', forbidden: ['token'], required: [], when: [], match: 'line' },
       ],
     },
   );
@@ -417,6 +503,9 @@ test('detectRuleWeakening catches common silent-weaken channels', () => {
   assert.ok(findings.some((f) => f.includes("removed layer 'data'")), findings.join('\n'));
   assert.ok(findings.some((f) => f.includes('expanded allowed dependency ui -> data')), findings.join('\n'));
   assert.ok(findings.some((f) => f.includes('removed forbidden pattern "password"')), findings.join('\n'));
+  assert.ok(findings.some((f) => f.includes('removed required pattern "redact"')), findings.join('\n'));
+  assert.ok(findings.some((f) => f.includes('required-evidence trigger "logger"')), findings.join('\n'));
+  assert.ok(findings.some((f) => f.includes('changed regex match mode')), findings.join('\n'));
 });
 
 test('detectRuleWeakening covers effective-value bypass knobs', () => {
@@ -425,7 +514,7 @@ test('detectRuleWeakening covers effective-value bypass knobs', () => {
       rules: [
         { id: 'regex.rule', engine: 'regex', flags: 'i', must_match: undefined, forbidden: ['x'], aliases: { '@/': 'src/' } },
         { id: 'codes.rule', engine: 'error-codes', categories: ['VAL'] },
-        { id: 'exempt.rule', engine: 'exemptions', required_fields: ['Reason', 'Approver', 'Expires', 'Owner'], within_lines: 5 },
+        { id: 'exempt.rule', engine: 'exemptions', required_fields: ['Reason', 'Approver', 'Expires', 'Owner', 'Decision'], within_lines: 5 },
         { id: 'external.rule', engine: 'external', adapter: 'jsonl', scope: 'tree', run: 'npm test', ok_exits: [0] },
       ],
     },
@@ -433,7 +522,7 @@ test('detectRuleWeakening covers effective-value bypass knobs', () => {
       rules: [
         { id: 'regex.rule', engine: 'regex', flags: 'y', must_match: false, forbidden: ['x'], aliases: { '@/': 'src/', '@/domain/': 'vendor/' } },
         { id: 'codes.rule', engine: 'error-codes', categories: ['VAL', 'OTHER'] },
-        { id: 'exempt.rule', engine: 'exemptions', required_fields: ['Reason', 'Expires'], within_lines: 10 },
+        { id: 'exempt.rule', engine: 'exemptions', required_fields: ['Reason', 'Expires', 'Decision'], within_lines: 10 },
         { id: 'external.rule', engine: 'external', adapter: 'command-status', scope: 'pr', run: 'npm test', ok_exits: [0, 1] },
       ],
     },
@@ -594,8 +683,8 @@ test('malformed config is reported without crashing valid checks', () => {
 
 test('rule config rejects suppression ambiguity, duplicate layers, and unsafe ids/options', () => {
   const set = preparedRuleSet({ rules: [
-    { id: 'first_exemption', severity: 'error', engine: 'exemptions', required_fields: ['Reason', 'Expires'], within_lines: 1, message: 'm' },
-    { id: 'second.exemption', severity: 'error', engine: 'exemptions', required_fields: ['Reason', 'Expires'], within_lines: 1, message: 'm' },
+    { id: 'first_exemption', severity: 'error', engine: 'exemptions', required_fields: ['Reason', 'Expires', 'Decision'], within_lines: 1, message: 'm' },
+    { id: 'second.exemption', severity: 'error', engine: 'exemptions', required_fields: ['Reason', 'Expires', 'Decision'], within_lines: 1, message: 'm' },
     {
       id: 'arch.layers', severity: 'error', engine: 'layers',
       layers: [{ name: 'domain', path: ['src/domain/**'] }, { name: 'domain', path: ['src/other/**'] }],
@@ -609,6 +698,10 @@ test('rule config rejects suppression ambiguity, duplicate layers, and unsafe id
     { id: 'missing.expiry', severity: 'error', engine: 'exemptions', required_fields: ['Reason'], within_lines: 1, message: 'm' },
     { id: 'bad.must-match', severity: 'error', engine: 'regex', forbidden: ['x'], must_match: 'false', message: 'm' },
     { id: 'missing.message', severity: 'error', engine: 'regex', forbidden: ['x'] },
+    { id: 'regex.empty', severity: 'error', engine: 'regex', forbidden: [], required: [], message: 'm' },
+    { id: 'regex.bad-required', severity: 'error', engine: 'regex', required: [''], message: 'm' },
+    { id: 'regex.bad-match', severity: 'error', engine: 'regex', required: ['x'], match: 'tree', message: 'm' },
+    { id: 'regex.bad-when', severity: 'error', engine: 'regex', forbidden: ['x'], when: ['trigger'], message: 'm' },
   ] });
   assert.ok(set.configErrors.some((error) => error.includes('at most one exemptions rule')), set.configErrors.join('\n'));
   assert.ok(set.configErrors.some((error) => error.includes("duplicate layer name 'domain'")), set.configErrors.join('\n'));
@@ -618,6 +711,10 @@ test('rule config rejects suppression ambiguity, duplicate layers, and unsafe id
   assert.ok(set.configErrors.some((error) => error.includes('[missing.expiry]') && error.includes('Expires')), set.configErrors.join('\n'));
   assert.ok(set.configErrors.some((error) => error.includes('[bad.must-match]') && error.includes('boolean')), set.configErrors.join('\n'));
   assert.ok(set.configErrors.some((error) => error.includes('[missing.message]') && error.includes('message')), set.configErrors.join('\n'));
+  assert.ok(set.configErrors.some((error) => error.includes('[regex.empty]') && error.includes('forbidden or required')), set.configErrors.join('\n'));
+  assert.ok(set.configErrors.some((error) => error.includes('[regex.bad-required]') && error.includes('required')), set.configErrors.join('\n'));
+  assert.ok(set.configErrors.some((error) => error.includes('[regex.bad-match]') && error.includes('line or file')), set.configErrors.join('\n'));
+  assert.ok(set.configErrors.some((error) => error.includes('[regex.bad-when]') && error.includes('requires positive')), set.configErrors.join('\n'));
   assert.ok(set.all.some((rule) => rule.id === 'underscore_rule'), set.configErrors.join('\n'));
 });
 

@@ -96,7 +96,8 @@ Common flags: `--dir <root>`, `--json`, `--strict`, `--no-run`,
 `--skip-fixtures`, `--diff`, `--quiet`, `--bail`, `--workspace`,
 `--mode warn`.
 
-Explain flag: `--path <file>`.
+Explain flags: `--path <file>`, optional `--shape <shape>`, and `--compact` for
+the measured context frontier.
 
 Init extras: `--pattern`, `--from-v1`, `--adapters`, `--hooks`,
 `--engine-adapters`, `--force`.

@@ -97,6 +97,7 @@ npm i -D @agentlintel/cli@alpha
 npx agentlintel init      # scaffold the contract (pick a pattern pack)
 npx agentlintel verify    # run the gate locally
 npx agentlintel explain --path src/example.ts  # debug what applies to a file
+npx agentlintel explain --path src/example.ts --shape service --compact
 ```
 
 Need an exact release artifact or a registry-free fallback?
@@ -132,8 +133,8 @@ law, so the contract stays learnable in minutes — by humans and by agents.
 - **skills**: standard `SKILL.md` workflows loaded only when relevant.
 - **decisions**: append-only ADRs for architecture changes.
 
-Three reference skills ship with the framework: `strangler-extraction`,
-`mirror-exemplar`, and `audit-architecture`.
+Five reference skills ship: `strangler-extraction`, `mirror-exemplar`,
+`audit-architecture`, `scope-change`, and `prove-stateful-workflow`.
 
 ## Rules and engines
 
@@ -165,10 +166,14 @@ built-in layer importer is deliberately JS/TS-only. Treat built-ins as a
 portable starter floor, not a type system or security scanner.
 Use `external` for deep checks from tools your stack already trusts:
 architecture tests, dependency-cruiser, `dotnet test`, commit and PR policies.
+Each external rule declares exact `evidence` files; changing its checker,
+configuration, or lock evidence is ratcheted.
 
-Contract changes are ratcheted: weakening or relabeling a fact, mutating or
-removing an exemplar, weakening a rule, or broadening the write guard requires
-a **new** ADR in the same diff. Additions and monotonic tightening stay free.
+Contract changes are ratcheted: weakening or relabeling a fact, changing or
+removing a registered exemplar implementation, changing external evidence,
+weakening a rule, or broadening the write guard requires an exact
+`Authorizes-Weakening` finding in a **new** ADR in the same diff. An unrelated
+ADR authorizes nothing. Additions and monotonic tightening stay free.
 Existing ADRs cannot be edited or deleted. Every rule must prove both a
 passing and failing fixture; guardrails cannot erase their own evidence.
 

@@ -16,13 +16,30 @@ function regexEngine(rule, filePath, content, options = {}) {
   if (!options.skipApplies && !applies(rule, filePath)) return [];
 
   const violations = [];
-  const lines = content.split(/\r?\n/);
   const forbidden =
     rule._forbiddenRegexes ||
     (rule.forbidden || []).map(
       (pattern) => new RegExp(pattern, rule.flags || ""),
     );
+  const matchMode = rule._regexMatch || rule.match || "line";
 
+  if (matchMode === "file") {
+    for (const regex of forbidden) {
+      regex.lastIndex = 0;
+      const match = regex.exec(content);
+      if (!match) continue;
+      violations.push({
+        rule: rule.id,
+        file: filePath,
+        line: lineOfIndex(content, match.index),
+        message: rule.message,
+        severity: rule.severity,
+      });
+    }
+    return violations;
+  }
+
+  const lines = content.split(/\r?\n/);
   for (const regex of forbidden) {
     for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
       regex.lastIndex = 0;
@@ -37,6 +54,61 @@ function regexEngine(rule, filePath, content, options = {}) {
     }
   }
 
+  return violations;
+}
+
+function regexMatches(regex, content, matchMode) {
+  if (matchMode === "file") {
+    regex.lastIndex = 0;
+    return regex.test(content);
+  }
+  for (const line of content.split(/\r?\n/)) {
+    regex.lastIndex = 0;
+    if (regex.test(line)) return true;
+  }
+  return false;
+}
+
+function requiredRegexViolations(rule, entries, { baselineEntries = [] } = {}) {
+  const required = rule._requiredRegexes ||
+    (rule.required || []).map(
+      (pattern) => new RegExp(pattern, rule.flags || ""),
+    );
+  if (!required.length || !entries.length) return [];
+
+  const matchMode = rule._regexMatch || rule.match || "line";
+  const when = rule._whenRegexes ||
+    (rule.when || []).map(
+      (pattern) => new RegExp(pattern, rule.flags || ""),
+    );
+  if (when.length && !when.some((regex) =>
+    entries.some((entry) => regexMatches(regex, entry.content, matchMode)))) {
+    const baselineMatched = when.some((regex) =>
+      baselineEntries.some((entry) =>
+        regexMatches(regex, entry.content, matchMode)));
+    if (!baselineMatched) return [];
+    return [{
+      rule: rule.id,
+      file: baselineEntries[0].filePath,
+      line: 0,
+      message: `Required-evidence trigger matched the baseline but disappeared. Conditional rules cannot be deactivated by deleting their trigger. ${rule.message}`,
+      severity: rule.severity,
+    }];
+  }
+
+  const violations = [];
+  for (let index = 0; index < required.length; index++) {
+    if (entries.some((entry) => regexMatches(required[index], entry.content, matchMode)))
+      continue;
+    const pattern = (rule.required || [])[index] || required[index].source;
+    violations.push({
+      rule: rule.id,
+      file: entries[0].filePath,
+      line: 0,
+      message: `Required architecture evidence not found: ${JSON.stringify(pattern)}. ${rule.message}`,
+      severity: rule.severity,
+    });
+  }
   return violations;
 }
 
@@ -98,6 +170,10 @@ const EXPIRES_FIELD = metadataRegex(
   "Expires",
   "(\\d{4}-\\d{2}-\\d{2})(?=[ \\t]*(?:\\n|$))",
 );
+const DECISION_FIELD = metadataRegex(
+  "Decision",
+  "(ADR-\\d+)(?=[ \\t]*(?:\\n|$))",
+);
 
 function expiryDate(value) {
   const date = new Date(value + "T23:59:59Z");
@@ -124,7 +200,7 @@ function exemptionsEngine(
   if (!content.includes(marker)) return [];
 
   const requiredFields = rule._requiredFields ||
-    rule.required_fields || ["Reason", "Approver", "Expires", "Owner"];
+    rule.required_fields || ["Reason", "Approver", "Expires", "Owner", "Decision"];
   const withinLines = rule._withinLines || rule.within_lines || 5;
   const annotation =
     rule._exemptionAnnotation ||
@@ -187,6 +263,16 @@ function exemptionsEngine(
           severity: "error",
         });
     }
+    const decisionMatch = window.match(rule._decisionRegex || DECISION_FIELD);
+    if (!decisionMatch && requiredFields.includes("Decision") &&
+        !missingFields.includes("Decision"))
+      violations.push({
+        rule: rule.id,
+        file: filePath,
+        line: lineIndex + 1,
+        message: `Exemption Decision must use ADR-<number>. ${rule.message}`,
+        severity: "error",
+      });
   }
 
   return violations;
@@ -204,7 +290,7 @@ function collectExemptionSpans(
   if (!content.includes(marker)) return [];
 
   const requiredFields = rule._requiredFields ||
-    rule.required_fields || ["Reason", "Approver", "Expires", "Owner"];
+    rule.required_fields || ["Reason", "Approver", "Expires", "Owner", "Decision"];
   const withinLines = rule._withinLines || rule.within_lines || 5;
   const spanPattern =
     rule._exemptionSpan ||
@@ -237,6 +323,8 @@ function collectExemptionSpans(
     if (!expiresMatch) continue;
     const expiry = expiryDate(expiresMatch[1]);
     if (!expiry || expiry < today) continue;
+    const decisionMatch = window.match(rule._decisionRegex || DECISION_FIELD);
+    if (!decisionMatch) continue;
 
     let lastFieldLine = lineIndex;
     for (let offset = 0; offset < windowLines.length; offset++)
@@ -246,6 +334,8 @@ function collectExemptionSpans(
     spans.push({
       file: filePath,
       rules: ruleIds,
+      decision: decisionMatch[1],
+      expires: expiresMatch[1],
       fromLine: lineIndex + 1,
       toLine: lastFieldLine + 1 + withinLines,
     });
@@ -487,6 +577,13 @@ function prepareRule(rule) {
     prepared._forbiddenRegexes = (rule.forbidden || []).map(
       (pattern) => new RegExp(pattern, rule.flags || ""),
     );
+    prepared._requiredRegexes = (rule.required || []).map(
+      (pattern) => new RegExp(pattern, rule.flags || ""),
+    );
+    prepared._whenRegexes = (rule.when || []).map(
+      (pattern) => new RegExp(pattern, rule.flags || ""),
+    );
+    prepared._regexMatch = rule.match || "line";
   } else if (rule.engine === "error-codes") {
     prepared._categories = new Set(rule.categories || []);
   } else if (rule.engine === "exemptions") {
@@ -496,6 +593,7 @@ function prepareRule(rule) {
       "Approver",
       "Expires",
       "Owner",
+      "Decision",
     ];
     prepared._withinLines = rule.within_lines || 5;
     prepared._exemptionAnnotation = metadataRegex(prepared._marker, "\\S");
@@ -505,6 +603,7 @@ function prepareRule(rule) {
       metadataRegex(field, "\\S"),
     ]);
     prepared._expiresRegex = EXPIRES_FIELD;
+    prepared._decisionRegex = DECISION_FIELD;
   } else if (rule.engine === "layers") {
     prepared._aliasEntries = aliasEntriesOf(rule);
     prepared._allowedByLayer = Object.fromEntries(
@@ -528,6 +627,7 @@ module.exports = {
   runRule,
   ENGINES,
   prepareRule,
+  requiredRegexViolations,
   collectExemptionSpans,
   layerOfPath,
   validateLayersRule,

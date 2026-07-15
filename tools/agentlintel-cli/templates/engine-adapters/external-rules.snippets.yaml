@@ -3,6 +3,7 @@
 - id: architecture.contract
   severity: error
   engine: external
+  evidence: [package.json, package-lock.json]
   adapter: command-status
   scope: tree
   run: "npm run architecture:check"
@@ -11,6 +12,7 @@
 - id: frontend.feature-public-surface
   severity: error
   engine: external
+  evidence: [.agentlintel/adapters/dependency-cruiser.frontend.cjs, package.json, package-lock.json]
   adapter: dependency-cruiser
   scope: tree
   run: "npx depcruise --config .agentlintel/adapters/dependency-cruiser.frontend.cjs --output-type json src"
@@ -19,6 +21,7 @@
 - id: dotnet.architecture-tests
   severity: error
   engine: external
+  evidence: [Tests/Architecture.Tests/Architecture.Tests.csproj]
   adapter: dotnet-test
   scope: tree
   run: "dotnet test Tests/Architecture.Tests/Architecture.Tests.csproj --no-restore"
@@ -27,6 +30,7 @@
 - id: commit.message-format
   severity: error
   engine: external
+  evidence: [.agentlintel/adapters/commit-message-policy.js]
   adapter: command-status
   scope: commit
   run: "node .agentlintel/adapters/commit-message-policy.js"
@@ -35,6 +39,7 @@
 - id: pr.metadata-policy
   severity: error
   engine: external
+  evidence: [.agentlintel/adapters/github-pr-policy.js]
   adapter: command-status
   scope: pr
   run: "node .agentlintel/adapters/github-pr-policy.js"

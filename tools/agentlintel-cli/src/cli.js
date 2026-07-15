@@ -10,7 +10,7 @@ Usage:
   agentlintel init [--dir <root>] [opts]
   agentlintel verify [--dir <root>] [opts]
   agentlintel report [--dir <root>] [opts]
-  agentlintel explain --path <file> [--dir <root>] [--json]
+  agentlintel explain --path <file> [--shape <shape>] [--compact] [--dir <root>] [--json]
 
 init options:
   --pattern <name> vertical-slice (default), layered-3tier, mvvm, custom
@@ -21,11 +21,11 @@ verify/report options:
   --json  --strict  --no-run  --skip-fixtures  --mode warn
 
 explain options:
-  --dir <root>  --path <file>  --json
+  --dir <root>  --path <file>  --shape <shape>  --compact  --json
 
 Exit codes: 0 gate passed, 1 gate findings, 2 invalid invocation/internal error.`;
 
-const VALUE_FLAGS = new Set(["--dir", "--base", "--pattern", "--path", "--mode"]);
+const VALUE_FLAGS = new Set(["--dir", "--base", "--pattern", "--path", "--shape", "--mode"]);
 const BOOLEAN_FLAGS = {
   "--json": "json",
   "--strict": "strict",
@@ -40,12 +40,13 @@ const BOOLEAN_FLAGS = {
   "--adapters": "adapters",
   "--hooks": "hooks",
   "--engine-adapters": "engineAdapters",
+  "--compact": "compact",
 };
 const COMMAND_OPTIONS = {
   init: new Set(["dir", "pattern", "fromV1", "adapters", "hooks", "engineAdapters", "force"]),
   verify: new Set(["dir", "base", "diff", "quiet", "bail", "workspace", "json", "strict", "noRun", "skipFixtures", "mode"]),
   report: new Set(["dir", "base", "diff", "quiet", "bail", "workspace", "json", "strict", "noRun", "skipFixtures", "mode"]),
-  explain: new Set(["dir", "path", "json"]),
+  explain: new Set(["dir", "path", "shape", "compact", "json"]),
 };
 
 function parseArgs(argv) {
@@ -156,7 +157,11 @@ function main(argv = process.argv.slice(2), cwd = process.cwd()) {
 
 function runExplain(root, options) {
   const { explain, renderExplain } = require("./commands/explain");
-  const result = explain(root, { path: options.path });
+  const result = explain(root, {
+    path: options.path,
+    shape: options.shape,
+    compact: options.compact,
+  });
   if (options.json) console.log(JSON.stringify(result, null, 2));
   else if (result.ok) console.log(renderExplain(result));
   else console.error(renderExplain(result));

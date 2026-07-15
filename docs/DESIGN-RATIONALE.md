@@ -40,3 +40,13 @@ incomplete fast agent-loop path.
 
 Agents need small context and hard feedback. Long prose makes drift easier;
 verified facts, fixtures, guard zones, and exemplars make drift visible.
+`explain --shape --compact` selects a pre-write frontier from those existing
+concepts and reports a versionable-byte token proxy. The shipped acceptance
+test requires at least 50 percent less context than loading the full governance
+surface. This is not a claim about actual model tokens; matched-agent runs must
+measure those separately.
+
+ADRs do not authenticate authors. They grant only exact exemption tuples or
+exact ratchet findings, while branch protection authenticates who may merge
+them. Registered exemplar bytes and declared external-checker evidence are
+protected so an agent cannot weaken the judge and then satisfy it.

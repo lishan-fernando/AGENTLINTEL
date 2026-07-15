@@ -11,14 +11,18 @@ const REPO = path.join(__dirname, '..', '..', '..');
 // Frozen lean cap from the alpha.5 public baseline (then ~25% below the
 // pre-lean size). Re-baselined for the ADR-016 explain/warn/hook DX surface,
 // ADR-018 alpha.9 hygiene, ADR-019 CI/npm release contract, ADR-020 license
-// clarity text, ADR-021 adoption-template license-boundary clarity, then the
-// ADR-022 verifier-integrity checks. The cap includes the committed ADR/CODEOWNERS.
-const TRACKED_BYTE_BUDGET = 598000;
+// clarity text, ADR-021 adoption-template license-boundary clarity,
+// ADR-022 verifier-integrity checks, ADR-023's decision-grade benchmark
+// evidence, ADR-024/025 positive evidence, and ADR-026/027 exact authority,
+// protected evidence, compact context, and token-bounded skills.
+// The cap includes committed ADRs and CODEOWNERS.
+const TRACKED_BYTE_BUDGET = 688000;
 // Recalibrated for readable shipped CLI source with meaningful identifiers
 // (ADR-014), then for explain/warn/hook DX surface (ADR-016), measured on the
-// committed tree; re-baselined for ADR-020/021 legal clarity and ADR-022's
-// verifier-integrity checks.
-const ELIGIBLE_TRACKED_BYTE_BUDGET = 328000;
+// committed tree; re-baselined for ADR-020/021 legal clarity, ADR-022's
+// verifier-integrity checks, ADR-023's empirical report and protocol, and the
+// ADR-024/025 positive evidence and ADR-026/027 trust-boundary release.
+const ELIGIBLE_TRACKED_BYTE_BUDGET = 390000;
 const DEAD_WEIGHT_EXCLUDE = /^(?:\.agentlintel\/decisions\/|LICENSE$|NOTICE$|docs\/LEGAL\.md$|tools\/agentlintel-cli\/LICENSE(?:-APACHE)?$|tools\/agentlintel-cli\/package-lock\.json$|tools\/agentlintel-cli\/test\/|\.agentlintel\/conformance\/.*\/cases\/|tools\/agentlintel-cli\/templates\/conformance\/.*\/cases\/|tools\/agentlintel-cli\/templates\/engine-adapters\/conformance-snippets\/.*\/cases\/)/;
 
 function versionableFiles() {

@@ -7,8 +7,8 @@ description: Use when extracting a business capability from a monolith into a sl
 
 Read `.agentlintel/facts.yaml`, pick the matching exemplar, and keep
 `agentlintel verify` green after each writing phase. Do not add exemptions to
-make progress; exemptions need Reason, Approver, Expires, Owner, and a human
-decision.
+make progress; exemptions need Reason, Approver, Expires, Owner, Decision, and
+matching ADR authorization.
 
 ## Phases
 

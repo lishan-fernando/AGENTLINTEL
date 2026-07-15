@@ -157,12 +157,13 @@ function explainGuard(guard, relPath) {
   };
 }
 
-function explainExemplars(exemplarsDoc, relPath) {
+function explainExemplars(exemplarsDoc, relPath, shape) {
   const exemplars = Array.isArray(exemplarsDoc && exemplarsDoc.exemplars)
     ? exemplarsDoc.exemplars
     : [];
   return exemplars
     .filter((exemplar) => {
+      if (shape) return exemplar.shape === shape;
       const exemplarPath = String(exemplar.path || "").replace(/\\/g, "/");
       return relPath === exemplarPath || relPath.startsWith(`${exemplarPath}/`);
     })
@@ -170,7 +171,26 @@ function explainExemplars(exemplarsDoc, relPath) {
       id: exemplar.id,
       path: exemplar.path,
       shape: exemplar.shape,
-      why: "path is inside this registered exemplar",
+      why: shape
+        ? `registered for requested shape '${shape}'`
+        : "path is inside this registered exemplar",
+    }));
+}
+
+function explainFacts(factsDoc, relPath) {
+  const facts = Array.isArray(factsDoc && factsDoc.facts) ? factsDoc.facts : [];
+  return facts
+    .filter((fact) => {
+      const check = fact && fact.check;
+      if (!check || typeof check !== "object") return false;
+      if (typeof check.path === "string")
+        return relPath === check.path || relPath.startsWith(`${check.path}/`);
+      return typeof check.pattern === "string" && matchGlob(check.pattern, relPath);
+    })
+    .map((fact) => ({
+      id: fact.id,
+      claim: fact.claim,
+      check: fact.check,
     }));
 }
 
@@ -200,7 +220,87 @@ function explainDecisions(root, relPath, rules) {
   return [...byId.values()].sort((a, b) => a.id.localeCompare(b.id));
 }
 
-function explain(root, { path: inputPath } = {}) {
+function existingContextFiles(root) {
+  const files = [
+    "AGENTS.md",
+    ".agents/skills/scope-change/SKILL.md",
+    `${KERNEL_DIR}/facts.yaml`,
+    `${KERNEL_DIR}/rules.yaml`,
+    `${KERNEL_DIR}/guard.json`,
+    `${KERNEL_DIR}/exemplars.yaml`,
+  ];
+  const decisions = path.join(root, KERNEL_DIR, "decisions");
+  try {
+    for (const name of fs.readdirSync(decisions).sort())
+      if (decisionIdFromFile(name)) files.push(`${KERNEL_DIR}/decisions/${name}`);
+  } catch {}
+  return files.filter((file) => safeRegularPath(root, path.join(root, file)));
+}
+
+function contextBytes(root, files) {
+  return [...new Set(files)].reduce((total, file) => {
+    try {
+      return total + fs.statSync(path.join(root, file)).size;
+    } catch {
+      return total;
+    }
+  }, 0);
+}
+
+function compactResult(root, result) {
+  const packet = {
+    ok: true,
+    path: result.path,
+    shape: result.shape || null,
+    facts: result.facts.map((fact) => ({ id: fact.id, check: fact.check })),
+    rules: result.rules.map((rule) => ({
+      id: rule.id,
+      engine: rule.engine,
+      ...(rule.adr ? { adr: rule.adr } : {}),
+      ...(rule.layer ? { layer: rule.layer } : {}),
+    })),
+    guard: {
+      status: result.guard.status,
+      forbidden: result.guard.forbidden,
+      zones: result.guard.zones.map((zone) => zone.id),
+    },
+    exemplars: result.exemplars.map(({ id, path: exemplarPath, shape }) => ({
+      id,
+      path: exemplarPath,
+      shape,
+    })),
+    decisions: result.decisions.map(({ id, path: decisionPath }) => ({
+      id,
+      ...(decisionPath ? { path: decisionPath } : {}),
+    })),
+  };
+  const fullFiles = existingContextFiles(root);
+  const frontierFiles = [
+    "AGENTS.md",
+    ".agents/skills/scope-change/SKILL.md",
+    ...packet.exemplars.map((entry) => entry.path),
+    ...packet.decisions.map((entry) => entry.path).filter(Boolean),
+  ].filter((file) => safeRegularPath(root, path.join(root, file)));
+  const fullBytes = contextBytes(root, fullFiles);
+  const packetBytes = Buffer.byteLength(JSON.stringify(packet));
+  const frontierBytes = contextBytes(root, frontierFiles) + packetBytes;
+  const reduction = fullBytes > 0
+    ? Math.max(0, Math.round((1 - frontierBytes / fullBytes) * 1000) / 10)
+    : 0;
+  packet.context_budget = {
+    metric: "versionable-byte token proxy",
+    full_bytes: fullBytes,
+    frontier_bytes: frontierBytes,
+    reduction_percent: reduction,
+    target_percent: 50,
+    meets_target: reduction >= 50,
+    full_file_count: fullFiles.length,
+    frontier_files: [...new Set(frontierFiles)],
+  };
+  return packet;
+}
+
+function explain(root, { path: inputPath, shape = null, compact = false } = {}) {
   const relPath = toRepoPath(root, inputPath);
   if (!relPath)
     return { ok: false, errors: ["explain requires --path <file>"] };
@@ -209,16 +309,19 @@ function explain(root, { path: inputPath } = {}) {
   if (kernel.schemaErrors.length)
     return { ok: false, errors: kernel.schemaErrors };
   const rules = explainRules(kernel.rules, relPath);
-  return {
+  const result = {
     ok: true,
     root: path.resolve(root),
     path: relPath,
+    shape,
     kernel_present: Boolean(kernel.facts || kernel.rules),
+    facts: explainFacts(kernel.facts, relPath),
     rules,
     guard: explainGuard(kernel.guard, relPath),
-    exemplars: explainExemplars(kernel.exemplars, relPath),
+    exemplars: explainExemplars(kernel.exemplars, relPath, shape),
     decisions: explainDecisions(root, relPath, rules),
   };
+  return compact ? compactResult(root, result) : result;
 }
 
 function renderList(items, empty, renderItem) {
@@ -228,6 +331,18 @@ function renderList(items, empty, renderItem) {
 
 function renderExplain(result) {
   if (!result.ok) return result.errors.join("\n");
+  if (result.context_budget) {
+    const budget = result.context_budget;
+    return [
+      `agentlintel context frontier: ${result.path}${result.shape ? ` (${result.shape})` : ""}`,
+      `facts: ${result.facts.map((fact) => fact.id).join(", ") || "none"}`,
+      `rules: ${result.rules.map((rule) => rule.id).join(", ") || "none"}`,
+      `guard: ${result.guard.status}`,
+      `exemplars: ${result.exemplars.map((entry) => entry.path).join(", ") || "none"}`,
+      `decisions: ${result.decisions.map((entry) => entry.path || entry.id).join(", ") || "none"}`,
+      `context: ${budget.frontier_bytes}/${budget.full_bytes} bytes (${budget.reduction_percent}% reduction; target ${budget.target_percent}%)`,
+    ].join("\n");
+  }
 
   const lines = [
     `agentlintel explain @ ${result.root}`,

@@ -10,6 +10,7 @@ const { readYaml, readJson, walk, matchAny, sameDirectory } = require("./io");
 const {
   runRule,
   prepareRule,
+  requiredRegexViolations,
   collectExemptionSpans,
   layerOfPath,
   validateLayersRule,
@@ -710,11 +711,11 @@ function preparedRuleSet(rulesDoc) {
       "must_match", "message", "$comment",
     ];
     const engineKeys = {
-      regex: ["forbidden", "flags"],
+      regex: ["forbidden", "required", "when", "flags", "match"],
       "error-codes": ["categories"],
       exemptions: ["marker", "required_fields", "within_lines"],
       layers: ["layers", "allowed", "aliases"],
-      external: ["run", "adapter", "format", "scope", "ok_exits", "timeout_ms", "file"],
+      external: ["run", "adapter", "format", "scope", "ok_exits", "timeout_ms", "file", "evidence"],
     };
     const allowedKeys = new Set([...commonKeys, ...engineKeys[rule.engine]]);
     for (const key of Object.keys(rule))
@@ -738,10 +739,22 @@ function preparedRuleSet(rulesDoc) {
     if (typeof rule.message !== "string" || !rule.message.trim())
       reject("message must be a non-empty string");
 
-    if (rule.engine === "regex" &&
-        (!Array.isArray(rule.forbidden) || !rule.forbidden.length ||
-          rule.forbidden.some((pattern) => typeof pattern !== "string" || !pattern)))
-      reject("regex rules require forbidden patterns");
+    if (rule.engine === "regex") {
+      const validPatterns = (value) => Array.isArray(value) && value.length &&
+        value.every((pattern) => typeof pattern === "string" && pattern);
+      if (!validPatterns(rule.forbidden) && !validPatterns(rule.required))
+        reject("regex rules require forbidden or required patterns");
+      if (rule.forbidden != null && !validPatterns(rule.forbidden))
+        reject("regex forbidden must be a non-empty string array");
+      if (rule.required != null && !validPatterns(rule.required))
+        reject("regex required must be a non-empty string array");
+      if (rule.when != null && !validPatterns(rule.when))
+        reject("regex when must be a non-empty string array");
+      if (rule.when != null && !validPatterns(rule.required))
+        reject("regex when requires positive required patterns");
+      if (rule.match != null && !["line", "file"].includes(rule.match))
+        reject("regex match must be line or file");
+    }
     if (rule.engine === "error-codes" &&
         (!Array.isArray(rule.categories) || !rule.categories.length ||
           rule.categories.some((category) => typeof category !== "string" || !category)))
@@ -753,6 +766,9 @@ function preparedRuleSet(rulesDoc) {
     if (rule.engine === "exemptions" && Array.isArray(rule.required_fields) &&
         !rule.required_fields.includes("Expires"))
       reject("exemptions required_fields must include Expires");
+    if (rule.engine === "exemptions" && Array.isArray(rule.required_fields) &&
+        !rule.required_fields.includes("Decision"))
+      reject("exemptions required_fields must include Decision");
     if (rule.engine === "exemptions" &&
         (!Number.isInteger(rule.within_lines) || rule.within_lines < 1))
       reject("exemptions rules require a positive within_lines integer");
@@ -775,6 +791,10 @@ function preparedRuleSet(rulesDoc) {
     if (rule.engine === "external") {
       if (typeof rule.run !== "string" || !rule.run.trim() || rule.run.includes("\0"))
         reject("external rules require run");
+      if (!Array.isArray(rule.evidence) || !rule.evidence.length ||
+          rule.evidence.some((file) =>
+            !isCanonicalRepoScope(file) || /[*?]/.test(file)))
+        reject("external rules require non-empty exact evidence file paths");
       const adapter = rule.adapter || rule.format || "jsonl";
       if (!validAdapters.has(adapter))
         reject(`unknown external adapter '${adapter}'`);
@@ -813,6 +833,21 @@ function ruleScansFile(rule, filePath) {
     (TEXT_EXT.test(filePath) || explicitScope) && ruleApplies(rule, filePath);
 }
 
+function changedBaselineEntries(root, rule, changed, base) {
+  if (!changed || !Array.isArray(changed.files) || changed.baseResolved === false ||
+      !(rule.when || []).length)
+    return [];
+  const entries = [];
+  const baselineRef = base || "HEAD";
+  for (const filePath of changed.files) {
+    if (!ruleScansFile(rule, filePath)) continue;
+    const baseline = gitBlob(root, baselineRef, filePath);
+    if (baseline.status === "read" && Buffer.byteLength(baseline.content) <= MAX_SCAN_BYTES)
+      entries.push({ filePath, content: baseline.content });
+  }
+  return entries;
+}
+
 function runRulesOnFiles(root, rulesDoc, files, options = {}) {
   const violations = [];
   const spans = [];
@@ -820,6 +855,11 @@ function runRulesOnFiles(root, rulesDoc, files, options = {}) {
   const exemptionRule = rules.find((rule) => rule.engine === "exemptions");
   const nonRegularPaths = options.nonRegularPaths || new Map();
   const ruleFileCounts = new Map(rules.map((rule) => [rule.id, 0]));
+  const requiredEntries = new Map(
+    rules
+      .filter((rule) => rule.engine === "regex" && rule._requiredRegexes.length)
+      .map((rule) => [rule.id, []]),
+  );
 
   if (!rules.length) return { violations, spans, ruleFileCounts };
 
@@ -885,6 +925,8 @@ function runRulesOnFiles(root, rulesDoc, files, options = {}) {
           runRule(rule, filePath, content, { skipApplies: true }),
         ),
       );
+      if (requiredEntries.has(rule.id))
+        requiredEntries.get(rule.id).push({ filePath, content });
     }
 
     if (
@@ -898,6 +940,23 @@ function runRulesOnFiles(root, rulesDoc, files, options = {}) {
         }),
       );
   }
+
+  if (!options.partial)
+    for (const rule of rules)
+      if (requiredEntries.has(rule.id))
+        violations.push(
+          ...annotateRuleViolations(
+            rule,
+            requiredRegexViolations(rule, requiredEntries.get(rule.id), {
+              baselineEntries: changedBaselineEntries(
+                root,
+                rule,
+                options.changed,
+                options.base,
+              ),
+            }),
+          ),
+        );
 
   return { violations, spans, ruleFileCounts };
 }
@@ -1323,6 +1382,7 @@ function runFixtures(root, rulesDoc, options = {}) {
         // repository scan.
         const caseFiles = walk(caseDir, { skipDirs: new Set() })
           .filter((file) => file !== "expected.yaml");
+        const requiredEntries = [];
         for (const file of caseFiles) {
           const caseFile = path.join(caseDir, file);
           if (coveringNonRegular(nonRegularPaths, `${caseRel}/${file}`) ||
@@ -1336,9 +1396,14 @@ function runFixtures(root, rulesDoc, options = {}) {
             (rule.engine !== "layers" || layerOfPath(rule.layers || [], file))
           )
             exercisesRule = true;
-          if (ruleScansFile(rule, file))
+          if (ruleScansFile(rule, file)) {
             actual.push(...runRule(rule, file, content, { today: FIXTURE_TODAY }));
+            if (rule.engine === "regex" && rule._requiredRegexes.length)
+              requiredEntries.push({ filePath: file, content });
+          }
         }
+        if (rule.engine === "regex")
+          actual.push(...requiredRegexViolations(rule, requiredEntries));
       }
       if (!exercisesRule)
         problems.push("fixture contains no file in the rule's effective scope");
@@ -2101,6 +2166,14 @@ function detectRuleWeakening(oldDoc, newDoc) {
         !(Array.isArray(newRule.applies_to) && newRule.applies_to.length))
       findings.push(`rule '${id}' removed explicit scan scope for nonstandard file types`);
     if (oldRule.engine === "regex") {
+      for (const removed of missingFromNew(oldRule.required || [], newRule.required || []))
+        findings.push(`rule '${id}' removed required pattern ${JSON.stringify(removed)}`);
+      if (!(oldRule.when || []).length && (newRule.when || []).length)
+        findings.push(`rule '${id}' made required evidence conditional`);
+      for (const removed of missingFromNew(oldRule.when || [], newRule.when || []))
+        findings.push(`rule '${id}' removed required-evidence trigger ${JSON.stringify(removed)}`);
+      if ((oldRule.match || "line") !== (newRule.match || "line"))
+        findings.push(`rule '${id}' changed regex match mode from '${oldRule.match || "line"}' to '${newRule.match || "line"}'`);
       const oldFlags = new Set(String(oldRule.flags || ""));
       const newFlags = new Set(String(newRule.flags || ""));
       if (oldFlags.has("i") && !newFlags.has("i"))
@@ -2118,8 +2191,8 @@ function detectRuleWeakening(oldDoc, newDoc) {
 
     if (oldRule.engine === "exemptions") {
       for (const removed of missingFromNew(
-        oldRule.required_fields || ["Reason", "Approver", "Expires", "Owner"],
-        newRule.required_fields || ["Reason", "Approver", "Expires", "Owner"],
+        oldRule.required_fields || ["Reason", "Approver", "Expires", "Owner", "Decision"],
+        newRule.required_fields || ["Reason", "Approver", "Expires", "Owner", "Decision"],
       ))
         findings.push(`rule '${id}' removed required exemption field ${JSON.stringify(removed)}`);
       const oldWindow = oldRule.within_lines ?? 5;
@@ -2149,6 +2222,8 @@ function detectRuleWeakening(oldDoc, newDoc) {
         findings.push(`rule '${id}' changed external scope`);
       for (const added of addedToNew(oldRule.ok_exits || [0, 1], newRule.ok_exits || [0, 1]))
         findings.push(`rule '${id}' added accepted external exit ${added}`);
+      for (const removed of missingFromNew(oldRule.evidence || [], newRule.evidence || []))
+        findings.push(`rule '${id}' removed external evidence ${JSON.stringify(removed)}`);
     }
 
     const oldAliases = objectMap(oldRule.aliases);
@@ -2243,6 +2318,125 @@ function newDecisionProblem(file, content) {
   return null;
 }
 
+function authorizationDate(value) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value))
+    return null;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(`${value}T00:00:00Z`);
+  return date.getUTCFullYear() === year && date.getUTCMonth() + 1 === month &&
+      date.getUTCDate() === day
+    ? date
+    : null;
+}
+
+function exactObjectKeys(value, expected) {
+  return value && typeof value === "object" && !Array.isArray(value) &&
+    JSON.stringify(Object.keys(value).sort()) === JSON.stringify([...expected].sort());
+}
+
+function parseDecisionAuthorizations(file, content) {
+  const fileMatch = path.posix.basename(file).match(ADR_FILE);
+  const decision = fileMatch ? `ADR-${fileMatch[1]}` : null;
+  const exemptions = [];
+  const weakenings = [];
+  const problems = [];
+  const lines = content.replace(/\r\n/g, "\n").split("\n");
+
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index].trim();
+    if (!line.startsWith("Authorizes-")) continue;
+    const match = line.match(/^(Authorizes-(?:Exemption|Weakening)):\s*(\{.*\})$/);
+    if (!match) {
+      problems.push(`authorization on line ${index + 1} must be one-line JSON`);
+      continue;
+    }
+    let value;
+    try {
+      value = JSON.parse(match[2]);
+    } catch {
+      problems.push(`authorization on line ${index + 1} is not valid JSON`);
+      continue;
+    }
+
+    if (match[1] === "Authorizes-Exemption") {
+      if (!exactObjectKeys(value, ["rule", "file", "expires"]) ||
+          !validEntryId(value.rule) ||
+          !isCanonicalRepoScope(value.file) || /[*?]/.test(value.file) ||
+          !authorizationDate(value.expires)) {
+        problems.push(
+          `exemption authorization on line ${index + 1} needs exact rule, file, and real expires values`,
+        );
+        continue;
+      }
+      exemptions.push({ ...value, decision, source: file });
+    } else {
+      if (!exactObjectKeys(value, ["artifact", "finding"]) ||
+          !isCanonicalRepoScope(value.artifact) || /[*?]/.test(value.artifact) ||
+          typeof value.finding !== "string" || !value.finding.trim()) {
+        problems.push(
+          `weakening authorization on line ${index + 1} needs exact artifact and finding values`,
+        );
+        continue;
+      }
+      weakenings.push({ ...value, decision, source: file });
+    }
+  }
+
+  return { exemptions, weakenings, problems };
+}
+
+function loadDecisionAuthorizations(root) {
+  const exemptions = [];
+  const weakenings = [];
+  const problems = [];
+  const decisionDir = path.join(root, KERNEL_DIR, "decisions");
+  if (!safeRepoDirectory(root, decisionDir)) return { exemptions, weakenings, problems };
+  for (const name of fs.readdirSync(decisionDir).sort()) {
+    if (!ADR_FILE.test(name)) continue;
+    const file = `${KERNEL_DIR}/decisions/${name}`;
+    const absolute = path.join(root, file);
+    if (!safeRegularRepoFile(root, absolute)) continue;
+    const parsed = parseDecisionAuthorizations(file, fs.readFileSync(absolute, "utf8"));
+    exemptions.push(...parsed.exemptions);
+    weakenings.push(...parsed.weakenings);
+    problems.push(...parsed.problems.map((message) => ({ file, message })));
+  }
+  return { exemptions, weakenings, problems };
+}
+
+function weakeningAuthorized(authorizations, artifact, finding) {
+  return (authorizations || []).some(
+    (authorization) => authorization.artifact === artifact &&
+      authorization.finding === finding,
+  );
+}
+
+function authorizeExemptionSpans(spans, authorizations) {
+  const authorized = [];
+  const violations = [];
+  for (const span of spans || []) {
+    const rules = span.rules.filter((rule) =>
+      (authorizations || []).some((authorization) =>
+        authorization.decision === span.decision &&
+        authorization.rule === rule &&
+        authorization.file === span.file &&
+        authorization.expires === span.expires,
+      ),
+    );
+    for (const rule of span.rules)
+      if (!rules.includes(rule))
+        violations.push({
+          rule: "exemption.audited",
+          file: span.file,
+          line: span.fromLine,
+          message: `Exemption is not exactly authorized by ${span.decision} for rule '${rule}', file '${span.file}', and expiry '${span.expires}'.`,
+          severity: "error",
+        });
+    if (rules.length) authorized.push({ ...span, rules });
+  }
+  return { spans: authorized, violations };
+}
+
 function decisionNumber(file) {
   const match = path.posix.basename(file).match(ADR_FILE);
   return match ? match[1].replace(/^0+(?=\d)/, "") : null;
@@ -2284,6 +2478,8 @@ function checkDecisionIntegrity(
           message: `decision number ADR-${number} is already in use by ${count} files`,
         });
   }
+  for (const problem of loadDecisionAuthorizations(root).problems)
+    violations.push(problem);
   if (!changed || changed.files === null)
     return { status: `skipped (${changed ? changed.note : "no git"})`, added, violations };
   if (base && !changed.baseResolved)
@@ -2357,6 +2553,19 @@ function validateRuleDecisionRefs(
   for (const rule of rules || [])
     for (const ref of rule.adr == null ? [] : Array.isArray(rule.adr) ? rule.adr : [rule.adr])
       if (!available.has(ref)) problems.push(`RULE-CONFIG [${rule.id}] adr '${ref}' has no decision file`);
+  return problems;
+}
+
+function validateExternalEvidenceFiles(root, rules) {
+  const problems = [];
+  for (const rule of rules || []) {
+    if (rule.engine !== "external") continue;
+    for (const file of rule.evidence || [])
+      if (!safeRegularRepoFile(root, path.join(root, file)))
+        problems.push(
+          `RULE-CONFIG [${rule.id}] external evidence '${file}' must be a regular repository file`,
+        );
+  }
   return problems;
 }
 
@@ -2488,7 +2697,7 @@ function checkYamlRatcheting(
   file,
   currentDoc,
   detect,
-  { base = null, changed = null, adrFiles = [] } = {},
+  { base = null, changed = null, authorizations = [] } = {},
 ) {
   if (!changed || changed.files === null)
     return { status: `skipped (${changed ? changed.note : "no git"})`, findings: [], ok: true };
@@ -2521,10 +2730,16 @@ function checkYamlRatcheting(
     };
   }
   const findings = detect(baselineDoc, currentDoc);
+  const unauthorized = findings.filter(
+    (finding) => !weakeningAuthorized(authorizations, file, finding),
+  );
   return {
-    status: findings.length ? `${findings.length} potential weakening(s)` : "checked, no weakening",
+    status: findings.length
+      ? `${findings.length} potential weakening(s), ${unauthorized.length} unauthorized`
+      : "checked, no weakening",
     findings,
-    ok: findings.length === 0 || adrFiles.length > 0,
+    unauthorized,
+    ok: unauthorized.length === 0,
   };
 }
 
@@ -2557,19 +2772,56 @@ function detectExemplarWeakening(oldDoc, newDoc) {
 }
 
 function checkExemplarRatcheting(root, exemplarsDoc, options) {
-  return checkYamlRatcheting(
+  const artifact = `${KERNEL_DIR}/exemplars.yaml`;
+  const registry = checkYamlRatcheting(
     root,
-    `${KERNEL_DIR}/exemplars.yaml`,
+    artifact,
     exemplarsDoc || { exemplars: [] },
     detectExemplarWeakening,
     options,
   );
+  if (!options.changed || !Array.isArray(options.changed.files) ||
+      options.changed.baseResolved === false)
+    return registry;
+  const baseline = gitBlob(root, options.base || "HEAD", artifact);
+  if (baseline.status !== "read") return registry;
+  let baselineDoc;
+  try {
+    baselineDoc = YAML.parse(baseline.content, { maxAliasCount: 0 });
+  } catch {
+    return registry;
+  }
+  const contentFindings = [];
+  for (const exemplar of Array.isArray(baselineDoc.exemplars)
+    ? baselineDoc.exemplars
+    : []) {
+    const exemplarPath = exemplar && typeof exemplar.path === "string"
+      ? exemplar.path
+      : null;
+    if (!exemplarPath) continue;
+    for (const changedFile of options.changed.files)
+      if (changedFile === exemplarPath || changedFile.startsWith(`${exemplarPath}/`))
+        contentFindings.push(
+          `exemplar '${exemplar.id}' implementation changed at '${changedFile}'`,
+        );
+  }
+  const findings = [...new Set([...(registry.findings || []), ...contentFindings])];
+  const unauthorized = findings.filter((finding) =>
+    !weakeningAuthorized(options.authorizations, artifact, finding));
+  return {
+    status: findings.length
+      ? `${findings.length} potential weakening(s), ${unauthorized.length} unauthorized`
+      : registry.status,
+    findings,
+    unauthorized,
+    ok: unauthorized.length === 0,
+  };
 }
 
 function checkGuardRatcheting(
   root,
   guard,
-  { base = null, changed = null, adrFiles = [] } = {},
+  { base = null, changed = null, authorizations = [] } = {},
 ) {
   const guardFile = `${KERNEL_DIR}/guard.json`;
   if (!changed || changed.files === null)
@@ -2607,19 +2859,22 @@ function checkGuardRatcheting(
     };
   }
   const findings = detectGuardWeakening(baselineGuard, guard);
+  const unauthorized = findings.filter((finding) =>
+    !weakeningAuthorized(authorizations, guardFile, finding));
   return {
     status: findings.length
       ? `${findings.length} potential weakening(s)`
       : "checked, no weakening",
     findings,
-    ok: findings.length === 0 || adrFiles.length > 0,
+    unauthorized,
+    ok: unauthorized.length === 0,
   };
 }
 
 function checkRuleRatcheting(
   root,
   rulesDoc,
-  { base = null, changed = null, adrFiles = [] } = {},
+  { base = null, changed = null, authorizations = [] } = {},
 ) {
   if (!changed || changed.files === null)
     return {
@@ -2627,8 +2882,6 @@ function checkRuleRatcheting(
       findings: [],
       ok: true,
     };
-  if (!changed.files.includes(`${KERNEL_DIR}/rules.yaml`))
-    return { status: "unchanged", findings: [], ok: true };
   if (base && !changed.baseResolved)
     return {
       status: `base '${base}' unavailable`,
@@ -2659,13 +2912,21 @@ function checkRuleRatcheting(
   }
 
   const findings = detectRuleWeakening(baselineRules, rulesDoc || { rules: [] });
+  for (const rule of rulesById(baselineRules).values())
+    if (rule.engine === "external")
+      for (const evidence of rule.evidence || [])
+        if (changed.files.includes(evidence))
+          findings.push(`rule '${rule.id}' external evidence changed at '${evidence}'`);
+  const artifact = `${KERNEL_DIR}/rules.yaml`;
+  const unauthorized = findings.filter((finding) =>
+    !weakeningAuthorized(authorizations, artifact, finding));
   return {
     status: findings.length
       ? `checked ${findings.length} rule-set weakening(s)`
       : "checked, no weakening",
     findings,
-    adrFiles,
-    ok: findings.length === 0 || adrFiles.length > 0,
+    unauthorized,
+    ok: unauthorized.length === 0,
   };
 }
 
@@ -2756,6 +3017,8 @@ function verify(root, options = {}) {
       ruleSet.all,
       { nonRegularPaths },
     ));
+  if (ruleSet)
+    ruleSet.configErrors.push(...validateExternalEvidenceFiles(root, ruleSet.all));
   const ruleIndex = ruleSet
     ? new Map(ruleSet.all.map((rule) => [rule.id, rule]))
     : new Map();
@@ -2771,6 +3034,11 @@ function verify(root, options = {}) {
     changed,
     nonRegularPaths,
   });
+  const decisionAuthorizations = loadDecisionAuthorizations(root);
+  const addedDecisions = new Set(decisions.added);
+  const weakeningAuthorizations = decisionAuthorizations.weakenings.filter(
+    (authorization) => addedDecisions.has(authorization.source),
+  );
 
   let scanFiles;
   const treeFiles = inventory.files.filter((file) => !isSkippedPrefix(file));
@@ -2784,10 +3052,13 @@ function verify(root, options = {}) {
   }
 
   const { violations: fileViolations, spans, ruleFileCounts } = kernel.rules
-    ? runRulesOnFiles(root, kernel.rules, scanFiles, {
-        rules: ruleSet.fileRules,
-        nonRegularPaths,
-      })
+      ? runRulesOnFiles(root, kernel.rules, scanFiles, {
+          rules: ruleSet.fileRules,
+          nonRegularPaths,
+          partial: diffMode,
+          changed,
+          base,
+        })
     : { violations: [], spans: [], ruleFileCounts: new Map() };
   const external =
     kernel.rules && !diffMode
@@ -2805,10 +3076,18 @@ function verify(root, options = {}) {
             : [],
         };
 
-  const allViolations = [...fileViolations, ...external.violations];
+  const authorizedExemptions = authorizeExemptionSpans(
+    spans,
+    decisionAuthorizations.exemptions,
+  );
+  const allViolations = [
+    ...fileViolations,
+    ...external.violations,
+    ...authorizedExemptions.violations,
+  ];
   applySuppression(
     allViolations,
-    spans,
+    authorizedExemptions.spans,
     new Set(ruleSet ? ruleSet.all.filter((rule) => rule.engine === "exemptions").map((rule) => rule.id) : []),
   );
 
@@ -2838,22 +3117,22 @@ function verify(root, options = {}) {
     fact_ratchet: checkFactRatcheting(root, kernel.facts, {
       base,
       changed,
-      adrFiles: decisions.added,
+      authorizations: weakeningAuthorizations,
     }),
     exemplar_ratchet: checkExemplarRatcheting(root, kernel.exemplars, {
       base,
       changed,
-      adrFiles: decisions.added,
+      authorizations: weakeningAuthorizations,
     }),
     ratchet: checkRuleRatcheting(root, kernel.rules, {
       base,
       changed,
-      adrFiles: decisions.added,
+      authorizations: weakeningAuthorizations,
     }),
     guard_ratchet: checkGuardRatcheting(root, kernel.guard, {
       base,
       changed,
-      adrFiles: decisions.added,
+      authorizations: weakeningAuthorizations,
     }),
     decisions,
     exemplars: kernel.exemplars
@@ -3005,24 +3284,24 @@ function verify(root, options = {}) {
     );
 
   if (result.ratchet && !result.ratchet.ok) {
-    const remedy = "add a new .agentlintel/decisions/ADR-*.md in the same diff";
-    for (const finding of result.ratchet.findings)
+    const remedy = "add an exact Authorizes-Weakening record to a new ADR in the same diff";
+    for (const finding of result.ratchet.unauthorized || result.ratchet.findings)
       errors.push(`RATCHET [rules.yaml] ${finding}; ${remedy}`);
   }
   if (result.fact_ratchet && !result.fact_ratchet.ok) {
-    const remedy = "add a new .agentlintel/decisions/ADR-*.md in the same diff";
-    for (const finding of result.fact_ratchet.findings)
+    const remedy = "add an exact Authorizes-Weakening record to a new ADR in the same diff";
+    for (const finding of result.fact_ratchet.unauthorized || result.fact_ratchet.findings)
       errors.push(`RATCHET [facts.yaml] ${finding}; ${remedy}`);
   }
   if (result.exemplar_ratchet && !result.exemplar_ratchet.ok) {
-    const remedy = "add a new .agentlintel/decisions/ADR-*.md in the same diff";
-    for (const finding of result.exemplar_ratchet.findings)
+    const remedy = "add an exact Authorizes-Weakening record to a new ADR in the same diff";
+    for (const finding of result.exemplar_ratchet.unauthorized || result.exemplar_ratchet.findings)
       errors.push(`RATCHET [exemplars.yaml] ${finding}; ${remedy}`);
   }
   if (result.guard_ratchet && !result.guard_ratchet.ok)
-    for (const finding of result.guard_ratchet.findings)
+    for (const finding of result.guard_ratchet.unauthorized || result.guard_ratchet.findings)
       errors.push(
-        `RATCHET [guard.json] ${finding}; add a new .agentlintel/decisions/ADR-*.md in the same diff`,
+        `RATCHET [guard.json] ${finding}; add an exact Authorizes-Weakening record to a new ADR in the same diff`,
       );
 
   for (const exemplar of result.exemplars)

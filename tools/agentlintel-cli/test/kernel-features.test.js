@@ -34,7 +34,7 @@ const DEEP_IMPORT_RULE = [
   '    severity: error',
   '    engine: exemptions',
   '    marker: "AGENTLINTEL-EXEMPT"',
-  '    required_fields: [Reason, Approver, Expires, Owner]',
+  '    required_fields: [Reason, Approver, Expires, Owner, Decision]',
   '    within_lines: 5',
   '    excludes: ["**/*.md"]',
   '    message: "Exemptions must declare Reason, Approver, Expires, Owner."',
@@ -43,12 +43,24 @@ const DEEP_IMPORT_RULE = [
 test('a valid exemption marker suppresses the named rule within its span', () => {
   const root = tmpDir();
   write(root, '.agentlintel/rules.yaml', DEEP_IMPORT_RULE);
+  write(root, '.agentlintel/decisions/ADR-99-test-exemption.md', [
+    '# ADR-99: Test exemption',
+    '',
+    'Accepted: 2026-07-09',
+    '',
+    'Decision:',
+    '',
+    'Authorize the bounded test exception.',
+    '',
+    'Authorizes-Exemption: {"rule":"slice.no-deep-imports","file":"a.ts","expires":"2099-01-01"}',
+  ].join('\n'));
   write(root, 'a.ts', [
     '// AGENTLINTEL-EXEMPT: slice.no-deep-imports',
     '// Reason: strangler seam',
     '// Approver: arch@example.com',
     '// Expires: 2099-01-01',
     '// Owner: team-core',
+    '// Decision: ADR-99',
     "import { x } from 'slices/Billing/domain/rules';",
   ].join('\n'));
   const result = verify(root, { skipFixtures: true });
@@ -68,6 +80,7 @@ test('an expired exemption suppresses nothing and fails exemption.audited', () =
     '// Approver: arch@example.com',
     '// Expires: 2020-01-01',
     '// Owner: team-core',
+    '// Decision: ADR-99',
     "import { x } from 'slices/Billing/domain/rules';",
   ].join('\n'));
   const result = verify(root, { skipFixtures: true });
@@ -86,6 +99,7 @@ test('a marker for a different rule does not suppress', () => {
       '// Approver: a',
       '// Expires: 2099-01-01',
       '// Owner: o',
+      '// Decision: ADR-99',
     ].join('\n'),
   );
   const violations = [{ rule: 'slice.no-deep-imports', file: 'a.ts', line: 6, message: 'm', severity: 'error' }];
@@ -262,4 +276,45 @@ test('excluded files are skipped before file contents are read', () => {
   } finally {
     fs.readFileSync = readFileSync;
   }
+});
+
+test('free-text approval and an unbacked Decision cannot self-authorize an exemption', () => {
+  const root = tmpDir();
+  write(root, '.agentlintel/rules.yaml', DEEP_IMPORT_RULE);
+  write(root, 'a.ts', [
+    '// AGENTLINTEL-EXEMPT: slice.no-deep-imports',
+    '// Reason: agent wants the gate green',
+    '// Approver: definitely-a-human',
+    '// Expires: 2099-01-01',
+    '// Owner: candidate-agent',
+    '// Decision: ADR-404',
+    "import { x } from 'slices/Billing/domain/rules';",
+  ].join('\n'));
+  const result = verify(root, { skipFixtures: true });
+  assert.strictEqual(result.exempted_count, 0);
+  assert.ok(result.errors.some((error) =>
+    error.includes('exemption.audited') && error.includes('not exactly authorized')),
+  result.errors.join('\n'));
+  assert.ok(result.errors.some((error) => error.includes('slice.no-deep-imports')),
+    result.errors.join('\n'));
+});
+
+test('required regex evidence is checked on full trees and skipped for partial scans', () => {
+  const root = tmpDir();
+  write(root, 'src/query.cs', 'public string CancellationReason { get; init; }');
+  const rulesDoc = { rules: [{
+    id: 'feature.read-surfaces',
+    severity: 'error',
+    engine: 'regex',
+    applies_to: ['src/**'],
+    required: ['CancellationReason', 'CancellationRequestedAt'],
+    message: 'Expose cancellation metadata.',
+  }] };
+
+  const full = runRulesOnFiles(root, rulesDoc, ['src/query.cs']);
+  assert.strictEqual(full.violations.length, 1);
+  assert.match(full.violations[0].message, /CancellationRequestedAt/);
+
+  const partial = runRulesOnFiles(root, rulesDoc, ['src/query.cs'], { partial: true });
+  assert.deepStrictEqual(partial.violations, []);
 });

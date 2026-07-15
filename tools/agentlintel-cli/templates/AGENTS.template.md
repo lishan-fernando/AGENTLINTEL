@@ -28,9 +28,10 @@ If you must break a rule, use an exemption with every field:
 // Approver: <who signed off>
 // Expires: <YYYY-MM-DD>
 // Owner: <team or person>
+// Decision: ADR-<number>
 ```
 
-Expired or incomplete exemptions fail.
+Expired, incomplete, or ADR-unauthorized exemptions fail.
 
 ## Work like this
 

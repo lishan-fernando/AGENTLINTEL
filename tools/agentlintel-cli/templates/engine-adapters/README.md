@@ -9,6 +9,7 @@ Use `adapter: command-status` for any checker that exits non-zero on drift:
 - id: architecture.contract
   severity: error
   engine: external
+  evidence: [package.json, package-lock.json]
   adapter: command-status
   scope: tree
   run: "npm run architecture:check"
