@@ -45,6 +45,9 @@ Expired, incomplete, or ADR-unauthorized exemptions fail.
 ## Principles (advice, not machine-enforced)
 
 - Don't abstract until duplication appears three times with identical meaning.
+- Implement only current acceptance criteria; reuse existing code and prefer
+  standard-library or native platform features before adding a dependency.
+- Simplify along business or contract boundaries, not arbitrary technical layers.
 - Shared code is generic; product-specific code belongs in the pattern's
   business/module boundary.
 - Cross-boundary access goes through public contracts.

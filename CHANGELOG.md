@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- Adds Git-derived `enforcement: no-new` for brownfield built-in rules: legacy
+  findings stay visible, introduced findings fail, resolved debt is counted,
+  duplicate findings cannot hide behind one baseline occurrence, and Git
+  renames preserve identity without a stored violation snapshot.
+- Fails closed when a no-new baseline cannot be proven and ratchets changing an
+  existing all-violations rule into the weaker brownfield mode.
+- Extracts external-output adapters and pure rule-entry scanning from verifier
+  orchestration, then freezes a lower per-file line budget.
+- Machine-checks the CLI's no-build and single-runtime-dependency promises and
+  consolidates YAGNI, reuse-first, native-first, and architecture-aware
+  simplification as advice rather than unverifiable rules.
+
 ## v2.0.0-alpha.13 - 2026-07-15
 
 Release pipeline repair.

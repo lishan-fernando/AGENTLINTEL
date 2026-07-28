@@ -56,9 +56,13 @@ migrator keeps derivable checks, marks the rest `pending`, and writes
 2. Fix stale facts and missing exemplars.
 3. Turn on fixtures and project-native external engines before treating deep
    architecture claims as blockers.
-4. Turn warnings into blockers with a full trusted
+4. For built-in file rules with existing debt, set `enforcement: no-new`.
+   AgentLintel derives the legacy set from the target Git commit; do not create
+   or maintain a violation snapshot file.
+5. Turn warnings and introduced violations into blockers with a full trusted
    `verify --strict --base <target-sha>` run; strict rejects skipped work.
-5. Use bounded exemptions only for reviewed debt:
+6. Use bounded exemptions only for reviewed exceptions—not as a bulk legacy
+   baseline:
    `Reason`, `Approver`, `Expires`, `Owner`.
 
 ## Native Engines

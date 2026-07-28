@@ -11,10 +11,16 @@ const {
   runRule,
   prepareRule,
   requiredRegexViolations,
-  collectExemptionSpans,
   layerOfPath,
   validateLayersRule,
 } = require("./engines");
+const { parseExternalOutput } = require("./external-adapters");
+const { scanRuleEntries } = require("./rule-scanner");
+const { applyViolationBaseline } = require("./violation-ratchet");
+const {
+  readBaselineRuleEntries,
+  renameMapFromBase,
+} = require("./git-baseline");
 
 const KERNEL_DIR = ".agentlintel";
 const SKIP_PREFIXES = [`${KERNEL_DIR}/conformance`, `${KERNEL_DIR}/reports`];
@@ -653,13 +659,6 @@ function ruleApplies(rule, filePath) {
   return !excludes || !matchAny(excludes, filePath);
 }
 
-function annotateRuleViolations(rule, violations) {
-  if (!rule || !rule.adr) return violations;
-  for (const violation of violations)
-    if (!violation.adr) violation.adr = rule.adr;
-  return violations;
-}
-
 function preparedRuleSet(rulesDoc) {
   const all = [];
   const configErrors = [];
@@ -708,7 +707,7 @@ function preparedRuleSet(rulesDoc) {
     };
     const commonKeys = [
       "id", "severity", "engine", "adr", "applies_to", "excludes",
-      "must_match", "message", "$comment",
+      "must_match", "enforcement", "message", "$comment",
     ];
     const engineKeys = {
       regex: ["forbidden", "required", "when", "flags", "match"],
@@ -736,6 +735,11 @@ function preparedRuleSet(rulesDoc) {
       reject("excludes must be a string array");
     if (rule.must_match != null && typeof rule.must_match !== "boolean")
       reject("must_match must be a boolean");
+    if (rule.enforcement != null && rule.enforcement !== "no-new")
+      reject("enforcement must be no-new when present");
+    if (rule.enforcement === "no-new" &&
+        ["external", "exemptions"].includes(rule.engine))
+      reject(`enforcement: no-new does not support the ${rule.engine} engine`);
     if (typeof rule.message !== "string" || !rule.message.trim())
       reject("message must be a non-empty string");
 
@@ -849,19 +853,13 @@ function changedBaselineEntries(root, rule, changed, base) {
 }
 
 function runRulesOnFiles(root, rulesDoc, files, options = {}) {
-  const violations = [];
-  const spans = [];
   const rules = options.rules || preparedRuleSet(rulesDoc).fileRules;
-  const exemptionRule = rules.find((rule) => rule.engine === "exemptions");
   const nonRegularPaths = options.nonRegularPaths || new Map();
-  const ruleFileCounts = new Map(rules.map((rule) => [rule.id, 0]));
-  const requiredEntries = new Map(
-    rules
-      .filter((rule) => rule.engine === "regex" && rule._requiredRegexes.length)
-      .map((rule) => [rule.id, []]),
-  );
+  const inputViolations = [];
+  const entries = [];
 
-  if (!rules.length) return { violations, spans, ruleFileCounts };
+  if (!rules.length)
+    return { violations: [], spans: [], ruleFileCounts: new Map() };
 
   for (const filePath of files) {
     if (isSkippedPrefix(filePath)) continue;
@@ -874,7 +872,7 @@ function runRulesOnFiles(root, rulesDoc, files, options = {}) {
       const targetKind = mode ? symlinkTargetKind(absolutePath, mode) : "unknown";
       if (mode && rules.some((rule) =>
         nonRegularRuleGoverns(rule, filePath, mode, targetKind))) {
-        violations.push({
+        inputViolations.push({
           rule: "agentlintel.scan-failure",
           file: filePath,
           line: 0,
@@ -894,7 +892,7 @@ function runRulesOnFiles(root, rulesDoc, files, options = {}) {
         throw new Error("path is not a regular repository file");
       const byteCount = fs.statSync(absolutePath).size;
       if (byteCount > MAX_SCAN_BYTES) {
-        violations.push({
+        inputViolations.push({
           rule: "agentlintel.scan-limit",
           file: filePath,
           line: 0,
@@ -905,7 +903,7 @@ function runRulesOnFiles(root, rulesDoc, files, options = {}) {
       }
       content = fs.readFileSync(absolutePath, "utf8");
     } catch (error) {
-      violations.push({
+      inputViolations.push({
         rule: "agentlintel.scan-failure",
         file: filePath,
         line: 0,
@@ -914,51 +912,21 @@ function runRulesOnFiles(root, rulesDoc, files, options = {}) {
       });
       continue;
     }
-
-    for (const rule of applicable) {
-      // A layers rule only "covers" a file that lands in a declared layer.
-      if (rule.engine !== "layers" || layerOfPath(rule.layers || [], filePath))
-        ruleFileCounts.set(rule.id, ruleFileCounts.get(rule.id) + 1);
-      violations.push(
-        ...annotateRuleViolations(
-          rule,
-          runRule(rule, filePath, content, { skipApplies: true }),
-        ),
-      );
-      if (requiredEntries.has(rule.id))
-        requiredEntries.get(rule.id).push({ filePath, content });
-    }
-
-    if (
-      exemptionRule &&
-      content.includes(exemptionRule._marker) &&
-      ruleApplies(exemptionRule, filePath)
-    )
-      spans.push(
-        ...collectExemptionSpans(exemptionRule, filePath, content, {
-          skipApplies: true,
-        }),
-      );
+    entries.push({ filePath, content });
   }
 
-  if (!options.partial)
-    for (const rule of rules)
-      if (requiredEntries.has(rule.id))
-        violations.push(
-          ...annotateRuleViolations(
-            rule,
-            requiredRegexViolations(rule, requiredEntries.get(rule.id), {
-              baselineEntries: changedBaselineEntries(
-                root,
-                rule,
-                options.changed,
-                options.base,
-              ),
-            }),
-          ),
-        );
-
-  return { violations, spans, ruleFileCounts };
+  const scanned = scanRuleEntries(rules, entries, {
+    partial: options.partial,
+    scansFile: ruleScansFile,
+    baselineEntries: (rule) => changedBaselineEntries(
+      root,
+      rule,
+      options.changed,
+      options.base,
+    ),
+  });
+  scanned.violations.unshift(...inputViolations);
+  return scanned;
 }
 
 function runExternalRules(root, rulesDoc, { run = true, rules = null } = {}) {
@@ -1032,215 +1000,6 @@ function externalOutcome(rule, { status = 0, stdout = "", stderr = "", error = n
       adr: rule.adr,
     }],
   };
-}
-
-function parseExternalOutput(rule, stdout, meta = {}) {
-  const adapter = rule.adapter || rule.format || "jsonl";
-  if (adapter === "dependency-cruiser")
-    return annotateRuleViolations(rule, parseDependencyCruiserOutput(rule, stdout));
-  if (adapter === "dotnet-test")
-    return annotateRuleViolations(rule, parseDotnetTestOutput(rule, stdout, meta));
-  if (adapter === "command-status" || adapter === "status")
-    return annotateRuleViolations(
-      rule,
-      parseCommandStatusOutput(rule, stdout, meta),
-    );
-
-  const violations = [];
-  for (const line of stdout.split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    if (!trimmed.startsWith("{"))
-      throw new Error("external JSONL output contains a non-JSON record");
-    try {
-      const entry = JSON.parse(trimmed);
-      if (!entry || typeof entry !== "object" || Array.isArray(entry) ||
-          typeof entry.file !== "string" || !entry.file ||
-          (entry.line != null && (!Number.isInteger(entry.line) || entry.line < 0)) ||
-          (entry.message != null && typeof entry.message !== "string"))
-        throw new Error("JSONL records require file and valid optional line/message fields");
-      violations.push({
-        rule: rule.id,
-        file: entry.file.replace(/\\/g, "/"),
-        line: entry.line ?? 0,
-        message: entry.message || rule.message || "external engine violation",
-        severity: rule.severity,
-      });
-    } catch (error) {
-      throw new Error(`invalid external JSONL record: ${error.message || error}`);
-    }
-  }
-  return annotateRuleViolations(rule, violations);
-}
-
-function parseCommandStatusOutput(rule, stdout, { status = 0, stderr = "" } = {}) {
-  if (status === 0) return [];
-
-  const lines = String((stdout || "") + "\n" + (stderr || ""))
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-  const summary =
-    lines.find((line) => !/^npm (ERR|WARN)!?/i.test(line)) ||
-    lines[0] ||
-    "command exited " + status;
-  const file =
-    rule.file ||
-    (rule.scope === "pr"
-      ? "(pr-policy)"
-      : rule.scope === "commit"
-        ? "(commit-policy)"
-        : "(command-status)");
-
-  return [
-    {
-      rule: rule.id,
-      file,
-      line: 0,
-      message: (rule.message || "external command failed") + ": " + summary,
-      severity: rule.severity,
-    },
-  ];
-}
-
-function jsonFromOutput(output) {
-  const trimmed = String(output || "").trim();
-  if (!trimmed) return null;
-  try {
-    return JSON.parse(trimmed);
-  } catch {
-    const start = trimmed.indexOf("{");
-    const end = trimmed.lastIndexOf("}");
-    if (start === -1 || end <= start) return null;
-    try {
-      return JSON.parse(trimmed.slice(start, end + 1));
-    } catch {
-      return null;
-    }
-  }
-}
-
-function ruleNameOf(value) {
-  if (!value) return null;
-  if (typeof value === "string") return value;
-  return value.name || value.rule || value.id || value.description || null;
-}
-
-function depCruiserViolation(rule, file, line, ruleName, from, to, comment) {
-  const edge = from && to ? `${from} -> ${to}` : from || to || file;
-  const message = [ruleName || rule.message || "dependency-cruiser violation", edge, comment]
-    .filter(Boolean)
-    .join(": ");
-  return {
-    rule: rule.id,
-    file: file || from || "(dependency-cruiser)",
-    line: line || 0,
-    message,
-    severity: rule.severity,
-  };
-}
-
-function parseDependencyCruiserOutput(rule, stdout) {
-  const doc = jsonFromOutput(stdout);
-  if (!doc || typeof doc !== "object" || Array.isArray(doc))
-    throw new Error("dependency-cruiser output must be a JSON object");
-
-  const violations = [];
-  const groups = [
-    doc.summary && doc.summary.violations,
-    doc.violations,
-    doc.validation && doc.validation.violations,
-  ].filter((value) => value != null);
-  if (groups.some((value) => !Array.isArray(value)))
-    throw new Error("dependency-cruiser violations must be arrays");
-  if (doc.modules != null && !Array.isArray(doc.modules))
-    throw new Error("dependency-cruiser modules must be an array");
-  if (!Array.isArray(doc.modules) && groups.length === 0)
-    throw new Error("dependency-cruiser output has no recognizable modules or violations array");
-  const reported = groups.flat();
-
-  for (const entry of reported) {
-    const from = entry.from || entry.source || entry.module || entry.file;
-    const to = entry.to || entry.resolved || entry.target || entry.dependency;
-    const name = ruleNameOf(entry.rule) || entry.ruleName || entry.name;
-    violations.push(
-      depCruiserViolation(
-        rule,
-        from,
-        entry.line || entry.fromLine,
-        name,
-        from,
-        to,
-        entry.comment || entry.message,
-      ),
-    );
-  }
-
-  for (const module of doc.modules || []) {
-    const source = module.source || module.sourceFile || module.path || module.name;
-    for (const dependency of module.dependencies || []) {
-      const target =
-        dependency.resolved ||
-        dependency.module ||
-        dependency.dependency ||
-        dependency.target;
-      for (const ruleEntry of dependency.rules || dependency.violations || [])
-        violations.push(
-          depCruiserViolation(
-            rule,
-            source,
-            dependency.line || dependency.lineNumber,
-            ruleNameOf(ruleEntry),
-            source,
-            target,
-            ruleEntry.comment || ruleEntry.message,
-          ),
-        );
-    }
-    for (const ruleEntry of module.rules || module.violations || [])
-      violations.push(
-        depCruiserViolation(
-          rule,
-          source,
-          module.line || module.lineNumber,
-          ruleNameOf(ruleEntry),
-          source,
-          null,
-          ruleEntry.comment || ruleEntry.message,
-        ),
-      );
-  }
-
-  return violations;
-}
-
-function parseDotnetTestOutput(rule, stdout, { status = 0, stderr = "" } = {}) {
-  const lines = String(`${stdout || ""}\n${stderr || ""}`)
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-  const failureLine =
-    lines.find((line) => /^Failed\s/.test(line)) ||
-    lines.find((line) => /Test Run Failed|Error Message|Failed!/i.test(line)) ||
-    lines.find(
-      (line) =>
-        /failed/i.test(line) &&
-        !/Failed:\s*0\b/i.test(line) &&
-        !/^Passed!/i.test(line),
-    );
-
-  if (status === 0 && !failureLine) return [];
-
-  const summary = failureLine || lines.slice(-1)[0] || `dotnet test exited ${status}`;
-  return [
-    {
-      rule: rule.id,
-      file: "(dotnet-test)",
-      line: 0,
-      message: `dotnet test failed: ${summary}`,
-      severity: rule.severity,
-    },
-  ];
 }
 
 function applySuppression(violations, spans, unsuppressible = new Set(["exemption.audited"])) {
@@ -1939,7 +1698,75 @@ function gitBlob(root, ref, filePath) {
   });
   return spawned.status === 0
     ? { status: "read", content: spawned.stdout }
-    : { status: "error", error: "baseline blob could not be read" };
+      : { status: "error", error: "baseline blob could not be read" };
+}
+
+function checkViolationBaseline(root, base, rules, currentViolations, { partial = false } = {}) {
+  const baselineRules = rules.filter((rule) => rule.enforcement === "no-new");
+  const empty = {
+    status: "not configured",
+    rules: [],
+    legacy: 0,
+    introduced: 0,
+    exempted_introduced: 0,
+    resolved: 0,
+    errors: [],
+    warnings: [],
+    ok: true,
+  };
+  if (!baselineRules.length) return empty;
+  const ruleIds = new Set(baselineRules.map((rule) => rule.id));
+  if (partial)
+    return {
+      ...empty,
+      status: "skipped (--diff)",
+      rules: [...ruleIds],
+      warnings: ["VIOLATION-BASE diff mode cannot prove the full legacy violation set"],
+      ok: false,
+    };
+  if (!base)
+    return {
+      ...empty,
+      status: "base unavailable",
+      rules: [...ruleIds],
+      warnings: ["VIOLATION-BASE enforcement: no-new requires --base <target-sha>"],
+      ok: false,
+    };
+
+  const baselineTree = readBaselineRuleEntries(root, base, baselineRules, {
+    isSkipped: isSkippedPrefix,
+    scansFile: ruleScansFile,
+    governsNonRegular: nonRegularRuleGoverns,
+    maxBytes: MAX_SCAN_BYTES,
+  });
+  if (baselineTree.errors.length)
+    return {
+      ...empty,
+      status: "baseline scan failed",
+      rules: [...ruleIds],
+      errors: baselineTree.errors.map((error) => `VIOLATION-BASE ${error}`),
+      ok: false,
+    };
+  const baselineScan = scanRuleEntries(baselineRules, baselineTree.entries, {
+    scansFile: ruleScansFile,
+  });
+  const renameResult = renameMapFromBase(root, base);
+  const counts = applyViolationBaseline(
+    currentViolations,
+    baselineScan.violations,
+    ruleIds,
+    renameResult.renames,
+  );
+  return {
+    status: `checked against ${base}`,
+    rules: [...ruleIds],
+    ...counts,
+    errors: [],
+    warnings: renameResult.error
+      ? [`VIOLATION-BASE ${renameResult.error}; renamed legacy findings may appear new`]
+      : [],
+    ok: !renameResult.error,
+  };
 }
 
 function trackedNonRegularFiles(root) {
@@ -2146,6 +1973,8 @@ function detectRuleWeakening(oldDoc, newDoc) {
       findings.push(
         `rule '${id}' severity was downgraded from '${oldRule.severity || "error"}' to '${newRule.severity || "error"}'`,
       );
+    if (oldRule.enforcement !== "no-new" && newRule.enforcement === "no-new")
+      findings.push(`rule '${id}' changed enforcement from all violations to no-new`);
     if (newRule.must_match === false && oldRule.must_match !== false)
       findings.push(`rule '${id}' was made dormant with must_match: false`);
     else if (oldRule.must_match === true && newRule.must_match !== true)
@@ -2996,6 +2825,7 @@ function verify(root, options = {}) {
         exemplar_ratchet: { status: "skipped (--bail)", findings: [], ok: true },
         ratchet: { status: "skipped (--bail)", findings: [], ok: true },
         guard_ratchet: { status: "skipped (--bail)", findings: [], ok: true },
+        violation_baseline: { status: "skipped (--bail)", rules: [], legacy: 0, introduced: 0, resolved: 0, errors: [], warnings: [], ok: true },
         decisions: { status: "skipped (--bail)", added: [], violations: [] },
         exemplars: [],
         adapters: [],
@@ -3090,6 +2920,13 @@ function verify(root, options = {}) {
     authorizedExemptions.spans,
     new Set(ruleSet ? ruleSet.all.filter((rule) => rule.engine === "exemptions").map((rule) => rule.id) : []),
   );
+  const violationBaseline = checkViolationBaseline(
+    root,
+    baseResolution.error ? null : base,
+    ruleSet ? ruleSet.fileRules : [],
+    allViolations,
+    { partial: diffMode },
+  );
 
   const result = {
     root: path.resolve(root),
@@ -3134,6 +2971,7 @@ function verify(root, options = {}) {
       changed,
       authorizations: weakeningAuthorizations,
     }),
+    violation_baseline: violationBaseline,
     decisions,
     exemplars: kernel.exemplars
       ? checkExemplars(root, kernel.exemplars, {
@@ -3149,6 +2987,8 @@ function verify(root, options = {}) {
 
   const errors = [...result.kernel_schema, ...result.rule_config];
   const warnings = [];
+  errors.push(...violationBaseline.errors);
+  warnings.push(...violationBaseline.warnings);
 
   if (dynamicUnavailable) {
     errors.push(
@@ -3210,7 +3050,7 @@ function verify(root, options = {}) {
   }
 
   for (const violation of result.rule_violations) {
-    if (violation.exempted) continue;
+    if (violation.exempted || violation.legacy) continue;
     (isWarningSeverity(violation.severity) ? warnings : errors).push(
       ruleViolationMessage(violation),
     );
@@ -3318,6 +3158,9 @@ function verify(root, options = {}) {
 
   result.exempted_count = result.rule_violations.filter(
     (violation) => violation.exempted,
+  ).length;
+  result.legacy_violation_count = result.rule_violations.filter(
+    (violation) => violation.legacy && !violation.exempted,
   ).length;
 
   if (options.mode === "warn") {

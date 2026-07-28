@@ -20,6 +20,18 @@ facts:
     claim: "The CLI requires Node >= 18, no build step"
     check: { type: file_contains, path: tools/agentlintel-cli/package.json, pattern: "\"node\":\\s*\">=18\"" }
 
+  - id: cli-no-build-script
+    claim: "The CLI ships reviewable source directly and has no build script"
+    check: { type: file_contains, path: tools/agentlintel-cli/package.json, pattern: "^(?![\\s\\S]*\"build\"\\s*:)[\\s\\S]*\"scripts\"\\s*:" }
+
+  - id: cli-single-runtime-dependency
+    claim: "The CLI has exactly one runtime dependency: yaml"
+    check: { type: file_contains, path: tools/agentlintel-cli/package.json, pattern: "\"dependencies\"\\s*:\\s*\\{\\s*\"yaml\"\\s*:\\s*\"[^\"]+\"\\s*\\}" }
+
+  - id: verifier-orchestration-lines
+    claim: "Verifier orchestration stays within 3,200 lines; cohesive responsibilities live in focused lib modules"
+    check: { type: line_count_max, path: tools/agentlintel-cli/src/lib/verify.js, max: 3200 }
+
   - id: rules-kernel
     claim: "Deterministic rules live in .agentlintel/rules.yaml (v2 format)"
     check: { type: file_contains, path: .agentlintel/rules.yaml, pattern: "version: 2" }

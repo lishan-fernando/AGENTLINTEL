@@ -177,6 +177,14 @@ ADR authorizes nothing. Additions and monotonic tightening stay free.
 Existing ADRs cannot be edited or deleted. Every rule must prove both a
 passing and failing fixture; guardrails cannot erase their own evidence.
 
+Brownfield repositories can opt a built-in file rule into
+`enforcement: no-new`. The current rule runs against both the target commit and
+the candidate tree: legacy findings stay visible, resolved debt is counted,
+and only introduced findings block the pull request. The baseline comes from
+Git—there is no violation snapshot to regenerate or drift. Full history and an
+exact `--base` are required; external tools must implement their own trusted
+baseline policy rather than receiving a false green.
+
 ## Running the gate
 
 Two loops, one gate:

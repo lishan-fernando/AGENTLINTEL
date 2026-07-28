@@ -14,6 +14,8 @@
 # must_match: true  -> the rule's scope matching zero files fails the gate
 #             unset -> zero matches is a warning (fails under --strict)
 #             false -> declared fixture-carrier; zero matches is expected
+# enforcement: no-new -> compare built-in file findings with the Git --base;
+#                       legacy stays visible and only introduced debt fails
 
 version: 2
 

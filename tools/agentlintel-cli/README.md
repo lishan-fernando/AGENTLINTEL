@@ -67,6 +67,13 @@ Patterns are starters. Custom architecture, commit, and PR policies live in
 `.agentlintel/rules.yaml`; use `engine: external` for native checkers instead
 of stretching regex into semantic analysis.
 
+For a brownfield built-in file rule, add `enforcement: no-new`. With
+`--base <target-sha>`, findings already present in the target commit remain
+visible as legacy while introduced findings fail. The baseline is derived from
+Git and never stored as a second metadata file. External and exemption engines
+reject this mode because AgentLintel cannot replay them safely against another
+tree.
+
 ## CI
 
 ```yaml
