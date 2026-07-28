@@ -238,7 +238,9 @@ function runWorkspace(root, command, options) {
 
 function printResult(command, options, result) {
   if (options.json) {
-    console.log(JSON.stringify(result, null, 2));
+    // Compact JSON: agents and tools parse this; pretty-printing doubles the
+    // token cost for no machine benefit. Humans have the default renderers.
+    console.log(JSON.stringify(result));
     return;
   }
 

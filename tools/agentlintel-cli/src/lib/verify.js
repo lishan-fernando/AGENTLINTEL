@@ -21,6 +21,12 @@ const {
   readBaselineRuleEntries,
   renameMapFromBase,
 } = require("./git-baseline");
+const {
+  pathEntryExists,
+  safeRepoPath,
+  safeRegularRepoFile,
+  safeRepoDirectory,
+} = require("./safe-paths");
 
 const KERNEL_DIR = ".agentlintel";
 const SKIP_PREFIXES = [`${KERNEL_DIR}/conformance`, `${KERNEL_DIR}/reports`];
@@ -202,60 +208,6 @@ function isCanonicalRepoScope(value) {
   const segments = value.split("/");
   return path.posix.normalize(value) === value &&
     !segments.some((segment) => !segment || segment === "." || segment === "..");
-}
-
-function pathEntryExists(filePath) {
-  try {
-    fs.lstatSync(filePath);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function realPathInside(root, filePath) {
-  try {
-    const relative = path.relative(fs.realpathSync(root), fs.realpathSync(filePath));
-    return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
-  } catch {
-    return false;
-  }
-}
-
-function pathHasSymlink(root, filePath) {
-  const relative = path.relative(path.resolve(root), path.resolve(filePath));
-  if (relative.startsWith("..") || path.isAbsolute(relative)) return true;
-  let cursor = path.resolve(root);
-  for (const segment of relative.split(path.sep).filter(Boolean)) {
-    cursor = path.join(cursor, segment);
-    try {
-      if (fs.lstatSync(cursor).isSymbolicLink()) return true;
-    } catch {
-      return false;
-    }
-  }
-  return false;
-}
-
-function safeRepoPath(root, filePath) {
-  return pathEntryExists(filePath) && !pathHasSymlink(root, filePath) &&
-    realPathInside(root, filePath);
-}
-
-function safeRegularRepoFile(root, filePath) {
-  try {
-    return fs.lstatSync(filePath).isFile() && safeRepoPath(root, filePath);
-  } catch {
-    return false;
-  }
-}
-
-function safeRepoDirectory(root, filePath) {
-  try {
-    return fs.lstatSync(filePath).isDirectory() && safeRepoPath(root, filePath);
-  } catch {
-    return false;
-  }
 }
 
 function inventoryPathProblem(files, relPath, { directory = false, absent = false } = {}) {
@@ -1882,9 +1834,22 @@ function isGovernanceArtifact(file) {
 
 function untrackedGovernanceArtifacts(root, inventory) {
   if (inventory.source !== "git" || !inventory.tracked) return [];
-  return walk(root)
+  // Filesystem scan (not the Git inventory) so ignored governance artifacts
+  // are caught too, but scoped to governance roots instead of the full tree.
+  const candidates = [];
+  for (const dir of [".agentlintel", ".agents/skills"]) {
+    const absolute = path.join(root, dir);
+    if (!safeRepoDirectory(root, absolute)) continue;
+    for (const file of walk(absolute, { skipPrefixes: ["reports"] }))
+      candidates.push(`${dir}/${file}`);
+  }
+  const rootFiles = ["AGENTS.md", "CLAUDE.md", ...ADAPTERS.map((adapter) => adapter.file)];
+  for (const file of rootFiles)
+    if (pathEntryExists(path.join(root, file))) candidates.push(file);
+  return candidates
     .filter(isGovernanceArtifact)
-    .filter((file) => !inventory.tracked.has(file));
+    .filter((file) => !inventory.tracked.has(file))
+    .sort();
 }
 
 function normalizedText(value) {
