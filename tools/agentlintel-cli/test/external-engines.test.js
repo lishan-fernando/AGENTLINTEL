@@ -10,6 +10,10 @@ const YAML = require('yaml');
 
 const { verify } = require('../src/lib/verify');
 
+// Hermetic: temp repos here have no origin; a leaked GITHUB_BASE_REF from a
+// pull_request run turns the unresolvable rules baseline into a hard error.
+delete process.env.GITHUB_BASE_REF;
+
 function tmpDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'agentlintel-'));
 }
