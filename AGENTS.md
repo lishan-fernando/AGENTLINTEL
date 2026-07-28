@@ -28,6 +28,7 @@ npm test
 
 Run both before declaring any task done. CI runs the same (with --strict).
 Fast agent-loop path: `verify --diff --quiet --bail --no-run --skip-fixtures`.
+Path context first: `explain --path <file> --compact` before reading kernel files.
 Templates under tools/agentlintel-cli/templates/{conformance,skills} mirror
 `.agentlintel/conformance/` and `.agents/skills/` - change both or sync fails.
 

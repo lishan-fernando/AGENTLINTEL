@@ -13,6 +13,8 @@ npx @agentlintel/cli verify
 ```
 
 Run before declaring work done. CI runs `--strict`; a failing gate fails the PR.
+Fast agent loop: `verify --diff --quiet --bail --no-run --skip-fixtures`.
+Path context first: `explain --path <file> --compact` before reading kernel files.
 
 ## Architecture Contract
 

@@ -74,6 +74,14 @@ facts:
     claim: "AGENTS.md uses at most 7KB of the 8KB approximate always-load budget"
     check: { type: byte_count_max, path: AGENTS.md, max: 7168 }
 
+  - id: agent-loop-lean-recipe
+    claim: "The documented agent loop stays token-lean: diff-scoped, quiet, bailing, no dynamic runs, fixtures skipped"
+    check: { type: file_contains, path: AGENTS.md, pattern: "verify --diff --quiet --bail --no-run --skip-fixtures" }
+
+  - id: adopter-template-lean-recipe
+    claim: "The adopter AGENTS template teaches the token-lean verify loop and explain-first context"
+    check: { type: file_contains, path: tools/agentlintel-cli/templates/AGENTS.template.md, pattern: "verify --diff --quiet --bail --no-run --skip-fixtures" }
+
   - id: skill-frontmatter-bytes
     claim: "All standard skill frontmatters share the remaining 1KB always-load budget"
     check: { type: frontmatter_byte_count_max, pattern: ".agents/skills/*/SKILL.md", max: 1024 }
