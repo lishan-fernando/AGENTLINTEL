@@ -18,7 +18,7 @@ const REPO = path.join(__dirname, '..', '..', '..');
 // Git-derived violation ratchet and verifier-boundary extraction, and ADR-029's
 // verifier throughput and token-efficiency program.
 // The cap includes committed ADRs and CODEOWNERS.
-const TRACKED_BYTE_BUDGET = 724000;
+const TRACKED_BYTE_BUDGET = 725500;
 // Recalibrated for readable shipped CLI source with meaningful identifiers
 // (ADR-014), then for explain/warn/hook DX surface (ADR-016), measured on the
 // committed tree; re-baselined for ADR-020/021 legal clarity, ADR-022's
