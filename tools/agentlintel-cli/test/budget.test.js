@@ -18,7 +18,7 @@ const REPO = path.join(__dirname, '..', '..', '..');
 // Git-derived violation ratchet and verifier-boundary extraction, and ADR-029's
 // verifier throughput and token-efficiency program.
 // The cap includes committed ADRs and CODEOWNERS.
-const TRACKED_BYTE_BUDGET = 722000;
+const TRACKED_BYTE_BUDGET = 724000;
 // Recalibrated for readable shipped CLI source with meaningful identifiers
 // (ADR-014), then for explain/warn/hook DX surface (ADR-016), measured on the
 // committed tree; re-baselined for ADR-020/021 legal clarity, ADR-022's
@@ -26,7 +26,7 @@ const TRACKED_BYTE_BUDGET = 722000;
 // ADR-024/025 positive evidence and ADR-026/027 trust-boundary release.
 // ADR-028 adds the no-new gate while keeping less than one percent headroom;
 // ADR-029 rebaselines to the measured safe-paths extraction.
-const ELIGIBLE_TRACKED_BYTE_BUDGET = 408000;
+const ELIGIBLE_TRACKED_BYTE_BUDGET = 409000;
 const DEAD_WEIGHT_EXCLUDE = /^(?:\.agentlintel\/decisions\/|LICENSE$|NOTICE$|docs\/LEGAL\.md$|tools\/agentlintel-cli\/LICENSE(?:-APACHE)?$|tools\/agentlintel-cli\/package-lock\.json$|tools\/agentlintel-cli\/test\/|\.agentlintel\/conformance\/.*\/cases\/|tools\/agentlintel-cli\/templates\/conformance\/.*\/cases\/|tools\/agentlintel-cli\/templates\/engine-adapters\/conformance-snippets\/.*\/cases\/)/;
 
 function versionableFiles() {

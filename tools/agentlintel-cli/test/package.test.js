@@ -16,8 +16,8 @@ const PKG = require('../package.json');
 // (ADR-020 and ADR-021), ADR-022 verifier integrity, ADR-024/025 positive
 // evidence, ADR-026/027 trust-boundary and compact-context surfaces,
 // ADR-028's Git-derived no-new enforcement modules and adopter documentation,
-// and ADR-029's safe-paths extraction.
-const NPM_UNPACKED_BYTE_BUDGET = 288000;
+// and ADR-029's safe-paths and git-state extractions.
+const NPM_UNPACKED_BYTE_BUDGET = 290000;
 
 let packCache = null;
 
