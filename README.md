@@ -165,7 +165,9 @@ Engines: `regex`, `layers`, `error-codes`, `exemptions`, and `external`. The
 built-in layer importer is deliberately JS/TS-only. Treat built-ins as a
 portable starter floor, not a type system or security scanner.
 Use `external` for deep checks from tools your stack already trusts:
-architecture tests, dependency-cruiser, `dotnet test`, commit and PR policies.
+architecture tests, dependency-cruiser, `dotnet test`, SARIF 2.1 analyzers,
+commit and PR policies. The generated .NET SARIF bridge preserves diagnostic
+id, repository file, line, and column without adding a C# parser to AgentLintel.
 Each external rule declares exact `evidence` files; changing its checker,
 configuration, or lock evidence is ratcheted.
 

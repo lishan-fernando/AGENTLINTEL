@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: Apache-2.0
+# Starter only. Import dotnet-code-quality.props, then tune severities to the repository.
+is_global = true
+global_level = 100
+
+dotnet_style_qualification_for_field = false:error
+dotnet_style_qualification_for_property = false:error
+dotnet_style_qualification_for_method = false:error
+dotnet_style_qualification_for_event = false:error
+csharp_style_namespace_declarations = file_scoped:error
+csharp_using_directive_placement = outside_namespace:error
+csharp_prefer_braces = true:error
+
+dotnet_diagnostic.IDE0005.severity = error
+dotnet_diagnostic.IDE0055.severity = error
+dotnet_diagnostic.IDE0161.severity = error
+dotnet_diagnostic.CA1034.severity = error
+dotnet_diagnostic.CA1849.severity = warning
+dotnet_diagnostic.CA1852.severity = warning
+dotnet_diagnostic.CA2016.severity = warning

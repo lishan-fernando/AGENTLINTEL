@@ -28,3 +28,7 @@ exemplars:
     shape: agent-skill
     path: .agents/skills/audit-architecture/SKILL.md
     demonstrates: "Concise Agent Skill frontmatter with an imperative, evidence-bounded workflow."
+  - id: dotnet-sarif-adapter
+    shape: external-engine-adapter
+    path: tools/agentlintel-cli/templates/engine-adapters/dotnet-sarif.js
+    demonstrates: "Dependency-free native-tool wrapper: temporary evidence, fail-closed execution, SARIF merge, and repository-relative locations."

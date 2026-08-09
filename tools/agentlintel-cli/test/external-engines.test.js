@@ -430,3 +430,106 @@ test('dotnet-test adapter fixtures map captured failed test output', () => {
   const result = verify(root, { run: false });
   assert.deepStrictEqual(result.fixtures.filter((f) => !f.ok), []);
 });
+
+test('SARIF adapter maps diagnostic id, repository path, line, and column', () => {
+  const root = tmpDir();
+  write(root, 'emit-sarif.js', [
+    "const path = require('node:path');",
+    "const { pathToFileURL } = require('node:url');",
+    "const base = pathToFileURL(process.cwd() + path.sep).href;",
+    'console.log(JSON.stringify({',
+    "  version: '2.1.0',",
+    '  runs: [{',
+    "    tool: { driver: { name: 'Microsoft.CodeAnalysis', rules: [{ id: 'IDE0161' }] } },",
+    "    originalUriBaseIds: { SRCROOT: { uri: base } },",
+    "    artifacts: [{ location: { uri: 'src/Order%20Handler.cs', uriBaseId: 'SRCROOT' } }],",
+    '    results: [{',
+    '      ruleIndex: 0,',
+    "      message: { text: 'Use a file-scoped namespace.' },",
+    '      locations: [{ physicalLocation: { artifactLocation: { index: 0 }, region: { startLine: 7, startColumn: 9 } } }],',
+    '    }],',
+    '  }],',
+    '}));',
+    'process.exit(1);',
+  ].join('\n'));
+  write(root, '.agentlintel/rules.yaml', [
+    'version: 2',
+    'rules:',
+    '  - id: dotnet.code-quality',
+    '    severity: error',
+    '    engine: external',
+    '    evidence: [".agentlintel/rules.yaml"]',
+    '    adapter: sarif',
+    '    run: "node emit-sarif.js"',
+    '    message: ".NET diagnostics must pass."',
+  ].join('\n'));
+  commitAll(root);
+
+  const result = verify(root, { skipFixtures: true });
+  const violation = result.rule_violations.find((entry) => entry.rule === 'dotnet.code-quality');
+  assert.ok(violation, result.errors.join('\n'));
+  assert.strictEqual(violation.file, 'src/Order Handler.cs');
+  assert.strictEqual(violation.line, 7);
+  assert.strictEqual(violation.column, 9);
+  assert.match(violation.message, /^\[IDE0161\] Use a file-scoped namespace\.$/);
+  assert.ok(result.errors.some((error) => error.includes('src/Order Handler.cs:7:9')));
+  assert.ok(!result.errors.some((error) => error.includes('did not run cleanly')));
+});
+
+test('SARIF adapter fails closed on malformed logs', () => {
+  const root = tmpDir();
+  write(root, 'bad-sarif.js', "console.log(JSON.stringify({ version: '2.1.0', runs: {} }));\n");
+  write(root, '.agentlintel/rules.yaml', [
+    'version: 2',
+    'rules:',
+    '  - id: dotnet.code-quality',
+    '    severity: error',
+    '    engine: external',
+    '    evidence: [".agentlintel/rules.yaml"]',
+    '    adapter: sarif',
+    '    run: "node bad-sarif.js"',
+    '    message: ".NET diagnostics must pass."',
+  ].join('\n'));
+  commitAll(root);
+
+  const result = verify(root, { skipFixtures: true });
+  assert.ok(result.errors.some((error) => error.includes('did not run cleanly')), result.errors.join('\n'));
+  assert.ok(result.external_engines.some((engine) => engine.status.includes('SARIF output runs must be an array')));
+});
+
+test('dotnet SARIF runner merges compiler logs and normalizes repository paths', () => {
+  const root = tmpDir();
+  const runner = path.join(__dirname, '..', 'templates', 'engine-adapters', 'dotnet-sarif.js');
+  write(root, 'fake-build.js', [
+    "const fs = require('node:fs');",
+    "const path = require('node:path');",
+    "const arg = process.argv.find((value) => value.startsWith('-p:CustomAfterMicrosoftCommonTargets='));",
+    "const targets = fs.readFileSync(arg.slice('-p:CustomAfterMicrosoftCommonTargets='.length), 'utf8');",
+    "const pattern = targets.match(/<ErrorLog>(.+),version=2\\.1<\\/ErrorLog>/)[1].replace(/&amp;/g, '&');",
+    "const report = pattern.replace('$(MSBuildProjectName)', 'Example').replace('$(TargetFramework)', 'net10.0');",
+    'fs.writeFileSync(report, JSON.stringify({',
+    "  version: '2.1.0',",
+    '  runs: [{',
+    "    tool: { driver: { name: 'Microsoft.CodeAnalysis' } },",
+    '    results: [{',
+    "      ruleId: 'CA1852',",
+    "      message: { text: 'Seal internal types.' },",
+    "      locations: [{ physicalLocation: { artifactLocation: { uri: path.join(process.cwd(), 'src', 'Worker.cs') }, region: { startLine: 3 } } }],",
+    '    }],',
+    '  }],',
+    '}));',
+  ].join('\n'));
+
+  const result = spawnSync(process.execPath, [runner, '--', process.execPath, 'fake-build.js'], {
+    cwd: root,
+    encoding: 'utf8',
+  });
+  assert.strictEqual(result.status, 1, result.stderr);
+  const sarif = JSON.parse(result.stdout);
+  assert.strictEqual(sarif.version, '2.1.0');
+  assert.strictEqual(sarif.runs.length, 1);
+  assert.strictEqual(
+    sarif.runs[0].results[0].locations[0].physicalLocation.artifactLocation.uri,
+    'src/Worker.cs',
+  );
+});

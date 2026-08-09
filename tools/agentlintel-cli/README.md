@@ -16,7 +16,8 @@ Fixture-backed starter checks catch drift like deep imports, raw request casts
 before validation, and likely secret-value logging. Use `engine: external` for
 deeper checks from tools your stack already trusts. The built-in `layers`
 engine checks JS/TS imports only; use a native external checker for other
-languages.
+languages. `init --engine-adapters` includes a SARIF 2.1 bridge for exact
+compiler/analyzer file, line, column, diagnostic id, and message output.
 
 ## Install
 
@@ -66,6 +67,12 @@ npx agentlintel init --adapters --hooks --engine-adapters
 Patterns are starters. Custom architecture, commit, and PR policies live in
 `.agentlintel/rules.yaml`; use `engine: external` for native checkers instead
 of stretching regex into semantic analysis.
+
+For .NET, import the generated `dotnet-code-quality.props`, tune its analyzer
+profile, and copy the `dotnet.code-quality` rule snippet. The generated runner
+uses the compiler `ErrorLog` SARIF output in a temporary directory; keep
+repository-specific OOP, DI, and aggregate rules in native analyzers or
+architecture tests.
 
 ## CI
 
