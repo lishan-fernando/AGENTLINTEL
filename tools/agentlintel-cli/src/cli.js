@@ -238,7 +238,9 @@ function runWorkspace(root, command, options) {
 
 function printResult(command, options, result) {
   if (options.json) {
-    console.log(JSON.stringify(result, null, 2));
+    // Compact JSON: agents and tools parse this; pretty-printing doubles the
+    // token cost for no machine benefit. Humans have the default renderers.
+    console.log(JSON.stringify(result));
     return;
   }
 
@@ -281,9 +283,18 @@ function printVerify(result) {
   const pendingFacts = result.facts.filter((fact) => fact.pending).length;
   const greenFixtures = result.fixtures.filter((fixture) => fixture.ok).length;
   const activeViolations = result.rule_violations.filter(
-    (violation) => !violation.exempted,
+    (violation) => !violation.exempted && !violation.legacy,
   ).length;
   const dormantRules = (result.dormant_rules || []).length;
+  const legacySummary = result.legacy_violation_count
+    ? ` (+${result.legacy_violation_count} legacy)`
+    : "";
+  const exemptedSummary = result.exempted_count
+    ? ` (+${result.exempted_count} exempted)`
+    : "";
+  const dormantSummary = dormantRules
+    ? `, ${dormantRules} dormant (must_match: false)`
+    : "";
 
   console.log(
     `agentlintel verify @ ${result.root}${result.mode === "diff" ? " (diff mode)" : ""}${result.advisory_mode === "warn" ? " (warn mode)" : ""}`,
@@ -292,7 +303,7 @@ function printVerify(result) {
     `  facts     ${freshFacts}/${result.facts.length} fresh${pendingFacts ? ` (${pendingFacts} pending)` : ""}`,
   );
   console.log(
-    `  rules     ${activeViolations} violation(s)${result.exempted_count ? ` (+${result.exempted_count} exempted)` : ""}${dormantRules ? `, ${dormantRules} dormant (must_match: false)` : ""}`,
+    `  rules     ${activeViolations} violation(s)${legacySummary}${exemptedSummary}${dormantSummary}`,
   );
   console.log(`  fixtures  ${greenFixtures}/${result.fixtures.length} green`);
   console.log(

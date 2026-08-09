@@ -48,7 +48,7 @@ AgentLintel enforces your architecture, not its own: vertical slices, layers,
 MVVM, or in-house rules. Built-in engines provide a starter floor; set
 `engine: external` to wrap the stack-native analyzers your team already trusts.
 
-**Status:** `v2.0.0-alpha.13` - npm `@agentlintel/cli@alpha` -
+**Status:** `v2.0.0-alpha.14` - npm `@agentlintel/cli@alpha` -
 Source-available free use - Node.js >= 18
 
 ## The problem: AI coding agents drift
@@ -103,7 +103,7 @@ npx agentlintel explain --path src/example.ts --shape service --compact
 Need an exact release artifact or a registry-free fallback?
 
 ```bash
-npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.13/agentlintel-cli.tgz
+npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.14/agentlintel-cli.tgz
 ```
 
 `init` offers pattern packs — `vertical-slice`, `layered-3tier`, `mvvm`, or
@@ -165,7 +165,9 @@ Engines: `regex`, `layers`, `error-codes`, `exemptions`, and `external`. The
 built-in layer importer is deliberately JS/TS-only. Treat built-ins as a
 portable starter floor, not a type system or security scanner.
 Use `external` for deep checks from tools your stack already trusts:
-architecture tests, dependency-cruiser, `dotnet test`, commit and PR policies.
+architecture tests, dependency-cruiser, `dotnet test`, SARIF 2.1 analyzers,
+commit and PR policies. The generated .NET SARIF bridge preserves diagnostic
+id, repository file, line, and column without adding a C# parser to AgentLintel.
 Each external rule declares exact `evidence` files; changing its checker,
 configuration, or lock evidence is ratcheted.
 
@@ -176,6 +178,14 @@ weakening a rule, or broadening the write guard requires an exact
 ADR authorizes nothing. Additions and monotonic tightening stay free.
 Existing ADRs cannot be edited or deleted. Every rule must prove both a
 passing and failing fixture; guardrails cannot erase their own evidence.
+
+Brownfield repositories can opt a built-in file rule into
+`enforcement: no-new`. The current rule runs against both the target commit and
+the candidate tree: legacy findings stay visible, resolved debt is counted,
+and only introduced findings block the pull request. The baseline comes from
+Git—there is no violation snapshot to regenerate or drift. Full history and an
+exact `--base` are required; external tools must implement their own trusted
+baseline policy rather than receiving a false green.
 
 ## Running the gate
 
@@ -195,7 +205,7 @@ GitHub Actions:
 - uses: actions/checkout@v4
   with:
     fetch-depth: 0
-- uses: lishan-fernando/AGENTLINTEL/.github/actions/agentlintel@v2.0.0-alpha.13
+- uses: lishan-fernando/AGENTLINTEL/.github/actions/agentlintel@v2.0.0-alpha.14
   with:
     strict: "true"
 ```
@@ -279,7 +289,7 @@ them to `must_match: true`.
 
 ## Status
 
-`v2.0.0-alpha.13`, npm `@agentlintel/cli@alpha`, source-available free use,
+`v2.0.0-alpha.14`, npm `@agentlintel/cli@alpha`, source-available free use,
 Node.js >= 18.
 
 AgentLintel is free for personal, internal, commercial, client, and

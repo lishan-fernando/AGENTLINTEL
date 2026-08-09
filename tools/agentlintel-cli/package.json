@@ -1,6 +1,6 @@
 {
   "name": "@agentlintel/cli",
-  "version": "2.0.0-alpha.13",
+  "version": "2.0.0-alpha.14",
   "description": "Deterministic architecture gate for AI-agent codebases: verified facts, enforceable rules, conformance fixtures, write-boundary guard.",
   "keywords": [
     "ai",
@@ -29,7 +29,7 @@
   "scripts": {
     "check": "node --check ./bin/agentlintel.js",
     "test:ci": "npm run check && npm test",
-    "test": "node --test test/benchmark-protocol.test.js test/budget.test.js test/claims.test.js test/cli.test.js test/engines.test.js test/external-engines.test.js test/facts.test.js test/fixtures.test.js test/glob.test.js test/governance.test.js test/init-workspace.test.js test/kernel-features.test.js test/package.test.js test/patterns.test.js test/release-surfaces.test.js test/report.test.js",
+    "test": "node --test test/benchmark-protocol.test.js test/budget.test.js test/claims.test.js test/cli.test.js test/engines.test.js test/external-engines.test.js test/facts.test.js test/fixtures.test.js test/glob.test.js test/governance-kernel.test.js test/governance-no-new.test.js test/governance-ratchets.test.js test/init-workspace.test.js test/kernel-features.test.js test/package.test.js test/patterns.test.js test/release-surfaces.test.js test/report.test.js",
     "verify:self": "node ./bin/agentlintel.js verify --dir ../..",
     "verify:strict": "node ./bin/agentlintel.js verify --dir ../.. --strict --base HEAD~1",
     "pack:dry-run": "npm pack --dry-run --json",

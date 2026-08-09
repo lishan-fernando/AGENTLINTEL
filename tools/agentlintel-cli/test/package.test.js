@@ -14,8 +14,11 @@ const PKG = require('../package.json');
 // Recalibrated for readable shipped source with meaningful identifiers
 // (ADR-014), explain/warn/hook DX surface (ADR-016), and license clarity text
 // (ADR-020 and ADR-021), ADR-022 verifier integrity, ADR-024/025 positive
-// evidence, and ADR-026/027 trust-boundary and compact-context surfaces.
-const NPM_UNPACKED_BYTE_BUDGET = 274000;
+// evidence, ADR-026/027 trust-boundary and compact-context surfaces,
+// ADR-028's Git-derived no-new enforcement modules and adopter documentation,
+// ADR-029's safe-paths and git-state extractions, and ADR-030's
+// SARIF/native-analyzer adapter surface.
+const NPM_UNPACKED_BYTE_BUDGET = 307000;
 
 let packCache = null;
 
@@ -91,6 +94,9 @@ test('npm package contains runtime files and excludes tests', () => {
     'templates/skills/scope-change/SKILL.md',
     'templates/skills/prove-stateful-workflow/SKILL.md',
     'templates/hooks/verify-hook.sh',
+    'templates/engine-adapters/dotnet-sarif.js',
+    'templates/engine-adapters/dotnet-code-quality.props',
+    'templates/engine-adapters/dotnet-code-quality.globalconfig',
     'README.md',
     'package.json',
     'LICENSE',

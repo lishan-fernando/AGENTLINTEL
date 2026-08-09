@@ -5,7 +5,7 @@ function renderReport(result) {
   const lines = [];
   const freshFacts = result.facts.filter((fact) => fact.ok && !fact.skipped).length;
   const activeViolations = result.rule_violations.filter(
-    (violation) => !violation.exempted,
+    (violation) => !violation.exempted && !violation.legacy,
   ).length;
   const greenFixtures = result.fixtures.filter((fixture) => fixture.ok).length;
   const presentExemplars = result.exemplars.filter(
@@ -23,7 +23,7 @@ function renderReport(result) {
   lines.push("|---|---|");
   lines.push(`| Facts | ${freshFacts}/${result.facts.length} fresh |`);
   lines.push(
-    `| Rules | ${activeViolations} violation(s)${result.exempted_count ? ` (+${result.exempted_count} exempted)` : ""}${dormantRules ? `, ${dormantRules} dormant` : ""} |`,
+    `| Rules | ${activeViolations} violation(s)${result.legacy_violation_count ? ` (+${result.legacy_violation_count} legacy)` : ""}${result.exempted_count ? ` (+${result.exempted_count} exempted)` : ""}${dormantRules ? `, ${dormantRules} dormant` : ""} |`,
   );
   lines.push(`| Fixtures | ${greenFixtures}/${result.fixtures.length} green |`);
   lines.push(
@@ -44,6 +44,10 @@ function renderReport(result) {
   if (result.guard_ratchet)
     lines.push(
       `| Guard ratchet | ${result.guard_ratchet.status}${result.guard_ratchet.ok ? "" : ", ADR required"} |`,
+    );
+  if (result.violation_baseline && result.violation_baseline.rules.length)
+    lines.push(
+      `| Violation baseline | ${result.violation_baseline.status}; ${result.violation_baseline.legacy} legacy, ${result.violation_baseline.introduced} introduced, ${result.violation_baseline.resolved} resolved |`,
     );
   lines.push(
     `| Exemplars | ${presentExemplars}/${result.exemplars.length} present |`,
@@ -130,7 +134,7 @@ function nextSteps(result) {
     );
   }
 
-  if (violations.some((violation) => !violation.exempted)) {
+  if (violations.some((violation) => !violation.exempted && !violation.legacy)) {
     addStep(
       "Fix rule violations in code, or add a bounded `AGENTLINTEL-EXEMPT` block with Reason, Approver, Expires, and Owner.",
     );
@@ -233,9 +237,10 @@ function nextSteps(result) {
   }
 
   if (warnings.some((warning) =>
-    warning.includes("GUARD-BASE") || warning.includes("RATCHET-BASE"))) {
+    warning.includes("GUARD-BASE") || warning.includes("RATCHET-BASE") ||
+    warning.includes("VIOLATION-BASE"))) {
     addStep(
-      "CI should pass the actual target or PR base SHA with `--base <sha>` and use a checkout with enough history for diff guards and contract ratchets.",
+      "CI should pass the actual target or PR base SHA with `--base <sha>` and use a checkout with enough history for diff guards, contract ratchets, and no-new violation baselines.",
     );
   }
 

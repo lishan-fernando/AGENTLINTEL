@@ -20,6 +20,18 @@ facts:
     claim: "The CLI requires Node >= 18, no build step"
     check: { type: file_contains, path: tools/agentlintel-cli/package.json, pattern: "\"node\":\\s*\">=18\"" }
 
+  - id: cli-no-build-script
+    claim: "The CLI ships reviewable source directly and has no build script"
+    check: { type: file_contains, path: tools/agentlintel-cli/package.json, pattern: "^(?![\\s\\S]*\"build\"\\s*:)[\\s\\S]*\"scripts\"\\s*:" }
+
+  - id: cli-single-runtime-dependency
+    claim: "The CLI has exactly one runtime dependency: yaml"
+    check: { type: file_contains, path: tools/agentlintel-cli/package.json, pattern: "\"dependencies\"\\s*:\\s*\\{\\s*\"yaml\"\\s*:\\s*\"[^\"]+\"\\s*\\}" }
+
+  - id: verifier-orchestration-lines
+    claim: "Verifier orchestration stays within 3,200 lines; cohesive responsibilities live in focused lib modules"
+    check: { type: line_count_max, path: tools/agentlintel-cli/src/lib/verify.js, max: 3200 }
+
   - id: rules-kernel
     claim: "Deterministic rules live in .agentlintel/rules.yaml (v2 format)"
     check: { type: file_contains, path: .agentlintel/rules.yaml, pattern: "version: 2" }
@@ -61,6 +73,14 @@ facts:
   - id: agents-md-bytes
     claim: "AGENTS.md uses at most 7KB of the 8KB approximate always-load budget"
     check: { type: byte_count_max, path: AGENTS.md, max: 7168 }
+
+  - id: agent-loop-lean-recipe
+    claim: "The documented agent loop stays token-lean: diff-scoped, quiet, bailing, no dynamic runs, fixtures skipped"
+    check: { type: file_contains, path: AGENTS.md, pattern: "verify --diff --quiet --bail --no-run --skip-fixtures" }
+
+  - id: adopter-template-lean-recipe
+    claim: "The adopter AGENTS template teaches the token-lean verify loop and explain-first context"
+    check: { type: file_contains, path: tools/agentlintel-cli/templates/AGENTS.template.md, pattern: "verify --diff --quiet --bail --no-run --skip-fixtures" }
 
   - id: skill-frontmatter-bytes
     claim: "All standard skill frontmatters share the remaining 1KB always-load budget"

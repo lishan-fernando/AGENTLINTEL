@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased
+
+## v2.0.0-alpha.14 - 2026-08-09
+
+- Adds Git-derived `enforcement: no-new` for brownfield built-in rules: legacy
+  findings stay visible, introduced findings fail, resolved debt is counted,
+  duplicate findings cannot hide behind one baseline occurrence, and Git
+  renames preserve identity without a stored violation snapshot.
+- Fails closed when a no-new baseline cannot be proven and ratchets changing an
+  existing all-violations rule into the weaker brownfield mode.
+- Extracts external-output adapters and pure rule-entry scanning from verifier
+  orchestration, then freezes a lower per-file line budget.
+- Machine-checks the CLI's no-build and single-runtime-dependency promises and
+  consolidates YAGNI, reuse-first, native-first, and architecture-aware
+  simplification as advice rather than unverifiable rules.
+- Adds a fail-closed SARIF 2.1 external adapter that preserves native analyzer
+  diagnostic IDs and exact repository-relative file, line, and column evidence.
+- Ships an opt-in .NET compiler/analyzer starter, recorded conformance fixtures,
+  and adoption guidance without introducing a C# parser or runtime dependency.
+- Updates the repository and composite Action runtimes to the current pinned
+  `actions/checkout` and `actions/setup-node` revisions.
+- Isolates external-adapter test repositories from CI event base variables and
+  normalizes real temporary-directory roots across macOS aliases and Windows
+  short paths.
+
 ## v2.0.0-alpha.13 - 2026-07-15
 
 Release pipeline repair.

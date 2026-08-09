@@ -83,6 +83,15 @@ rules:
 Optional `adr` provenance prints the accepted decision beside violations. It
 explains why a rule exists; it does not compile decisions into rules.
 
+Optional `enforcement: no-new` creates a Git-derived legacy violation baseline
+for built-in file engines. The candidate rule is evaluated against both the
+target commit and current tree. Matching findings remain visible as `legacy`;
+only introduced findings fail. Line movement and Git renames preserve identity,
+while additional identical occurrences still fail. No snapshot file is stored.
+This mode requires a full tree and `--base <target-sha>`; missing baseline
+evidence is incomplete and fails under `--strict`. External and exemption
+engines reject this mode rather than claim a baseline they cannot prove.
+
 Engines:
 
 - `regex`: glob-scoped forbidden regexes plus optional positive `required`
@@ -99,10 +108,12 @@ Engines:
   dependency map. Overlapping layer coverage fails; native languages use an
   external architecture checker.
 - `external`: runs a repo command. Default output is JSONL `{file,line,message}`;
-  adapters exist for `command-status`, dependency-cruiser, and `dotnet test`.
-  This is the primary language-agnostic path for native architecture tests and
-  other deep analyzers. `evidence` names exact, regular repository files that
-  implement/configure the checker; changing them is a contract weakening.
+  adapters exist for `command-status`, dependency-cruiser, `dotnet test`, and
+  SARIF 2.1. SARIF results preserve diagnostic id, source file, line, and
+  column; malformed logs fail closed. This is the primary language-agnostic
+  path for native architecture tests and deep analyzers. `evidence` names
+  exact, regular repository files that implement/configure the checker;
+  changing them is a contract weakening.
 
 ```yaml
 rules:
@@ -127,6 +138,15 @@ rules:
     scope: tree
     run: "npm run architecture:check"
     message: "Repository architecture contract must pass."
+
+  - id: dotnet.code-quality
+    severity: error
+    engine: external
+    evidence: [.agentlintel/adapters/dotnet-sarif.js, Directory.Build.props]
+    adapter: sarif
+    scope: tree
+    run: "node .agentlintel/adapters/dotnet-sarif.js -- dotnet build App.sln --no-restore"
+    message: ".NET compiler and analyzer diagnostics must pass."
 ```
 
 `command-status` maps exit 0 to pass and exit 1 to a rule violation; other
@@ -151,6 +171,9 @@ the new ADR; an unrelated ADR authorizes nothing. Additions and monotonic
 tightening are free. Existing ADR files are immutable; a new ADR needs a real
 accepted date no later than today plus a concrete `Decision:` section. ADRs
 record provenance and rationale, not authenticated human approval.
+Changing an existing rule from all-violation enforcement to `no-new` is a
+weakening and requires the same exact ADR authorization. This contract ratchet
+is distinct from the Git-derived violation baseline.
 
 Reference rules: `slice.no-deep-imports`, `domain.purity`,
 `identity.no-auth-import`, `secrets.no-logging`, `boundary.validation`,
@@ -174,8 +197,9 @@ violations:
 `violations: []` means the case must produce no violations for the rule under
 test. Every rule requires at least one explicit passing case and one failing
 case. File-engine cases contain a file in the declared scope; external cases
-record `status.txt`. External fixtures validate recorded output mapping, not a
-live engine execution.
+record `status.txt` and adapter output in `output.jsonl` (the filename is stable
+even when the payload is SARIF JSON). External fixtures validate recorded
+output mapping, not a live engine execution.
 
 ## Guard
 

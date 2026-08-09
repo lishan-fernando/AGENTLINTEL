@@ -258,12 +258,16 @@ test('init --engine-adapters writes external engine starter templates', () => {
   const r = init(root, { engineAdapters: true });
   assert.strictEqual(r.ok, true, r.log.join('\n'));
   assert.ok(fs.existsSync(path.join(root, '.agentlintel', 'adapters', 'dependency-cruiser.frontend.cjs')));
+  assert.ok(fs.existsSync(path.join(root, '.agentlintel', 'adapters', 'dotnet-sarif.js')));
+  assert.ok(fs.existsSync(path.join(root, '.agentlintel', 'adapters', 'dotnet-code-quality.props')));
+  assert.ok(fs.existsSync(path.join(root, '.agentlintel', 'adapters', 'dotnet-code-quality.globalconfig')));
   assert.ok(fs.existsSync(path.join(root, '.agentlintel', 'adapters', 'commit-message-policy.js')));
   assert.ok(fs.existsSync(path.join(root, '.agentlintel', 'adapters', 'github-pr-policy.js')));
   assert.ok(fs.existsSync(path.join(root, '.agentlintel', 'adapters', 'external-rules.snippets.yaml')));
   assert.ok(fs.existsSync(path.join(root, '.agentlintel', 'adapters', 'conformance-snippets', 'commit.message-format', 'cases', 'fail-subject', 'expected.yaml')));
   assert.ok(fs.existsSync(path.join(root, '.agentlintel', 'adapters', 'conformance-snippets', 'pr.metadata-policy', 'cases', 'fail-metadata', 'expected.yaml')));
   assert.match(fs.readFileSync(path.join(root, '.agentlintel', 'adapters', 'external-rules.snippets.yaml'), 'utf8'), /adapter: dotnet-test/);
+  assert.match(fs.readFileSync(path.join(root, '.agentlintel', 'adapters', 'external-rules.snippets.yaml'), 'utf8'), /adapter: sarif/);
   assert.match(fs.readFileSync(path.join(root, '.agentlintel', 'adapters', 'external-rules.snippets.yaml'), 'utf8'), /scope: commit/);
   assert.strictEqual(verify(root, {}).ok, true);
 });
