@@ -13,6 +13,10 @@ function result(overrides = {}) {
     facts: [],
     rule_violations: [],
     exempted_count: 0,
+    legacy_violation_count: 0,
+    violation_baseline: {
+      status: 'not configured', rules: [], legacy: 0, introduced: 0, resolved: 0,
+    },
     fixtures: [],
     guard: { status: 'checked 1 changed file(s)', violations: [] },
     ratchet: { status: 'unchanged', ok: true },
@@ -77,6 +81,24 @@ test('report does not suggest fixing already exempted rule violations', () => {
     exempted_count: 1,
   }));
   assert.match(markdown, /0 violation\(s\) \(\+1 exempted\)/);
+  assert.doesNotMatch(markdown, /Fix rule violations in code/);
+});
+
+test('report keeps legacy debt visible without presenting it as active failure', () => {
+  const markdown = renderReport(result({
+    ok: true,
+    rule_violations: [{ rule: 'debt.no-bad', legacy: true }],
+    legacy_violation_count: 1,
+    violation_baseline: {
+      status: 'checked against abc123',
+      rules: ['debt.no-bad'],
+      legacy: 1,
+      introduced: 0,
+      resolved: 2,
+    },
+  }));
+  assert.match(markdown, /0 violation\(s\) \(\+1 legacy\)/);
+  assert.match(markdown, /Violation baseline \| checked against abc123; 1 legacy, 0 introduced, 2 resolved/);
   assert.doesNotMatch(markdown, /Fix rule violations in code/);
 });
 

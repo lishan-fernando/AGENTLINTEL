@@ -83,6 +83,15 @@ rules:
 Optional `adr` provenance prints the accepted decision beside violations. It
 explains why a rule exists; it does not compile decisions into rules.
 
+Optional `enforcement: no-new` creates a Git-derived legacy violation baseline
+for built-in file engines. The candidate rule is evaluated against both the
+target commit and current tree. Matching findings remain visible as `legacy`;
+only introduced findings fail. Line movement and Git renames preserve identity,
+while additional identical occurrences still fail. No snapshot file is stored.
+This mode requires a full tree and `--base <target-sha>`; missing baseline
+evidence is incomplete and fails under `--strict`. External and exemption
+engines reject this mode rather than claim a baseline they cannot prove.
+
 Engines:
 
 - `regex`: glob-scoped forbidden regexes plus optional positive `required`
@@ -151,6 +160,9 @@ the new ADR; an unrelated ADR authorizes nothing. Additions and monotonic
 tightening are free. Existing ADR files are immutable; a new ADR needs a real
 accepted date no later than today plus a concrete `Decision:` section. ADRs
 record provenance and rationale, not authenticated human approval.
+Changing an existing rule from all-violation enforcement to `no-new` is a
+weakening and requires the same exact ADR authorization. This contract ratchet
+is distinct from the Git-derived violation baseline.
 
 Reference rules: `slice.no-deep-imports`, `domain.purity`,
 `identity.no-auth-import`, `secrets.no-logging`, `boundary.validation`,

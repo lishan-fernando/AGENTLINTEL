@@ -28,6 +28,7 @@ npm test
 
 Run both before declaring any task done. CI runs the same (with --strict).
 Fast agent-loop path: `verify --diff --quiet --bail --no-run --skip-fixtures`.
+Path context first: `explain --path <file> --compact` before reading kernel files.
 Templates under tools/agentlintel-cli/templates/{conformance,skills} mirror
 `.agentlintel/conformance/` and `.agents/skills/` - change both or sync fails.
 
@@ -64,6 +65,9 @@ Templates under tools/agentlintel-cli/templates/{conformance,skills} mirror
 ## Principles (advice, not machine-enforced)
 
 - Don't abstract until duplication occurs three times and is semantically identical.
+- Implement only current acceptance criteria; reuse existing code and prefer
+  Node/native platform features before adding a dependency.
+- Simplify along business or contract boundaries, not arbitrary technical layers.
 - `shared/` is generic; business-specific code belongs in a slice.
 - Slices write only to their own schema; cross-slice access via public contracts.
 - Exemptions add Decision to Reason, Approver, Expires, Owner and must match

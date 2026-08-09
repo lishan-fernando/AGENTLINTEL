@@ -3,7 +3,6 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
-const crypto = require("node:crypto");
 const { spawnSync } = require("node:child_process");
 const YAML = require("yaml");
 const { readYaml, readJson, walk, matchAny, sameDirectory } = require("./io");
@@ -11,10 +10,36 @@ const {
   runRule,
   prepareRule,
   requiredRegexViolations,
-  collectExemptionSpans,
   layerOfPath,
   validateLayersRule,
 } = require("./engines");
+const { parseExternalOutput } = require("./external-adapters");
+const { scanRuleEntries } = require("./rule-scanner");
+const { applyViolationBaseline } = require("./violation-ratchet");
+const {
+  readBaselineRuleEntries,
+  renameMapFromBase,
+} = require("./git-baseline");
+const {
+  pathEntryExists,
+  safeRepoPath,
+  safeRegularRepoFile,
+  safeRepoDirectory,
+} = require("./safe-paths");
+const {
+  MAX_SCAN_BYTES,
+  ALWAYS_SKIPPED_SEGMENTS,
+  gitOutput,
+  gitStateFingerprint,
+  resolveCommitBase,
+  changedFiles,
+  resolveBase,
+  gitBlob,
+  clearGitStateCaches,
+  trackedNonRegularFiles,
+  repositoryInventory,
+  baselineAvailable,
+} = require("./git-state");
 
 const KERNEL_DIR = ".agentlintel";
 const SKIP_PREFIXES = [`${KERNEL_DIR}/conformance`, `${KERNEL_DIR}/reports`];
@@ -196,60 +221,6 @@ function isCanonicalRepoScope(value) {
   const segments = value.split("/");
   return path.posix.normalize(value) === value &&
     !segments.some((segment) => !segment || segment === "." || segment === "..");
-}
-
-function pathEntryExists(filePath) {
-  try {
-    fs.lstatSync(filePath);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function realPathInside(root, filePath) {
-  try {
-    const relative = path.relative(fs.realpathSync(root), fs.realpathSync(filePath));
-    return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
-  } catch {
-    return false;
-  }
-}
-
-function pathHasSymlink(root, filePath) {
-  const relative = path.relative(path.resolve(root), path.resolve(filePath));
-  if (relative.startsWith("..") || path.isAbsolute(relative)) return true;
-  let cursor = path.resolve(root);
-  for (const segment of relative.split(path.sep).filter(Boolean)) {
-    cursor = path.join(cursor, segment);
-    try {
-      if (fs.lstatSync(cursor).isSymbolicLink()) return true;
-    } catch {
-      return false;
-    }
-  }
-  return false;
-}
-
-function safeRepoPath(root, filePath) {
-  return pathEntryExists(filePath) && !pathHasSymlink(root, filePath) &&
-    realPathInside(root, filePath);
-}
-
-function safeRegularRepoFile(root, filePath) {
-  try {
-    return fs.lstatSync(filePath).isFile() && safeRepoPath(root, filePath);
-  } catch {
-    return false;
-  }
-}
-
-function safeRepoDirectory(root, filePath) {
-  try {
-    return fs.lstatSync(filePath).isDirectory() && safeRepoPath(root, filePath);
-  } catch {
-    return false;
-  }
 }
 
 function inventoryPathProblem(files, relPath, { directory = false, absent = false } = {}) {
@@ -561,8 +532,6 @@ function verifyFacts(
 
 const TEXT_EXT =
   /\.(ts|tsx|js|jsx|mjs|cjs|mts|cts|cs|py|go|java|rb|php|rs|kt|swift|c|cc|cpp|cxx|h|hh|hpp|hxx|scala|ex|exs|sql|yaml|yml|json|md|sh|ps1)$/i;
-const MAX_SCAN_BYTES = 2097152;
-const ALWAYS_SKIPPED_SEGMENTS = new Set([".git", "node_modules", ".venv", "venv"]);
 const GENERATED_ROOTS = new Set(["dist", "build", "bin-cache", "target", "vendor"]);
 const KERNEL_CONFIG_PATHS = new Set([
   ".agentlintel/facts.yaml",
@@ -653,13 +622,6 @@ function ruleApplies(rule, filePath) {
   return !excludes || !matchAny(excludes, filePath);
 }
 
-function annotateRuleViolations(rule, violations) {
-  if (!rule || !rule.adr) return violations;
-  for (const violation of violations)
-    if (!violation.adr) violation.adr = rule.adr;
-  return violations;
-}
-
 function preparedRuleSet(rulesDoc) {
   const all = [];
   const configErrors = [];
@@ -708,7 +670,7 @@ function preparedRuleSet(rulesDoc) {
     };
     const commonKeys = [
       "id", "severity", "engine", "adr", "applies_to", "excludes",
-      "must_match", "message", "$comment",
+      "must_match", "enforcement", "message", "$comment",
     ];
     const engineKeys = {
       regex: ["forbidden", "required", "when", "flags", "match"],
@@ -736,6 +698,11 @@ function preparedRuleSet(rulesDoc) {
       reject("excludes must be a string array");
     if (rule.must_match != null && typeof rule.must_match !== "boolean")
       reject("must_match must be a boolean");
+    if (rule.enforcement != null && rule.enforcement !== "no-new")
+      reject("enforcement must be no-new when present");
+    if (rule.enforcement === "no-new" &&
+        ["external", "exemptions"].includes(rule.engine))
+      reject(`enforcement: no-new does not support the ${rule.engine} engine`);
     if (typeof rule.message !== "string" || !rule.message.trim())
       reject("message must be a non-empty string");
 
@@ -849,19 +816,13 @@ function changedBaselineEntries(root, rule, changed, base) {
 }
 
 function runRulesOnFiles(root, rulesDoc, files, options = {}) {
-  const violations = [];
-  const spans = [];
   const rules = options.rules || preparedRuleSet(rulesDoc).fileRules;
-  const exemptionRule = rules.find((rule) => rule.engine === "exemptions");
   const nonRegularPaths = options.nonRegularPaths || new Map();
-  const ruleFileCounts = new Map(rules.map((rule) => [rule.id, 0]));
-  const requiredEntries = new Map(
-    rules
-      .filter((rule) => rule.engine === "regex" && rule._requiredRegexes.length)
-      .map((rule) => [rule.id, []]),
-  );
+  const inputViolations = [];
+  const entries = [];
 
-  if (!rules.length) return { violations, spans, ruleFileCounts };
+  if (!rules.length)
+    return { violations: [], spans: [], ruleFileCounts: new Map() };
 
   for (const filePath of files) {
     if (isSkippedPrefix(filePath)) continue;
@@ -874,7 +835,7 @@ function runRulesOnFiles(root, rulesDoc, files, options = {}) {
       const targetKind = mode ? symlinkTargetKind(absolutePath, mode) : "unknown";
       if (mode && rules.some((rule) =>
         nonRegularRuleGoverns(rule, filePath, mode, targetKind))) {
-        violations.push({
+        inputViolations.push({
           rule: "agentlintel.scan-failure",
           file: filePath,
           line: 0,
@@ -894,7 +855,7 @@ function runRulesOnFiles(root, rulesDoc, files, options = {}) {
         throw new Error("path is not a regular repository file");
       const byteCount = fs.statSync(absolutePath).size;
       if (byteCount > MAX_SCAN_BYTES) {
-        violations.push({
+        inputViolations.push({
           rule: "agentlintel.scan-limit",
           file: filePath,
           line: 0,
@@ -905,7 +866,7 @@ function runRulesOnFiles(root, rulesDoc, files, options = {}) {
       }
       content = fs.readFileSync(absolutePath, "utf8");
     } catch (error) {
-      violations.push({
+      inputViolations.push({
         rule: "agentlintel.scan-failure",
         file: filePath,
         line: 0,
@@ -914,51 +875,21 @@ function runRulesOnFiles(root, rulesDoc, files, options = {}) {
       });
       continue;
     }
-
-    for (const rule of applicable) {
-      // A layers rule only "covers" a file that lands in a declared layer.
-      if (rule.engine !== "layers" || layerOfPath(rule.layers || [], filePath))
-        ruleFileCounts.set(rule.id, ruleFileCounts.get(rule.id) + 1);
-      violations.push(
-        ...annotateRuleViolations(
-          rule,
-          runRule(rule, filePath, content, { skipApplies: true }),
-        ),
-      );
-      if (requiredEntries.has(rule.id))
-        requiredEntries.get(rule.id).push({ filePath, content });
-    }
-
-    if (
-      exemptionRule &&
-      content.includes(exemptionRule._marker) &&
-      ruleApplies(exemptionRule, filePath)
-    )
-      spans.push(
-        ...collectExemptionSpans(exemptionRule, filePath, content, {
-          skipApplies: true,
-        }),
-      );
+    entries.push({ filePath, content });
   }
 
-  if (!options.partial)
-    for (const rule of rules)
-      if (requiredEntries.has(rule.id))
-        violations.push(
-          ...annotateRuleViolations(
-            rule,
-            requiredRegexViolations(rule, requiredEntries.get(rule.id), {
-              baselineEntries: changedBaselineEntries(
-                root,
-                rule,
-                options.changed,
-                options.base,
-              ),
-            }),
-          ),
-        );
-
-  return { violations, spans, ruleFileCounts };
+  const scanned = scanRuleEntries(rules, entries, {
+    partial: options.partial,
+    scansFile: ruleScansFile,
+    baselineEntries: (rule) => changedBaselineEntries(
+      root,
+      rule,
+      options.changed,
+      options.base,
+    ),
+  });
+  scanned.violations.unshift(...inputViolations);
+  return scanned;
 }
 
 function runExternalRules(root, rulesDoc, { run = true, rules = null } = {}) {
@@ -1032,215 +963,6 @@ function externalOutcome(rule, { status = 0, stdout = "", stderr = "", error = n
       adr: rule.adr,
     }],
   };
-}
-
-function parseExternalOutput(rule, stdout, meta = {}) {
-  const adapter = rule.adapter || rule.format || "jsonl";
-  if (adapter === "dependency-cruiser")
-    return annotateRuleViolations(rule, parseDependencyCruiserOutput(rule, stdout));
-  if (adapter === "dotnet-test")
-    return annotateRuleViolations(rule, parseDotnetTestOutput(rule, stdout, meta));
-  if (adapter === "command-status" || adapter === "status")
-    return annotateRuleViolations(
-      rule,
-      parseCommandStatusOutput(rule, stdout, meta),
-    );
-
-  const violations = [];
-  for (const line of stdout.split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    if (!trimmed.startsWith("{"))
-      throw new Error("external JSONL output contains a non-JSON record");
-    try {
-      const entry = JSON.parse(trimmed);
-      if (!entry || typeof entry !== "object" || Array.isArray(entry) ||
-          typeof entry.file !== "string" || !entry.file ||
-          (entry.line != null && (!Number.isInteger(entry.line) || entry.line < 0)) ||
-          (entry.message != null && typeof entry.message !== "string"))
-        throw new Error("JSONL records require file and valid optional line/message fields");
-      violations.push({
-        rule: rule.id,
-        file: entry.file.replace(/\\/g, "/"),
-        line: entry.line ?? 0,
-        message: entry.message || rule.message || "external engine violation",
-        severity: rule.severity,
-      });
-    } catch (error) {
-      throw new Error(`invalid external JSONL record: ${error.message || error}`);
-    }
-  }
-  return annotateRuleViolations(rule, violations);
-}
-
-function parseCommandStatusOutput(rule, stdout, { status = 0, stderr = "" } = {}) {
-  if (status === 0) return [];
-
-  const lines = String((stdout || "") + "\n" + (stderr || ""))
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-  const summary =
-    lines.find((line) => !/^npm (ERR|WARN)!?/i.test(line)) ||
-    lines[0] ||
-    "command exited " + status;
-  const file =
-    rule.file ||
-    (rule.scope === "pr"
-      ? "(pr-policy)"
-      : rule.scope === "commit"
-        ? "(commit-policy)"
-        : "(command-status)");
-
-  return [
-    {
-      rule: rule.id,
-      file,
-      line: 0,
-      message: (rule.message || "external command failed") + ": " + summary,
-      severity: rule.severity,
-    },
-  ];
-}
-
-function jsonFromOutput(output) {
-  const trimmed = String(output || "").trim();
-  if (!trimmed) return null;
-  try {
-    return JSON.parse(trimmed);
-  } catch {
-    const start = trimmed.indexOf("{");
-    const end = trimmed.lastIndexOf("}");
-    if (start === -1 || end <= start) return null;
-    try {
-      return JSON.parse(trimmed.slice(start, end + 1));
-    } catch {
-      return null;
-    }
-  }
-}
-
-function ruleNameOf(value) {
-  if (!value) return null;
-  if (typeof value === "string") return value;
-  return value.name || value.rule || value.id || value.description || null;
-}
-
-function depCruiserViolation(rule, file, line, ruleName, from, to, comment) {
-  const edge = from && to ? `${from} -> ${to}` : from || to || file;
-  const message = [ruleName || rule.message || "dependency-cruiser violation", edge, comment]
-    .filter(Boolean)
-    .join(": ");
-  return {
-    rule: rule.id,
-    file: file || from || "(dependency-cruiser)",
-    line: line || 0,
-    message,
-    severity: rule.severity,
-  };
-}
-
-function parseDependencyCruiserOutput(rule, stdout) {
-  const doc = jsonFromOutput(stdout);
-  if (!doc || typeof doc !== "object" || Array.isArray(doc))
-    throw new Error("dependency-cruiser output must be a JSON object");
-
-  const violations = [];
-  const groups = [
-    doc.summary && doc.summary.violations,
-    doc.violations,
-    doc.validation && doc.validation.violations,
-  ].filter((value) => value != null);
-  if (groups.some((value) => !Array.isArray(value)))
-    throw new Error("dependency-cruiser violations must be arrays");
-  if (doc.modules != null && !Array.isArray(doc.modules))
-    throw new Error("dependency-cruiser modules must be an array");
-  if (!Array.isArray(doc.modules) && groups.length === 0)
-    throw new Error("dependency-cruiser output has no recognizable modules or violations array");
-  const reported = groups.flat();
-
-  for (const entry of reported) {
-    const from = entry.from || entry.source || entry.module || entry.file;
-    const to = entry.to || entry.resolved || entry.target || entry.dependency;
-    const name = ruleNameOf(entry.rule) || entry.ruleName || entry.name;
-    violations.push(
-      depCruiserViolation(
-        rule,
-        from,
-        entry.line || entry.fromLine,
-        name,
-        from,
-        to,
-        entry.comment || entry.message,
-      ),
-    );
-  }
-
-  for (const module of doc.modules || []) {
-    const source = module.source || module.sourceFile || module.path || module.name;
-    for (const dependency of module.dependencies || []) {
-      const target =
-        dependency.resolved ||
-        dependency.module ||
-        dependency.dependency ||
-        dependency.target;
-      for (const ruleEntry of dependency.rules || dependency.violations || [])
-        violations.push(
-          depCruiserViolation(
-            rule,
-            source,
-            dependency.line || dependency.lineNumber,
-            ruleNameOf(ruleEntry),
-            source,
-            target,
-            ruleEntry.comment || ruleEntry.message,
-          ),
-        );
-    }
-    for (const ruleEntry of module.rules || module.violations || [])
-      violations.push(
-        depCruiserViolation(
-          rule,
-          source,
-          module.line || module.lineNumber,
-          ruleNameOf(ruleEntry),
-          source,
-          null,
-          ruleEntry.comment || ruleEntry.message,
-        ),
-      );
-  }
-
-  return violations;
-}
-
-function parseDotnetTestOutput(rule, stdout, { status = 0, stderr = "" } = {}) {
-  const lines = String(`${stdout || ""}\n${stderr || ""}`)
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-  const failureLine =
-    lines.find((line) => /^Failed\s/.test(line)) ||
-    lines.find((line) => /Test Run Failed|Error Message|Failed!/i.test(line)) ||
-    lines.find(
-      (line) =>
-        /failed/i.test(line) &&
-        !/Failed:\s*0\b/i.test(line) &&
-        !/^Passed!/i.test(line),
-    );
-
-  if (status === 0 && !failureLine) return [];
-
-  const summary = failureLine || lines.slice(-1)[0] || `dotnet test exited ${status}`;
-  return [
-    {
-      rule: rule.id,
-      file: "(dotnet-test)",
-      line: 0,
-      message: `dotnet test failed: ${summary}`,
-      severity: rule.severity,
-    },
-  ];
 }
 
 function applySuppression(violations, spans, unsuppressible = new Set(["exemption.audited"])) {
@@ -1474,198 +1196,6 @@ function runFixtures(root, rulesDoc, options = {}) {
   }
 
   return results;
-}
-
-function validRef(ref) {
-  return typeof ref === "string" && ref.length > 0 && !ref.startsWith("-") && !ref.includes("\0");
-}
-
-function gitOutput(root, args) {
-  const spawned = spawnSync("git", args, {
-    cwd: root,
-    encoding: "utf8",
-    maxBuffer: 67108864,
-    stdio: ["ignore", "pipe", "ignore"],
-  });
-  return spawned.status === 0 && !spawned.stdout.includes("\uFFFD")
-    ? spawned.stdout
-    : null;
-}
-
-function gitStateFingerprint(root) {
-  const probes = [
-    ["rev-parse", "--verify", "HEAD"],
-    ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
-    ["ls-files", "-v", "-z"],
-    ["ls-files", "--stage", "-z"],
-    ["diff", "--binary", "--no-ext-diff", "--no-textconv", "--no-renames", "HEAD", "--"],
-  ];
-  const hash = crypto.createHash("sha256");
-  for (const args of probes) {
-    const result = spawnSync("git", args, {
-      cwd: root,
-      encoding: "buffer",
-      maxBuffer: 67108864,
-      stdio: ["ignore", "pipe", "ignore"],
-    });
-    if (result.status !== 0) return null;
-    hash.update(result.stdout);
-    hash.update("\0");
-  }
-  const untracked = spawnSync(
-    "git",
-    ["ls-files", "--others", "--exclude-standard", "-z"],
-    {
-      cwd: root,
-      encoding: "buffer",
-      maxBuffer: 67108864,
-      stdio: ["ignore", "pipe", "ignore"],
-    },
-  );
-  if (untracked.status !== 0) return null;
-  const names = untracked.stdout.toString("utf8");
-  if (names.includes("\uFFFD")) return null;
-  let untrackedBytes = 0;
-  const buffer = Buffer.allocUnsafe(65536);
-  for (const relPath of names.split("\0").filter(Boolean)) {
-    const absolutePath = path.join(root, relPath);
-    let before;
-    try {
-      before = fs.lstatSync(absolutePath);
-      hash.update(relPath);
-      hash.update(`\0${before.mode}\0${before.size}\0`);
-      if (before.isSymbolicLink()) {
-        hash.update(fs.readlinkSync(absolutePath));
-      } else if (before.isFile()) {
-        untrackedBytes += before.size;
-        if (untrackedBytes > 67108864) return null;
-        const descriptor = fs.openSync(absolutePath, "r");
-        try {
-          let count;
-          while ((count = fs.readSync(descriptor, buffer, 0, buffer.length, null)) > 0)
-            hash.update(buffer.subarray(0, count));
-        } finally {
-          fs.closeSync(descriptor);
-        }
-      } else {
-        return null;
-      }
-      const after = fs.lstatSync(absolutePath);
-      if (after.mode !== before.mode || after.size !== before.size ||
-          after.mtimeMs !== before.mtimeMs) return null;
-    } catch {
-      return null;
-    }
-    hash.update("\0");
-  }
-  return hash.digest("hex");
-}
-
-function resolveCommitBase(root, base) {
-  if (!base) return { commit: null, error: null };
-  if (!validRef(base))
-    return { commit: null, error: `comparison base '${base}' is unsafe` };
-
-  const commitOutput = gitOutput(root, [
-    "rev-parse",
-    "--verify",
-    "--quiet",
-    "--end-of-options",
-    `${base}^{commit}`,
-  ]);
-  if (commitOutput != null) {
-    const commit = commitOutput.trim();
-    return /^[0-9a-f]{40,64}$/i.test(commit)
-      ? { commit, error: null }
-      : { commit: null, error: `comparison base '${base}' returned an invalid commit id` };
-  }
-
-  const objectOutput = gitOutput(root, [
-    "rev-parse",
-    "--verify",
-    "--quiet",
-    "--end-of-options",
-    `${base}^{object}`,
-  ]);
-  return objectOutput == null
-    ? { commit: null, error: null }
-    : { commit: null, error: `comparison base '${base}' must resolve to a commit` };
-}
-
-function parseStatusZ(output) {
-  const files = [];
-  const entries = String(output || "")
-    .split("\0")
-    .filter(Boolean);
-
-  for (let index = 0; index < entries.length; index++) {
-    const entry = entries[index];
-    const statusCode = entry.slice(0, 2);
-    const filePath = entry.slice(3);
-    if (filePath) files.push(filePath);
-    // Renames and copies carry the source path as the next NUL-separated entry.
-    if (/[RC]/.test(statusCode) && entries[index + 1])
-      files.push(entries[++index]);
-  }
-
-  return files;
-}
-
-function changedFiles(root, base) {
-  const result = { files: null, note: "", baseResolved: !base };
-  const statusOutput = gitOutput(root, [
-    "status",
-    "--porcelain=v1",
-    "-z",
-    "--untracked-files=all",
-  ]);
-  if (statusOutput == null)
-    return { files: null, note: "no git", baseResolved: false };
-
-  const fileSets = [parseStatusZ(statusOutput)];
-
-  if (base) {
-    if (!validRef(base))
-      return { files: null, note: `unsafe base ref '${base}'`, baseResolved: false };
-
-    const output = gitOutput(root, [
-      "diff",
-      "--relative",
-      "--name-only",
-      "--no-renames",
-      "-z",
-      "--end-of-options",
-      base,
-      "HEAD",
-    ]);
-    if (output != null) {
-      fileSets.push(
-        output
-          .split("\0")
-          .filter(Boolean),
-      );
-      result.note = `base ${base}`;
-      result.baseResolved = true;
-    } else {
-      result.note = `base '${base}' unavailable - checked working tree only`;
-    }
-  }
-
-  result.files = [
-    ...new Set(
-      fileSets
-        .flat()
-        .filter(Boolean),
-    ),
-  ];
-  return result;
-}
-
-function resolveBase(base) {
-  return (
-    base ||
-    (process.env.GITHUB_BASE_REF ? `origin/${process.env.GITHUB_BASE_REF}` : null)
-  );
 }
 
 function checkGuard(root, guard, { base = null, treeFiles = null, changed = null } = {}) {
@@ -1923,36 +1453,72 @@ function checkAdapters(root, { nonRegularPaths = new Map() } = {}) {
   return results;
 }
 
-function gitBlob(root, ref, filePath) {
-  if (!validRef(ref)) return { status: "error", error: "unsafe baseline ref" };
-  const spec = `${ref}:${filePath}`;
-  const sizeOutput = gitOutput(root, ["cat-file", "-s", spec]);
-  if (sizeOutput == null) return { status: "absent" };
-  const size = Number(sizeOutput.trim());
-  if (!Number.isSafeInteger(size) || size < 0 || size > MAX_SCAN_BYTES)
-    return { status: "error", error: `baseline blob is invalid or exceeds ${MAX_SCAN_BYTES} bytes` };
-  const spawned = spawnSync("git", ["show", "--end-of-options", spec], {
-    cwd: root,
-    encoding: "utf8",
-    maxBuffer: MAX_SCAN_BYTES + 1024,
-    stdio: ["ignore", "pipe", "ignore"],
-  });
-  return spawned.status === 0
-    ? { status: "read", content: spawned.stdout }
-    : { status: "error", error: "baseline blob could not be read" };
-}
+function checkViolationBaseline(root, base, rules, currentViolations, { partial = false } = {}) {
+  const baselineRules = rules.filter((rule) => rule.enforcement === "no-new");
+  const empty = {
+    status: "not configured",
+    rules: [],
+    legacy: 0,
+    introduced: 0,
+    exempted_introduced: 0,
+    resolved: 0,
+    errors: [],
+    warnings: [],
+    ok: true,
+  };
+  if (!baselineRules.length) return empty;
+  const ruleIds = new Set(baselineRules.map((rule) => rule.id));
+  if (partial)
+    return {
+      ...empty,
+      status: "skipped (--diff)",
+      rules: [...ruleIds],
+      warnings: ["VIOLATION-BASE diff mode cannot prove the full legacy violation set"],
+      ok: false,
+    };
+  if (!base)
+    return {
+      ...empty,
+      status: "base unavailable",
+      rules: [...ruleIds],
+      warnings: ["VIOLATION-BASE enforcement: no-new requires --base <target-sha>"],
+      ok: false,
+    };
 
-function trackedNonRegularFiles(root) {
-  const output = gitOutput(root, ["ls-files", "-s", "-z"]);
-  if (output == null) return [];
-  return output
-    .split("\0")
-    .filter((entry) => /^(?:120000|160000) /.test(entry) && entry.includes("\t"))
-    .map((entry) => ({
-      mode: entry.slice(0, 6),
-      file: entry.slice(entry.indexOf("\t") + 1),
-    }))
-    .filter((entry) => pathEntryExists(path.join(root, entry.file)));
+  const baselineTree = readBaselineRuleEntries(root, base, baselineRules, {
+    isSkipped: isSkippedPrefix,
+    scansFile: ruleScansFile,
+    governsNonRegular: nonRegularRuleGoverns,
+    maxBytes: MAX_SCAN_BYTES,
+  });
+  if (baselineTree.errors.length)
+    return {
+      ...empty,
+      status: "baseline scan failed",
+      rules: [...ruleIds],
+      errors: baselineTree.errors.map((error) => `VIOLATION-BASE ${error}`),
+      ok: false,
+    };
+  const baselineScan = scanRuleEntries(baselineRules, baselineTree.entries, {
+    scansFile: ruleScansFile,
+  });
+  const renameResult = renameMapFromBase(root, base);
+  const counts = applyViolationBaseline(
+    currentViolations,
+    baselineScan.violations,
+    ruleIds,
+    renameResult.renames,
+  );
+  return {
+    status: `checked against ${base}`,
+    rules: [...ruleIds],
+    ...counts,
+    errors: [],
+    warnings: renameResult.error
+      ? [`VIOLATION-BASE ${renameResult.error}; renamed legacy findings may appear new`]
+      : [],
+    ok: !renameResult.error,
+  };
 }
 
 function coveringNonRegular(nonRegularPaths, relPath) {
@@ -1988,63 +1554,6 @@ function nonRegularFactProblem(nonRegularPaths, value, type) {
   return `check path enters opaque Git mode ${covered.mode} boundary: ${covered.path}`;
 }
 
-function repositoryInventory(root) {
-  const gitRoot = gitOutput(root, ["rev-parse", "--is-inside-work-tree"]);
-  if (gitRoot == null || gitRoot.trim() !== "true")
-    return {
-      files: walk(root, { skipDirs: ALWAYS_SKIPPED_SEGMENTS }),
-      error: null,
-      source: "filesystem",
-      tracked: null,
-    };
-  const topLevel = gitOutput(root, ["rev-parse", "--show-toplevel"]);
-  if (topLevel == null || !topLevel.trim())
-    return { files: [], error: "INVENTORY Git top-level could not be read", source: "git" };
-  if (!sameDirectory(root, topLevel.trim()))
-    return {
-      files: [],
-      error: `INVENTORY verification root must be the Git top-level: ${topLevel.trim()}`,
-      source: "git",
-    };
-  const flags = gitOutput(root, ["ls-files", "-v", "-z"]);
-  if (flags == null)
-    return { files: [], error: "INVENTORY Git index flags could not be read", source: "git" };
-  const sparse = flags.split("\0").filter((entry) => entry.startsWith("S "));
-  if (sparse.length)
-    return {
-      files: [],
-      error: `INVENTORY sparse checkout omits ${sparse.length} tracked path(s); full verification requires a complete checkout`,
-      source: "git",
-    };
-  const hidden = flags.split("\0").filter((entry) => /^[a-z] /.test(entry));
-  if (hidden.length)
-    return {
-      files: [],
-      error: `INVENTORY ${hidden.length} tracked path(s) use assume-unchanged index flags`,
-      source: "git",
-    };
-  const output = gitOutput(root, [
-    "ls-files",
-    "-z",
-    "--cached",
-    "--others",
-    "--exclude-standard",
-  ]);
-  if (output == null)
-    return { files: [], error: "INVENTORY Git file inventory failed", source: "git" };
-  const trackedOutput = gitOutput(root, ["ls-files", "-z", "--cached"]);
-  if (trackedOutput == null)
-    return { files: [], error: "INVENTORY Git tracked-file inventory failed", source: "git" };
-  return {
-    files: [...new Set(output.split("\0").filter(Boolean))]
-      .filter((file) => pathEntryExists(path.join(root, file)))
-      .sort(),
-    error: null,
-    source: "git",
-    tracked: new Set(trackedOutput.split("\0").filter(Boolean)),
-  };
-}
-
 function isGovernanceArtifact(file) {
   if (file === "AGENTS.md" || file === "CLAUDE.md") return true;
   if (file.startsWith(".agentlintel/reports/")) return false;
@@ -2055,18 +1564,26 @@ function isGovernanceArtifact(file) {
 
 function untrackedGovernanceArtifacts(root, inventory) {
   if (inventory.source !== "git" || !inventory.tracked) return [];
-  return walk(root)
+  // Filesystem scan (not the Git inventory) so ignored governance artifacts
+  // are caught too, but scoped to governance roots instead of the full tree.
+  const candidates = [];
+  for (const dir of [".agentlintel", ".agents/skills"]) {
+    const absolute = path.join(root, dir);
+    if (!safeRepoDirectory(root, absolute)) continue;
+    for (const file of walk(absolute, { skipPrefixes: ["reports"] }))
+      candidates.push(`${dir}/${file}`);
+  }
+  const rootFiles = ["AGENTS.md", "CLAUDE.md", ...ADAPTERS.map((adapter) => adapter.file)];
+  for (const file of rootFiles)
+    if (pathEntryExists(path.join(root, file))) candidates.push(file);
+  return candidates
     .filter(isGovernanceArtifact)
-    .filter((file) => !inventory.tracked.has(file));
+    .filter((file) => !inventory.tracked.has(file))
+    .sort();
 }
 
 function normalizedText(value) {
   return String(value || "").replace(/\r\n/g, "\n");
-}
-
-function baselineAvailable(root, ref) {
-  if (!validRef(ref)) return false;
-  return gitOutput(root, ["rev-parse", "--verify", "--quiet", "--end-of-options", `${ref}^{commit}`]) != null;
 }
 
 function sortedArray(value) {
@@ -2146,6 +1663,8 @@ function detectRuleWeakening(oldDoc, newDoc) {
       findings.push(
         `rule '${id}' severity was downgraded from '${oldRule.severity || "error"}' to '${newRule.severity || "error"}'`,
       );
+    if (oldRule.enforcement !== "no-new" && newRule.enforcement === "no-new")
+      findings.push(`rule '${id}' changed enforcement from all violations to no-new`);
     if (newRule.must_match === false && oldRule.must_match !== false)
       findings.push(`rule '${id}' was made dormant with must_match: false`);
     else if (oldRule.must_match === true && newRule.must_match !== true)
@@ -2941,6 +2460,7 @@ function ruleViolationMessage(violation) {
 }
 
 function verify(root, options = {}) {
+  clearGitStateCaches();
   const trackedNonRegular = trackedNonRegularFiles(root);
   const nonRegularPaths = new Map(
     trackedNonRegular.map((entry) => [entry.file, entry.mode]),
@@ -2996,6 +2516,7 @@ function verify(root, options = {}) {
         exemplar_ratchet: { status: "skipped (--bail)", findings: [], ok: true },
         ratchet: { status: "skipped (--bail)", findings: [], ok: true },
         guard_ratchet: { status: "skipped (--bail)", findings: [], ok: true },
+        violation_baseline: { status: "skipped (--bail)", rules: [], legacy: 0, introduced: 0, resolved: 0, errors: [], warnings: [], ok: true },
         decisions: { status: "skipped (--bail)", added: [], violations: [] },
         exemplars: [],
         adapters: [],
@@ -3090,6 +2611,13 @@ function verify(root, options = {}) {
     authorizedExemptions.spans,
     new Set(ruleSet ? ruleSet.all.filter((rule) => rule.engine === "exemptions").map((rule) => rule.id) : []),
   );
+  const violationBaseline = checkViolationBaseline(
+    root,
+    baseResolution.error ? null : base,
+    ruleSet ? ruleSet.fileRules : [],
+    allViolations,
+    { partial: diffMode },
+  );
 
   const result = {
     root: path.resolve(root),
@@ -3134,6 +2662,7 @@ function verify(root, options = {}) {
       changed,
       authorizations: weakeningAuthorizations,
     }),
+    violation_baseline: violationBaseline,
     decisions,
     exemplars: kernel.exemplars
       ? checkExemplars(root, kernel.exemplars, {
@@ -3149,6 +2678,8 @@ function verify(root, options = {}) {
 
   const errors = [...result.kernel_schema, ...result.rule_config];
   const warnings = [];
+  errors.push(...violationBaseline.errors);
+  warnings.push(...violationBaseline.warnings);
 
   if (dynamicUnavailable) {
     errors.push(
@@ -3210,7 +2741,7 @@ function verify(root, options = {}) {
   }
 
   for (const violation of result.rule_violations) {
-    if (violation.exempted) continue;
+    if (violation.exempted || violation.legacy) continue;
     (isWarningSeverity(violation.severity) ? warnings : errors).push(
       ruleViolationMessage(violation),
     );
@@ -3318,6 +2849,9 @@ function verify(root, options = {}) {
 
   result.exempted_count = result.rule_violations.filter(
     (violation) => violation.exempted,
+  ).length;
+  result.legacy_violation_count = result.rule_violations.filter(
+    (violation) => violation.legacy && !violation.exempted,
   ).length;
 
   if (options.mode === "warn") {

@@ -10,7 +10,7 @@ const { execSync } = require('node:child_process');
 const { verify } = require('../src/lib/verify');
 
 // Hermetic: temp repos here have no origin; a leaked GITHUB_BASE_REF from a
-// pull_request run would degrade the ratchet to a warning (see governance.test.js).
+// pull_request run would degrade the ratchet to a warning (see governance-ratchets.test.js).
 delete process.env.GITHUB_BASE_REF;
 
 function tmpDir() {
