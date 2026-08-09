@@ -15,7 +15,7 @@ Use the GitHub Release tarball only when you need an exact pinned artifact or a
 registry-free fallback:
 
 ```bash
-npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.13/agentlintel-cli.tgz
+npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.14/agentlintel-cli.tgz
 ```
 
 Choose a pattern only when the default vertical-slice rules do not fit:
@@ -72,6 +72,7 @@ AST-aware rules, start here instead of stretching a regex. Typical mappings:
 
 - Frontend public surfaces: dependency-cruiser -> `engine: external`.
 - .NET architecture tests: `dotnet test` -> `adapter: dotnet-test`.
+- Compiler/analyzer findings: SARIF 2.1 -> `adapter: sarif`.
 - Custom tools: JSONL findings `{file,line,message}` on stdout.
 
 Each external rule still needs fixtures. Fixtures validate output mapping; live
@@ -79,6 +80,44 @@ engines run during tree verify unless `--no-run` or `--diff` is used. Both
 flags make the run incomplete under `--strict`. The built-in `layers` engine
 checks JS/TS imports only; native-language boundaries need an external native
 checker.
+
+## C# Code Quality
+
+Run `init --engine-adapters`, import
+`.agentlintel/adapters/dotnet-code-quality.props` from `Directory.Build.props`,
+and copy/tune the `dotnet.code-quality` rule. The generated runner asks the C#
+compiler for SARIF 2.1 in a temporary directory, merges project reports, and
+returns repository-relative file, line, column, diagnostic id, and message.
+It does not add analyzers or mutate source.
+
+This follows Microsoft's documented [analyzer configuration](https://learn.microsoft.com/dotnet/fundamentals/code-analysis/configuration-files),
+[compiler ErrorLog SARIF](https://learn.microsoft.com/dotnet/csharp/language-reference/compiler-options/errors-warnings#errorlog),
+and [file-scoped namespace](https://learn.microsoft.com/dotnet/fundamentals/code-analysis/style-rules/ide0160-ide0161)
+contracts instead of inventing parallel syntax rules.
+
+Use the narrowest authority for each policy:
+
+- Compiler, .editorconfig, and Microsoft analyzers: file-scoped namespaces,
+  formatting/imports, unnecessary qualification, visible nested types,
+  sealable internal types, async API use, and cancellation forwarding.
+- A pinned Roslyn/custom analyzer: no nested production types (including
+  private; private test fixtures may be exempt), one top-level type per file,
+  filename/type agreement, forbidden service location, sync-over-async, dead
+  public members, and repository-specific source shapes.
+- Architecture tests: thin adapters, explicit constructor dependencies, live DI
+  composition, no registration-time I/O, dependency direction, justified ports,
+  aggregate state encapsulation, error-catalog placement, and public contract
+  placement.
+- Behavioral/contract tests: validate before normalize, expected-error mapping,
+  idempotency, cancellation behavior, API/message versioning, and
+  composition-root startup.
+- Human review: naming and linear readability, comments only for non-obvious
+  intent, SRP/OCP/LSP/ISP/DIP judgment, speculative abstractions, and complexity
+  that has no honest universal numeric threshold.
+
+CA1034 only rejects externally visible nested types; it does not prove a strict
+"no nested production type" policy. Keep that stricter policy in a native
+analyzer or architecture test instead of stretching AgentLintel regex.
 
 ## Multi-Repo
 

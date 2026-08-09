@@ -132,6 +132,18 @@ const ADAPTER_FILES = [
 ];
 const ENGINE_ADAPTER_FILES = [
   {
+    from: "engine-adapters/dotnet-sarif.js",
+    to: ".agentlintel/adapters/dotnet-sarif.js",
+  },
+  {
+    from: "engine-adapters/dotnet-code-quality.props",
+    to: ".agentlintel/adapters/dotnet-code-quality.props",
+  },
+  {
+    from: "engine-adapters/dotnet-code-quality.globalconfig",
+    to: ".agentlintel/adapters/dotnet-code-quality.globalconfig",
+  },
+  {
     from: "engine-adapters/dependency-cruiser.frontend.cjs",
     to: ".agentlintel/adapters/dependency-cruiser.frontend.cjs",
   },

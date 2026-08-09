@@ -1,0 +1,1 @@
+{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"Microsoft.CodeAnalysis","rules":[{"id":"IDE0161"}]}},"results":[{"ruleId":"IDE0161","message":{"text":"Use a file-scoped namespace."},"locations":[{"physicalLocation":{"artifactLocation":{"uri":"src/Order%20Handler.cs"},"region":{"startLine":7,"startColumn":9}}}]}]}]}

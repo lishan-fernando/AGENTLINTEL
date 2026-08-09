@@ -638,6 +638,7 @@ function preparedRuleSet(rulesDoc) {
     "jsonl",
     "dependency-cruiser",
     "dotnet-test",
+    "sarif",
     "command-status",
     "status",
   ]);
@@ -920,6 +921,7 @@ function runExternalRules(root, rulesDoc, { run = true, rules = null } = {}) {
       stdout: spawned.stdout || "",
       stderr: spawned.stderr || "",
       error: spawned.error,
+      root,
     });
     violations.push(...outcome.violations);
     statuses.push({ rule: rule.id, status: outcome.status });
@@ -928,10 +930,13 @@ function runExternalRules(root, rulesDoc, { run = true, rules = null } = {}) {
   return { violations, statuses };
 }
 
-function externalOutcome(rule, { status = 0, stdout = "", stderr = "", error = null } = {}) {
+function externalOutcome(
+  rule,
+  { status = 0, stdout = "", stderr = "", error = null, root = null } = {},
+) {
   let parsed = [];
   try {
-    parsed = parseExternalOutput(rule, stdout, { status, stderr });
+    parsed = parseExternalOutput(rule, stdout, { status, stderr, root });
   } catch (parseError) {
     error = error || parseError;
   }
@@ -2456,7 +2461,8 @@ function ruleReference(violation) {
 }
 
 function ruleViolationMessage(violation) {
-  return `RULE [${violation.rule}]${ruleReference(violation)} ${violation.file}:${violation.line} ${violation.message}`;
+  const column = violation.column ? `:${violation.column}` : "";
+  return `RULE [${violation.rule}]${ruleReference(violation)} ${violation.file}:${violation.line}${column} ${violation.message}`;
 }
 
 function verify(root, options = {}) {

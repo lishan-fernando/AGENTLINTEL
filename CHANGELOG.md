@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v2.0.0-alpha.14 - 2026-08-09
+
 - Adds Git-derived `enforcement: no-new` for brownfield built-in rules: legacy
   findings stay visible, introduced findings fail, resolved debt is counted,
   duplicate findings cannot hide behind one baseline occurrence, and Git
@@ -13,6 +15,14 @@
 - Machine-checks the CLI's no-build and single-runtime-dependency promises and
   consolidates YAGNI, reuse-first, native-first, and architecture-aware
   simplification as advice rather than unverifiable rules.
+- Adds a fail-closed SARIF 2.1 external adapter that preserves native analyzer
+  diagnostic IDs and exact repository-relative file, line, and column evidence.
+- Ships an opt-in .NET compiler/analyzer starter, recorded conformance fixtures,
+  and adoption guidance without introducing a C# parser or runtime dependency.
+- Updates the repository and composite Action runtimes to the current pinned
+  `actions/checkout` and `actions/setup-node` revisions.
+- Isolates external-adapter test repositories from CI event base variables and
+  normalizes real temporary-directory roots across macOS path aliases.
 
 ## v2.0.0-alpha.13 - 2026-07-15
 

@@ -1,0 +1,14 @@
+<!--
+SPDX-License-Identifier: Apache-2.0
+-->
+<Project>
+  <PropertyGroup>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <GlobalAnalyzerConfigFiles Include="$(MSBuildThisFileDirectory)dotnet-code-quality.globalconfig" />
+  </ItemGroup>
+</Project>

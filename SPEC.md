@@ -108,10 +108,12 @@ Engines:
   dependency map. Overlapping layer coverage fails; native languages use an
   external architecture checker.
 - `external`: runs a repo command. Default output is JSONL `{file,line,message}`;
-  adapters exist for `command-status`, dependency-cruiser, and `dotnet test`.
-  This is the primary language-agnostic path for native architecture tests and
-  other deep analyzers. `evidence` names exact, regular repository files that
-  implement/configure the checker; changing them is a contract weakening.
+  adapters exist for `command-status`, dependency-cruiser, `dotnet test`, and
+  SARIF 2.1. SARIF results preserve diagnostic id, source file, line, and
+  column; malformed logs fail closed. This is the primary language-agnostic
+  path for native architecture tests and deep analyzers. `evidence` names
+  exact, regular repository files that implement/configure the checker;
+  changing them is a contract weakening.
 
 ```yaml
 rules:
@@ -136,6 +138,15 @@ rules:
     scope: tree
     run: "npm run architecture:check"
     message: "Repository architecture contract must pass."
+
+  - id: dotnet.code-quality
+    severity: error
+    engine: external
+    evidence: [.agentlintel/adapters/dotnet-sarif.js, Directory.Build.props]
+    adapter: sarif
+    scope: tree
+    run: "node .agentlintel/adapters/dotnet-sarif.js -- dotnet build App.sln --no-restore"
+    message: ".NET compiler and analyzer diagnostics must pass."
 ```
 
 `command-status` maps exit 0 to pass and exit 1 to a rule violation; other
@@ -186,8 +197,9 @@ violations:
 `violations: []` means the case must produce no violations for the rule under
 test. Every rule requires at least one explicit passing case and one failing
 case. File-engine cases contain a file in the declared scope; external cases
-record `status.txt`. External fixtures validate recorded output mapping, not a
-live engine execution.
+record `status.txt` and adapter output in `output.jsonl` (the filename is stable
+even when the payload is SARIF JSON). External fixtures validate recorded
+output mapping, not a live engine execution.
 
 ## Guard
 

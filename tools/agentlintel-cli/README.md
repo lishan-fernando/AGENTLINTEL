@@ -16,7 +16,8 @@ Fixture-backed starter checks catch drift like deep imports, raw request casts
 before validation, and likely secret-value logging. Use `engine: external` for
 deeper checks from tools your stack already trusts. The built-in `layers`
 engine checks JS/TS imports only; use a native external checker for other
-languages.
+languages. `init --engine-adapters` includes a SARIF 2.1 bridge for exact
+compiler/analyzer file, line, column, diagnostic id, and message output.
 
 ## Install
 
@@ -33,7 +34,7 @@ intentionally trail until a stable release.
 Exact GitHub Release tarball, for pinned or registry-free installs:
 
 ```bash
-npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.13/agentlintel-cli.tgz
+npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.14/agentlintel-cli.tgz
 ```
 
 ## Quick Start
@@ -74,13 +75,19 @@ Git and never stored as a second metadata file. External and exemption engines
 reject this mode because AgentLintel cannot replay them safely against another
 tree.
 
+For .NET, import the generated `dotnet-code-quality.props`, tune its analyzer
+profile, and copy the `dotnet.code-quality` rule snippet. The generated runner
+uses the compiler `ErrorLog` SARIF output in a temporary directory; keep
+repository-specific OOP, DI, and aggregate rules in native analyzers or
+architecture tests.
+
 ## CI
 
 ```yaml
 - uses: actions/checkout@v4
   with:
     fetch-depth: 0
-- uses: lishan-fernando/AGENTLINTEL/.github/actions/agentlintel@v2.0.0-alpha.13
+- uses: lishan-fernando/AGENTLINTEL/.github/actions/agentlintel@v2.0.0-alpha.14
   with:
     strict: "true"
 ```

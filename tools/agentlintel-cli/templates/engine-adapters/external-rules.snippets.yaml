@@ -27,6 +27,15 @@
   run: "dotnet test Tests/Architecture.Tests/Architecture.Tests.csproj --no-restore"
   message: ".NET architecture fitness tests must pass."
 
+- id: dotnet.code-quality
+  severity: error
+  engine: external
+  evidence: [.agentlintel/adapters/dotnet-sarif.js, .agentlintel/adapters/dotnet-code-quality.props, .agentlintel/adapters/dotnet-code-quality.globalconfig, Directory.Build.props]
+  adapter: sarif
+  scope: tree
+  run: "node .agentlintel/adapters/dotnet-sarif.js -- dotnet build YourSolution.sln --no-restore"
+  message: ".NET compiler and analyzer diagnostics must pass."
+
 - id: commit.message-format
   severity: error
   engine: external
