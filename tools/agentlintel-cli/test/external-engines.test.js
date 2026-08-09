@@ -393,7 +393,7 @@ test('dotnet-test adapter does not flag successful xUnit summaries', () => {
     '    message: ".NET architecture tests must pass."',
   ].join('\n'));
   commitAll(root);
-  const result = verify(root, { skipFixtures: true });
+  const result = verify(root, { skipFixtures: true, base: 'HEAD' });
   assert.deepStrictEqual(result.rule_violations, []);
   assert.strictEqual(result.ok, true);
 });
