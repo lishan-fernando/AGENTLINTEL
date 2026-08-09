@@ -141,14 +141,22 @@ function sarifUriWithBase(run, artifact) {
   }
 }
 
-function canonicalRoot(root) {
-  if (!root) return null;
+function canonicalPath(filePath) {
+  const missingSegments = [];
+  let existingPath = path.resolve(filePath);
+  while (!fs.existsSync(existingPath)) {
+    const parent = path.dirname(existingPath);
+    if (parent === existingPath) return path.resolve(filePath);
+    missingSegments.unshift(path.basename(existingPath));
+    existingPath = parent;
+  }
   try {
-    return fs.realpathSync.native
-      ? fs.realpathSync.native(root)
-      : fs.realpathSync(root);
+    const realPath = fs.realpathSync.native
+      ? fs.realpathSync.native(existingPath)
+      : fs.realpathSync(existingPath);
+    return path.join(realPath, ...missingSegments);
   } catch {
-    return path.resolve(root);
+    return path.resolve(filePath);
   }
 }
 
@@ -163,7 +171,7 @@ function sarifFile(uri, root) {
     throw new Error(`SARIF artifact URI is invalid: ${error.message || error}`);
   }
   if (root && path.isAbsolute(filePath)) {
-    const relative = path.relative(canonicalRoot(root), filePath);
+    const relative = path.relative(canonicalPath(root), canonicalPath(filePath));
     if (relative && !relative.startsWith(`..${path.sep}`) && relative !== ".." &&
         !path.isAbsolute(relative))
       filePath = relative;

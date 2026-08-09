@@ -22,7 +22,8 @@
 - Updates the repository and composite Action runtimes to the current pinned
   `actions/checkout` and `actions/setup-node` revisions.
 - Isolates external-adapter test repositories from CI event base variables and
-  normalizes real temporary-directory roots across macOS path aliases.
+  normalizes real temporary-directory roots across macOS aliases and Windows
+  short paths.
 
 ## v2.0.0-alpha.13 - 2026-07-15
 
