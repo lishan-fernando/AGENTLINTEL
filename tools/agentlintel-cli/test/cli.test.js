@@ -150,6 +150,12 @@ test('explain reports malformed governance instead of crashing', () => {
   assert.doesNotMatch(result.stderr, /TypeError/);
 });
 
+test('gate phases reject options that belong to another lifecycle phase', () => {
+  const result = run(['gate', 'prepare', '--config', 'gate.json', '--bundle', 'bundle.json']);
+  assert.strictEqual(result.status, 2);
+  assert.match(result.stderr, /does not apply to 'gate prepare'/);
+});
+
 test('compact explain selects by shape and cuts the context byte proxy by at least 50 percent', () => {
   const result = run([
     'explain',

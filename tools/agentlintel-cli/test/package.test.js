@@ -18,7 +18,8 @@ const PKG = require('../package.json');
 // ADR-028's Git-derived no-new enforcement modules and adopter documentation,
 // ADR-029's safe-paths and git-state extractions, and ADR-030's
 // SARIF/native-analyzer adapter surface.
-const NPM_UNPACKED_BYTE_BUDGET = 307000;
+// ADR-031 adds the reviewable strict-gate transaction runtime.
+const NPM_UNPACKED_BYTE_BUDGET = 360000;
 
 let packCache = null;
 
