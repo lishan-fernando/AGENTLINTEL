@@ -164,6 +164,11 @@ cache state, and heartbeats). A bundle is produced only after all commands pass
 and all inputs still match. Apply recomputes the binding and advances the target
 ref with one compare-and-swap; a changed ref, config, tool, package,
 authorization, or source proof rejects the bundle.
+
+The plan's `executionGraph` shows ordered stage barriers, every command and
+operation category, equivalent-command groups, which command executes for each
+group, and clean-checkout requirements. The verified bundle adds the actual
+worker count, workspace strategy, per-command workspace mode, and timings.
 Command facts and external engines require a committed Git snapshot and may
 not change versionable state during verification.
 

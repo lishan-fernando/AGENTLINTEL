@@ -284,6 +284,12 @@ Apply recomputes every binding and atomically compare-and-swaps the target ref;
 any changed input rejects the bundle. Windows defaults to one worker and JSON
 configuration may select 1–32.
 
+The prepared plan contains the exact execution graph: ordered stage barriers,
+command nodes, operation categories, duplicate groups and their canonical
+execution, plus clean-checkout requirements. Verification rejects a graph that
+does not derive exactly from the bound config. The bundle records the actual
+worker count, workspace strategy, per-command workspace mode, and timings.
+
 Only commands with explicit content inputs and outputs may cache results.
 Supported cache categories are restore, Release build, OpenAPI, contract
 evidence, Git proofs, and architecture compilation. Equivalent non-final

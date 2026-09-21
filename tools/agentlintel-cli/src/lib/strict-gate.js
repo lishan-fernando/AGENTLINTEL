@@ -173,6 +173,81 @@ function commandIdentity(command) {
   });
 }
 
+function buildExecutionGraph(config) {
+  const nodes = [];
+  const stages = [];
+  const groups = new Map();
+  let ordinal = 0;
+  let previousStage = null;
+  for (const stage of [...new Set(config.commands.map((command) => command.stage))]) {
+    const stageCommands = config.commands.filter((command) => command.stage === stage);
+    const seen = new Map();
+    const stageNodes = [];
+    for (const command of stageCommands) {
+      const identity = commandIdentity(command);
+      const deduplicatedFrom = command.final ? null : seen.get(identity) || null;
+      if (!deduplicatedFrom) seen.set(identity, command.id);
+      const node = {
+        ordinal: ++ordinal,
+        id: command.id,
+        stage,
+        project: command.project,
+        case: command.case,
+        rule: command.rule,
+        operation: command.cache?.category || (command.final ? "final-strict" : "command"),
+        identity,
+        executes: !deduplicatedFrom,
+        deduplicatedFrom,
+        cacheable: Boolean(command.cache),
+        final: command.final,
+        workspaceRequirement: command.cleanCheckout ? "clean-checkout" : "shared-eligible",
+      };
+      nodes.push(node);
+      stageNodes.push(command.id);
+      const group = groups.get(identity) || [];
+      group.push(node);
+      groups.set(identity, group);
+    }
+    stages.push({
+      id: stage,
+      index: stages.length + 1,
+      dependsOn: previousStage ? [previousStage] : [],
+      nodes: stageNodes,
+    });
+    previousStage = stage;
+  }
+  const operationCounts = {};
+  for (const node of nodes) {
+    const count = operationCounts[node.operation] || { declared: 0, executed: 0, deduplicated: 0 };
+    count.declared++;
+    if (node.executes) count.executed++;
+    else count.deduplicated++;
+    operationCounts[node.operation] = count;
+  }
+  const repeatedOperations = [...groups.entries()]
+    .filter(([, group]) => group.length > 1)
+    .map(([identity, group]) => ({
+      identity,
+      commands: group.map((node) => node.id),
+      executedAs: group.filter((node) => node.executes).map((node) => node.id),
+      deduplicated: group.filter((node) => !node.executes).map((node) => node.id),
+    }));
+  return {
+    configuredWorkers: config.workers,
+    stages,
+    nodes,
+    repeatedOperations,
+    operationCounts,
+    summary: {
+      declaredCommands: nodes.length,
+      executedCommands: nodes.filter((node) => node.executes).length,
+      deduplicatedCommands: nodes.filter((node) => !node.executes).length,
+      requiredCleanCheckouts: nodes.filter((node) =>
+        node.executes && node.workspaceRequirement === "clean-checkout").length,
+    },
+  };
+}
+
 function normalizeConfig(raw) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw))
     throw new Error("strict-gate config must be a JSON object");
@@ -362,6 +437,7 @@ function prepareStrictGate(root, configPath, outputPath = null) {
     configPath: loaded.relative,
     config,
     binding,
+    executionGraph: buildExecutionGraph(config),
   };
   const planDigest = digest(planCore);
   planCore.binding.planDigest = planDigest;
@@ -731,10 +807,12 @@ async function runOne(root, paths, templateWorkspace, sourceHead, plan, command,
   progress, ordinal, total, heartbeatMs, isolated) {
   let workspace = templateWorkspace;
   let ephemeral = null;
+  let workspaceMode = "template";
   if (command.cleanCheckout || isolated) {
     const key = `case-${plan.digest.slice(0, 12)}-${command.id}-${process.pid}`;
     workspace = ensureWorkspace(root, paths, sourceHead, key);
     ephemeral = key;
+    workspaceMode = command.cleanCheckout ? "clean-checkout" : "parallel-isolated";
   }
   try {
     const descriptor = cacheDescriptor(workspace, paths, command, plan.binding);
@@ -756,6 +834,7 @@ async function runOne(root, paths, templateWorkspace, sourceHead, plan, command,
         pid: process.pid, cacheStatus: "hit", stdoutSha256: digest(""),
         stderrSha256: digest(""), stdoutBytes: 0, stderrBytes: 0,
         stdoutTail: "", stderrTail: "", outputOverflow: false,
+        workspaceMode,
         cacheKey: descriptor.key,
         cacheInputDigest: descriptor.inputs.digest,
         cacheOutputDigest: restored.outputDigest,
@@ -766,6 +845,7 @@ async function runOne(root, paths, templateWorkspace, sourceHead, plan, command,
       workspace, command, progress, ordinal, total, heartbeatMs,
       descriptor ? "miss" : "bypass",
     );
+    result.workspaceMode = workspaceMode;
     const after = gitStatus(workspace);
     if (before !== after) {
       result.exitCode = null;
@@ -838,6 +918,8 @@ async function verifyStrictGate(root, configPath, planPath, {
   binding.planDigest = plan.binding.planDigest;
   if (!sameBinding(plan.binding, binding) || digest(config) !== digest(plan.config))
     throw new Error("strict-gate plan is stale; run prepare again");
+  if (digest(plan.executionGraph) !== digest(buildExecutionGraph(config)))
+    throw new Error("strict-gate execution graph is stale; run prepare again");
   plan.config = config;
   plan.binding = binding;
 
@@ -847,48 +929,44 @@ async function verifyStrictGate(root, configPath, planPath, {
   const progress = progressEmitter(onProgress);
   const results = [];
   const stageWalls = [];
-  const stages = [...new Set(config.commands.map((command) => command.stage))];
-  let ordinal = 0;
+  const commandById = new Map(config.commands.map((command) => [command.id, command]));
   const total = config.commands.length;
   try {
-    for (const stage of stages) {
+    for (const graphStage of plan.executionGraph.stages) {
       const stageStarted = Date.now();
-      const commands = config.commands.filter((command) => command.stage === stage);
-      const unique = [];
-      const aliases = [];
-      const seen = new Map();
-      for (const command of commands) {
-        const key = command.final ? `${commandIdentity(command)}:${command.id}` : commandIdentity(command);
-        if (seen.has(key)) aliases.push({ command, source: seen.get(key) });
-        else {
-          seen.set(key, command.id);
-          unique.push({ command, ordinal: ++ordinal });
-        }
-      }
-      const stageResults = await runPool(unique, executionWorkers, ({ command, ordinal: itemOrdinal }) =>
+      const graphNodes = graphStage.nodes.map((id) =>
+        plan.executionGraph.nodes.find((node) => node.id === id));
+      const unique = graphNodes.filter((node) => node.executes).map((node) => ({
+        command: commandById.get(node.id), node,
+      }));
+      const aliases = graphNodes.filter((node) => !node.executes).map((node) => ({
+        command: commandById.get(node.id), node,
+      }));
+      const stageResults = await runPool(unique, executionWorkers, ({ command, node }) =>
         runOne(root, paths, workspace, binding.heads.sourceHead, plan, command,
-          progress, itemOrdinal, total, executionHeartbeatMs,
+          progress, node.ordinal, total, executionHeartbeatMs,
           executionWorkers > 1 && unique.length > 1));
-      results.push(...stageResults);
-      for (const alias of aliases) {
-        const source = stageResults.find((result) => result.id === alias.source);
-        ordinal++;
-        results.push({
+      const resultsById = new Map(stageResults.map((result) => [result.id, result]));
+      for (const { command, node } of aliases) {
+        const source = resultsById.get(node.deduplicatedFrom);
+        const result = {
           ...source,
-          id: alias.command.id,
-          case: alias.command.case,
-          project: alias.command.project,
-          rule: alias.command.rule,
+          id: command.id,
+          case: command.case,
+          project: command.project,
+          rule: command.rule,
           cacheStatus: "deduplicated",
-          deduplicatedFrom: alias.source,
+          deduplicatedFrom: node.deduplicatedFrom,
           elapsedMs: 0,
-        });
+        };
+        resultsById.set(command.id, result);
         progress({
-          stage, case: ordinal, total, currentProject: alias.command.project,
+          stage: graphStage.id, case: node.ordinal, total, currentProject: command.project,
           elapsedMs: 0, pid: process.pid, cacheStatus: "deduplicated", status: "passed",
         });
       }
-      stageWalls.push({ stage, elapsedMs: Date.now() - stageStarted });
+      results.push(...graphStage.nodes.map((id) => resultsById.get(id)));
+      stageWalls.push({ stage: graphStage.id, elapsedMs: Date.now() - stageStarted });
       if (stageResults.some((result) => result.exitCode !== 0 || result.timedOut || result.outputOverflow))
         break;
     }
@@ -924,7 +1002,18 @@ async function verifyStrictGate(root, configPath, planPath, {
     schema: BUNDLE_SCHEMA,
     plan,
     binding,
-    strictGate: { ok: true, resultDigest, results },
+    strictGate: {
+      ok: true,
+      resultDigest,
+      execution: {
+        workers: executionWorkers,
+        heartbeatMs: executionHeartbeatMs,
+        workspaceStrategy: executionWorkers > 1
+          ? "isolated-parallel-worktrees"
+          : "reusable-template-plus-clean-checkouts",
+      },
+      results,
+    },
     timing,
   };
   const bundle = { ...bundleCore, digest: digest(bundleCore) };

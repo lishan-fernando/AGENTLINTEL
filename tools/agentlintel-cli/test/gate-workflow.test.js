@@ -6,6 +6,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
+const { digest } = require('../src/lib/strict-gate');
 
 const BIN = path.join(__dirname, '..', 'bin', 'agentlintel.js');
 const REPO = path.join(__dirname, '..', '..', '..');
@@ -145,6 +146,37 @@ test('prepare -> verify -> atomic apply binds evidence, deduplicates, caches, an
   assert.match(preparedJson.plan.binding.packageProof.digest, /^[0-9a-f]{64}$/);
   assert.match(preparedJson.plan.binding.authorizationProof.digest, /^[0-9a-f]{64}$/);
   assert.match(preparedJson.plan.binding.sourceProof.digest, /^[0-9a-f]{64}$/);
+  assert.deepStrictEqual(preparedJson.plan.executionGraph.summary, {
+    declaredCommands: 5,
+    executedCommands: 4,
+    deduplicatedCommands: 1,
+    requiredCleanCheckouts: 1,
+  });
+  assert.deepStrictEqual(preparedJson.plan.executionGraph.operationCounts['release-build'], {
+    declared: 2,
+    executed: 1,
+    deduplicated: 1,
+  });
+  assert.deepStrictEqual(
+    preparedJson.plan.executionGraph.stages.map((stage) => stage.dependsOn),
+    [[], ['release-build'], ['parallel-checks']],
+  );
+  assert.deepStrictEqual(
+    preparedJson.plan.executionGraph.repeatedOperations[0].commands,
+    ['release-build-a', 'release-build-b'],
+  );
+
+  const tamperedPlan = structuredClone(preparedJson.plan);
+  tamperedPlan.executionGraph.summary.executedCommands = 1;
+  const { digest: ignoredDigest, ...tamperedCore } = tamperedPlan;
+  tamperedPlan.digest = digest(tamperedCore);
+  const tamperedPath = '.agentlintel/runtime/tampered-plan.json';
+  write(root, tamperedPath, `${JSON.stringify(tamperedPlan, null, 2)}\n`);
+  const tampered = run(root, [
+    'gate', 'verify', '--config', 'gate.json', '--plan', tamperedPath,
+  ]);
+  assert.strictEqual(tampered.status, 2);
+  assert.match(tampered.stderr, /execution graph is stale/);
 
   const verified = run(root, [
     'gate', 'verify', '--config', 'gate.json', '--plan', plan,
@@ -153,6 +185,7 @@ test('prepare -> verify -> atomic apply binds evidence, deduplicates, caches, an
   assert.strictEqual(verified.status, 0, verified.stderr);
   const verifiedJson = JSON.parse(verified.stdout);
   assert.strictEqual(verifiedJson.ok, true);
+  assert.strictEqual(verifiedJson.bundle.strictGate.execution.workers, 1);
   assert.strictEqual(verifiedJson.results.length, 5);
   assert.strictEqual(
     verifiedJson.results.filter((result) => result.cacheStatus === 'deduplicated').length,
@@ -179,6 +212,9 @@ test('prepare -> verify -> atomic apply binds evidence, deduplicates, caches, an
   const warmedJson = JSON.parse(warmed.stdout);
   assert.strictEqual(warmedJson.results[0].cacheStatus, 'hit');
   assert.strictEqual(warmedJson.results.find((result) => result.final).cacheStatus, 'bypass');
+  assert.strictEqual(warmedJson.bundle.strictGate.execution.workers, 2);
+  assert.ok(warmedJson.results.filter((result) => result.id.startsWith('parallel-'))
+    .every((result) => result.workspaceMode === 'parallel-isolated'));
 
   const mainBefore = git(root, ['rev-parse', 'refs/heads/main']);
   const candidate = git(root, ['rev-parse', 'refs/heads/candidate']);
