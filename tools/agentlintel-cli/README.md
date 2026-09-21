@@ -34,7 +34,7 @@ intentionally trail until a stable release.
 Exact GitHub Release tarball, for pinned or registry-free installs:
 
 ```bash
-npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.14/agentlintel-cli.tgz
+npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.15/agentlintel-cli.tgz
 ```
 
 ## Quick Start
@@ -87,7 +87,7 @@ architecture tests.
 - uses: actions/checkout@v4
   with:
     fetch-depth: 0
-- uses: lishan-fernando/AGENTLINTEL/.github/actions/agentlintel@v2.0.0-alpha.14
+- uses: lishan-fernando/AGENTLINTEL/.github/actions/agentlintel@v2.0.0-alpha.15
   with:
     strict: "true"
 ```

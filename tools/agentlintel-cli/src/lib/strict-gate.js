@@ -14,6 +14,7 @@ const RECEIPT_SCHEMA = "agentlintel.apply-receipt/v1";
 const DEFAULT_RUNTIME = ".agentlintel/runtime";
 const DEFAULT_HEARTBEAT_MS = 15000;
 const MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
+const TRANSIENT_RENAME_CODES = new Set(["EACCES", "EBUSY", "EPERM"]);
 const CACHE_CATEGORIES = new Set([
   "restore",
   "release-build",
@@ -61,12 +62,32 @@ function inside(root, relPath, label = "path") {
   return { rel, absolute };
 }
 
+function sleepSync(milliseconds) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
+}
+
+function renameSyncWithRetry(source, destination, options = {}) {
+  const rename = options.rename || fs.renameSync;
+  const sleep = options.sleep || sleepSync;
+  const maxAttempts = options.maxAttempts || 8;
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      rename(source, destination);
+      return;
+    } catch (error) {
+      if (attempt >= maxAttempts || !TRANSIENT_RENAME_CODES.has(error && error.code))
+        throw error;
+      sleep(Math.min(10 * (2 ** (attempt - 1)), 250));
+    }
+  }
+}
+
 function atomicWriteJson(filePath, value) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   const temp = `${filePath}.${process.pid}.${crypto.randomBytes(6).toString("hex")}.tmp`;
   fs.writeFileSync(temp, `${JSON.stringify(value, null, 2)}\n`, { flag: "wx" });
   try {
-    fs.renameSync(temp, filePath);
+    renameSyncWithRetry(temp, filePath);
   } catch (error) {
     try { fs.unlinkSync(temp); } catch {}
     throw error;
@@ -670,7 +691,7 @@ function saveCache(workspace, paths, command, descriptor) {
       outputDigest: output.digest,
       outputs: output.entries,
     });
-    try { fs.renameSync(temp, descriptor.directory); }
+    try { renameSyncWithRetry(temp, descriptor.directory); }
     catch (error) {
       if (!fs.existsSync(descriptor.directory)) throw error;
       safeRemoveWithin(parent, temp);
@@ -1083,6 +1104,7 @@ module.exports = {
   CACHE_CATEGORIES,
   stable,
   digest,
+  renameSyncWithRetry,
   normalizeConfig,
   prepareStrictGate,
   verifyStrictGate,

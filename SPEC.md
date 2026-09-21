@@ -3,6 +3,8 @@
 AgentLintel is a deterministic architecture gate for AI-agent codebases. It is
 metadata plus a CLI, not a runtime.
 
+Version: 2.0.0-alpha.15
+
 ## Laws
 
 1. Verified, append-only, or deleted.

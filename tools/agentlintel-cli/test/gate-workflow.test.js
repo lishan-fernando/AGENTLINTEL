@@ -6,7 +6,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
-const { digest } = require('../src/lib/strict-gate');
+const { digest, renameSyncWithRetry } = require('../src/lib/strict-gate');
 
 const BIN = path.join(__dirname, '..', 'bin', 'agentlintel.js');
 const REPO = path.join(__dirname, '..', '..', '..');
@@ -129,6 +129,25 @@ function cleanup(root) {
   spawnSync('git', ['worktree', 'prune'], { cwd: root, stdio: 'ignore' });
   fs.rmSync(root, { recursive: true, force: true });
 }
+
+test('atomic rename retries only bounded transient filesystem locks', () => {
+  let attempts = 0;
+  const delays = [];
+  renameSyncWithRetry('source', 'destination', {
+    rename() {
+      attempts += 1;
+      if (attempts < 3) throw Object.assign(new Error('locked'), { code: 'EPERM' });
+    },
+    sleep(milliseconds) { delays.push(milliseconds); },
+  });
+  assert.strictEqual(attempts, 3);
+  assert.deepStrictEqual(delays, [10, 20]);
+
+  assert.throws(() => renameSyncWithRetry('source', 'destination', {
+    rename() { throw Object.assign(new Error('invalid'), { code: 'EINVAL' }); },
+    sleep() { assert.fail('non-transient failures must not retry'); },
+  }), /invalid/);
+});
 
 test('prepare -> verify -> atomic apply binds evidence, deduplicates, caches, and heartbeats', async (t) => {
   const root = createRepository();

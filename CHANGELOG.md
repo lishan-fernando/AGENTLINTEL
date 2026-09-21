@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+## v2.0.0-alpha.15 - 2026-09-21
+
+- Adds a prepare → verify → atomic apply lifecycle for expensive strict gates,
+  with a one-worker Windows default and configurable isolated concurrency.
+- Binds source and target heads, plan, tools, packages, authorization, source
+  proofs, exact execution graph, strict results, and timings into
+  content-addressed plans and verification bundles; any changed input fails
+  closed before apply.
+- Adds content-addressed caches for restore, Release build, OpenAPI, contract
+  evidence, Git proofs, and architecture compilation while always rerunning the
+  final production-equivalence gate.
+- Deduplicates equivalent non-final commands, reuses owned clean worktrees,
+  emits structured progress and heartbeats, and reports the slowest commands,
+  rules, and stages; atomic cache publication retries bounded transient Windows
+  filesystem locks.
+- Proves stale-input rejection, graph-tamper rejection, failed-final rejection,
+  bounded cleanup, parallel isolation, and sub-minute compare-and-swap apply
+  through public CLI journeys.
+- Reduces the available native eShop benchmark from 26.786 seconds cold to
+  10.352 seconds warm (61.4 percent), with 1.032-second atomic apply, while
+  preserving every existing strict assertion.
+- Updates the sole runtime dependency to `yaml` 2.9.1 and keeps external-engine
+  tests isolated from CI event-base variables.
+
 ## v2.0.0-alpha.14 - 2026-08-09
 
 - Adds Git-derived `enforcement: no-new` for brownfield built-in rules: legacy
