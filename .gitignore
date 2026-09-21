@@ -12,6 +12,7 @@ temp/
 
 # Local dependency/tool caches contributors may create
 node_modules/
+.agentlintel/runtime/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/

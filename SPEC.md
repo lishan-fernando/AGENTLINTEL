@@ -258,6 +258,9 @@ agentlintel verify
 agentlintel report
 agentlintel explain --path <file>
 agentlintel explain --path <file> --shape <shape> --compact
+agentlintel gate prepare --config <json>
+agentlintel gate verify --config <json> --plan <json>
+agentlintel gate apply --config <json> --bundle <json>
 ```
 
 Init flags: `--pattern`, `--from-v1`, `--adapters`, `--hooks`,
@@ -271,6 +274,24 @@ Explain flags: `--dir`, `--path`, `--json`.
 
 Exit codes: `0` passed, `1` gate findings, `2` invalid invocation or internal
 error.
+
+Transactional strict gates use a compact JSON command contract. Prepare binds
+exact source/target commits, config, tool and package digests, authorization,
+and source proofs. Verify runs commands in owned clean Git worktrees, emits
+structured progress/heartbeats, records timings, and creates a
+content-addressed bundle only after the uncached final strict command passes.
+Apply recomputes every binding and atomically compare-and-swaps the target ref;
+any changed input rejects the bundle. Windows defaults to one worker and JSON
+configuration may select 1–32.
+
+Only commands with explicit content inputs and outputs may cache results.
+Supported cache categories are restore, Release build, OpenAPI, contract
+evidence, Git proofs, and architecture compilation. Equivalent non-final
+commands are deduplicated; final commands are neither cached nor deduplicated.
+Runtime plans, bundles, caches, worktrees, and receipts live under the ignored
+`.agentlintel/runtime/` path and are derived evidence, not a seventh governance
+concept. Cleanup requires an exact repository/source ownership marker and a
+registered worktree.
 
 Fast agent loop: `verify --diff --quiet --bail --no-run --skip-fixtures`.
 Merge gate: `verify --strict --base <target-sha>`; CI must run this on every PR

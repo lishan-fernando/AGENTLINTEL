@@ -4,9 +4,10 @@
 
 const { main } = require("../src/cli");
 
-try {
-  process.exit(main());
-} catch (error) {
-  console.error(`agentlintel internal error: ${error.stack || error}`);
-  process.exit(2);
-}
+Promise.resolve()
+  .then(() => main())
+  .then((code) => { process.exitCode = code; })
+  .catch((error) => {
+    console.error(`agentlintel internal error: ${error.stack || error}`);
+    process.exitCode = 2;
+  });

@@ -11,6 +11,7 @@ Usage:
   agentlintel verify [--dir <root>] [opts]
   agentlintel report [--dir <root>] [opts]
   agentlintel explain --path <file> [--shape <shape>] [--compact] [--dir <root>] [--json]
+  agentlintel gate <prepare|verify|apply> --config <file> [opts]
 
 init options:
   --pattern <name> vertical-slice (default), layered-3tier, mvvm, custom
@@ -23,9 +24,16 @@ verify/report options:
 explain options:
   --dir <root>  --path <file>  --shape <shape>  --compact  --json
 
+gate options:
+  --dir <root>  --config <file>  --plan <file>  --bundle <file>
+  --output <file>  --workers <n>  --heartbeat-ms <n>  --json
+
 Exit codes: 0 gate passed, 1 gate findings, 2 invalid invocation/internal error.`;
 
-const VALUE_FLAGS = new Set(["--dir", "--base", "--pattern", "--path", "--shape", "--mode"]);
+const VALUE_FLAGS = new Set([
+  "--dir", "--base", "--pattern", "--path", "--shape", "--mode",
+  "--config", "--plan", "--bundle", "--output", "--workers", "--heartbeat-ms",
+]);
 const BOOLEAN_FLAGS = {
   "--json": "json",
   "--strict": "strict",
@@ -47,6 +55,7 @@ const COMMAND_OPTIONS = {
   verify: new Set(["dir", "base", "diff", "quiet", "bail", "workspace", "json", "strict", "noRun", "skipFixtures", "mode"]),
   report: new Set(["dir", "base", "diff", "quiet", "bail", "workspace", "json", "strict", "noRun", "skipFixtures", "mode"]),
   explain: new Set(["dir", "path", "shape", "compact", "json"]),
+  gate: new Set(["dir", "config", "plan", "bundle", "output", "workers", "heartbeatMs", "json"]),
 };
 
 function parseArgs(argv) {
@@ -106,7 +115,7 @@ function maybeWorkspace(root) {
   return workspacePath(root);
 }
 
-function main(argv = process.argv.slice(2), cwd = process.cwd()) {
+async function main(argv = process.argv.slice(2), cwd = process.cwd()) {
   const [command, ...rest] = argv;
   const options = parseArgs(rest);
   const root = path.resolve(options.dir || cwd);
@@ -139,7 +148,7 @@ function main(argv = process.argv.slice(2), cwd = process.cwd()) {
     return 2;
   }
 
-  if (options._.length) {
+  if (options._.length && command !== "gate") {
     console.error(
       `Unexpected argument '${options._[0]}'. Run: agentlintel help`,
     );
@@ -150,6 +159,10 @@ function main(argv = process.argv.slice(2), cwd = process.cwd()) {
   if (command === "verify" || command === "report")
     return runVerifyOrReport(command, root, options);
   if (command === "explain") return runExplain(root, options);
+  if (command === "gate") {
+    const { runGate } = require("./commands/gate");
+    return runGate(root, options);
+  }
 
   console.error(`Unknown command '${command}'. Run: agentlintel help`);
   return 2;

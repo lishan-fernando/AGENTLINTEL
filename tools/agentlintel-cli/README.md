@@ -104,6 +104,7 @@ agentlintel init      scaffold the kernel, .agents/skills/, and AGENTS.md
 agentlintel verify    facts fresh + rules pass + fixtures green + guard held
 agentlintel report    the same gate as markdown (--json for machines)
 agentlintel explain   show which contract parts apply to a path
+agentlintel gate      prepare, verify, and atomically apply an exact strict gate
 ```
 
 Common flags: `--dir <root>`, `--json`, `--strict`, `--no-run`,
@@ -121,6 +122,48 @@ internal error.
 
 `--diff`, `--skip-fixtures`, and `--no-run` are incomplete under `--strict`.
 Ignored or untracked governance cannot establish a Git-backed strict verdict.
+
+### Transactional strict gates
+
+For expensive native workloads, put commands and their evidence in one compact
+JSON file, then run:
+
+```sh
+agentlintel gate prepare --config strict-gate.json --output .agentlintel/runtime/plan.json
+agentlintel gate verify --config strict-gate.json --plan .agentlintel/runtime/plan.json --output .agentlintel/runtime/bundle.json
+agentlintel gate apply --config strict-gate.json --bundle .agentlintel/runtime/bundle.json
+```
+
+The config names exact source/target refs, tool probes, committed package,
+authorization and source-proof paths, plus ordered commands. Each command has a
+stage and may declare a content-addressed cache with `inputs`, `outputs`, and
+one category: `restore`, `release-build`, `openapi`, `contract-evidence`,
+`git-proofs`, or `architecture-compilation`. At least one last command must set
+`"final": true`; final commands always run and cannot be cached.
+
+```json
+{
+  "version": 1,
+  "sourceRef": "HEAD",
+  "targetRef": "refs/heads/main",
+  "workers": 1,
+  "tools": [{ "id": "dotnet", "run": "dotnet --version" }],
+  "packages": ["packages.lock.json"],
+  "authorization": [".agentlintel/guard.json"],
+  "sourceProofs": ["tests/ArchitectureTests/**"],
+  "commands": [
+    { "id": "build", "stage": "release-build", "run": "dotnet build -c Release", "cache": { "category": "release-build", "inputs": ["src/**"], "outputs": ["artifacts/bin"] } },
+    { "id": "strict", "stage": "strict-gate", "run": "agentlintel verify --strict", "final": true }
+  ]
+}
+```
+
+Windows uses one worker unless `workers` in the JSON config selects 1–32.
+Progress is JSONL on stderr (stage, case/total, project, elapsed time, PID,
+cache state, and heartbeats). A bundle is produced only after all commands pass
+and all inputs still match. Apply recomputes the binding and advances the target
+ref with one compare-and-swap; a changed ref, config, tool, package,
+authorization, or source proof rejects the bundle.
 Command facts and external engines require a committed Git snapshot and may
 not change versionable state during verification.
 
