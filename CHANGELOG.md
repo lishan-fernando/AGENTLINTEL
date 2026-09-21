@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## v2.0.0-alpha.16 - 2026-09-21
+
+- Publishes the fully integrated `main` branch after verifying every remote
+  feature branch is already contained in the default branch.
+- Re-runs the complete strict gate, hostile fixtures, cross-platform CI, and
+  package checks without weakening or skipping any production assertion.
+
 ## v2.0.0-alpha.15 - 2026-09-21
 
 - Adds a prepare → verify → atomic apply lifecycle for expensive strict gates,

@@ -121,7 +121,7 @@ npmjs.com and in the GitHub repo settings, in this order:
 ## GitHub Action
 
 Adopters pin the immutable release tag:
-`lishan-fernando/AGENTLINTEL/.github/actions/agentlintel@v2.0.0-alpha.15`.
+`lishan-fernando/AGENTLINTEL/.github/actions/agentlintel@v2.0.0-alpha.16`.
 The workflow must check out full history; the Action derives the actual event
 base SHA.
 
