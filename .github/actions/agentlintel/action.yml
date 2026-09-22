@@ -42,6 +42,14 @@ inputs:
     description: Skip command facts and external engines, since they execute repo-declared shell. (auto|true|false; auto skips fork PRs and merge groups)
     required: false
     default: "auto"
+  timing:
+    description: Include total and per-command timings in the verification result. (true|false)
+    required: false
+    default: "false"
+  progress:
+    description: Emit structured command lifecycle progress to the action log. (true|false)
+    required: false
+    default: "false"
 
 runs:
   using: composite
@@ -60,6 +68,8 @@ runs:
         AGENTLINTEL_BASE: ${{ inputs.base || github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
         AGENTLINTEL_STRICT: ${{ inputs.strict }}
         AGENTLINTEL_NO_RUN: ${{ inputs.no_run }}
+        AGENTLINTEL_TIMING: ${{ inputs.timing }}
+        AGENTLINTEL_PROGRESS: ${{ inputs.progress }}
         AGENTLINTEL_EVENT: ${{ github.event_name }}
         # Fork PRs must not execute candidate fact/external commands.
         IS_UNTRUSTED: ${{ github.event_name == 'merge_group' || github.event.pull_request.head.repo.fork == true }}
@@ -85,11 +95,21 @@ runs:
           auto|true|false) ;;
           *) printf 'Unsupported no_run value: %s (expected auto, true, or false)\n' "$AGENTLINTEL_NO_RUN" >&2; exit 2 ;;
         esac
+        case "$AGENTLINTEL_TIMING" in
+          true|false) ;;
+          *) printf 'Unsupported timing value: %s (expected true or false)\n' "$AGENTLINTEL_TIMING" >&2; exit 2 ;;
+        esac
+        case "$AGENTLINTEL_PROGRESS" in
+          true|false) ;;
+          *) printf 'Unsupported progress value: %s (expected true or false)\n' "$AGENTLINTEL_PROGRESS" >&2; exit 2 ;;
+        esac
 
         args=(node "${{ github.action_path }}/../../../tools/agentlintel-cli/bin/agentlintel.js" "$AGENTLINTEL_COMMAND" --dir "$AGENTLINTEL_DIR" --base "$AGENTLINTEL_BASE")
         if [ "$AGENTLINTEL_STRICT" = "true" ]; then args+=(--strict); fi
         if [ "$AGENTLINTEL_NO_RUN" = "true" ]; then args+=(--no-run); fi
         if [ "$AGENTLINTEL_NO_RUN" = "auto" ] && [ "$IS_UNTRUSTED" = "true" ]; then args+=(--no-run); fi
+        if [ "$AGENTLINTEL_TIMING" = "true" ]; then args+=(--timing); fi
+        if [ "$AGENTLINTEL_PROGRESS" = "true" ]; then args+=(--progress); fi
 
         if [ "$AGENTLINTEL_COMMAND" = "report" ]; then
           set +e

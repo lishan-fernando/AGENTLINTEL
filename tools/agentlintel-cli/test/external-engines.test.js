@@ -150,6 +150,60 @@ test('external engine maps JSONL output to violations under the rule id', () => 
   assert.strictEqual(skipped.rule_violations.length, 0, '--no-run skips external engines');
 });
 
+test('timing observes command facts and external rules by stable ID without command text', () => {
+  const root = tmpDir();
+  const pass = 'node -e "process.exit(0)"';
+  const fail = 'node -e "process.exit(2)"';
+  const slow = 'node -e "setTimeout(() => process.exit(0), 1000)"';
+  write(root, '.agentlintel/facts.yaml', YAML.stringify({
+    version: 2,
+    facts: [
+      { id: 'fact.pass', claim: 'passes', check: { type: 'command', run: pass } },
+      { id: 'fact.fail', claim: 'fails', check: { type: 'command', run: fail } },
+      { id: 'fact.timeout', claim: 'times out', check: { type: 'command', run: slow, timeout_ms: 20 } },
+    ],
+  }));
+  write(root, '.agentlintel/rules.yaml', YAML.stringify({
+    version: 2,
+    rules: [
+      { id: 'external.pass', severity: 'error', engine: 'external', evidence: ['.agentlintel/rules.yaml'], run: pass, message: 'passes' },
+      { id: 'external.fail', severity: 'error', engine: 'external', evidence: ['.agentlintel/rules.yaml'], run: fail, message: 'fails' },
+      { id: 'external.timeout', severity: 'error', engine: 'external', evidence: ['.agentlintel/rules.yaml'], run: slow, timeout_ms: 20, message: 'times out' },
+    ],
+  }));
+  commitAll(root);
+
+  const events = [];
+  const result = verify(root, {
+    base: 'HEAD',
+    skipFixtures: true,
+    timing: true,
+    onProgress: (event) => events.push(event),
+  });
+  assert.deepStrictEqual(result.timing.dynamic.map(({ kind, id, status }) => ({ kind, id, status })), [
+    { kind: 'external', id: 'external.pass', status: 'passed' },
+    { kind: 'external', id: 'external.fail', status: 'failed' },
+    { kind: 'external', id: 'external.timeout', status: 'timeout' },
+    { kind: 'fact', id: 'fact.pass', status: 'passed' },
+    { kind: 'fact', id: 'fact.fail', status: 'failed' },
+    { kind: 'fact', id: 'fact.timeout', status: 'timeout' },
+  ]);
+  assert.ok(result.timing.totalMs >= 0);
+  assert.ok(result.timing.dynamic.every((entry) => Number.isInteger(entry.elapsedMs) && entry.elapsedMs >= 0));
+  assert.deepStrictEqual(events.filter((event) => event.event === 'started').map(({ kind, id }) => ({ kind, id })), [
+    { kind: 'external', id: 'external.pass' },
+    { kind: 'external', id: 'external.fail' },
+    { kind: 'external', id: 'external.timeout' },
+    { kind: 'fact', id: 'fact.pass' },
+    { kind: 'fact', id: 'fact.fail' },
+    { kind: 'fact', id: 'fact.timeout' },
+  ]);
+  assert.ok(events.every((event) => !Object.hasOwn(event, 'run') && !Object.hasOwn(event, 'stdout') && !Object.hasOwn(event, 'stderr')));
+
+  const defaultResult = verify(root, { base: 'HEAD', skipFixtures: true });
+  assert.ok(!Object.hasOwn(defaultResult, 'timing'));
+});
+
 test('--no-run external rules warn and fail strict mode instead of silently passing', () => {
   const root = tmpDir();
   write(root, '.agentlintel/rules.yaml', [

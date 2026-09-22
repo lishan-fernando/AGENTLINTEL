@@ -34,7 +34,7 @@ intentionally trail until a stable release.
 Exact GitHub Release tarball, for pinned or registry-free installs:
 
 ```bash
-npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.16/agentlintel-cli.tgz
+npm i -D https://github.com/lishan-fernando/AGENTLINTEL/releases/download/v2.0.0-alpha.17/agentlintel-cli.tgz
 ```
 
 ## Quick Start
@@ -87,7 +87,7 @@ architecture tests.
 - uses: actions/checkout@v4
   with:
     fetch-depth: 0
-- uses: lishan-fernando/AGENTLINTEL/.github/actions/agentlintel@v2.0.0-alpha.16
+- uses: lishan-fernando/AGENTLINTEL/.github/actions/agentlintel@v2.0.0-alpha.17
   with:
     strict: "true"
 ```
@@ -109,7 +109,13 @@ agentlintel gate      prepare, verify, and atomically apply an exact strict gate
 
 Common flags: `--dir <root>`, `--json`, `--strict`, `--no-run`,
 `--skip-fixtures`, `--diff`, `--quiet`, `--bail`, `--workspace`,
-`--mode warn`.
+`--mode warn`, `--timing`, `--progress`.
+
+Use `agentlintel verify --timing --progress` to locate expensive command facts
+and external rules. `--timing` adds `timing.totalMs` and stable-ID entries in
+`timing.dynamic` to the result; `--progress` writes JSONL `started` and
+`completed` events to stderr. Neither output includes command text, command
+output, or environment values.
 
 Explain flags: `--path <file>`, optional `--shape <shape>`, and `--compact` for
 the measured context frontier.

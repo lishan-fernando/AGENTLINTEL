@@ -132,6 +132,10 @@ test('GitHub Action remains fork-safe and command-bounded', () => {
   assert.match(runStep.run, /comparison base/);
   assert.match(action, /pull_request\.head\.repo\.fork == true/);
   assert.match(action, /args\+=\(--no-run\)/);
+  assert.match(action, /AGENTLINTEL_TIMING/);
+  assert.match(action, /AGENTLINTEL_PROGRESS/);
+  assert.match(action, /args\+=\(--timing\)/);
+  assert.match(action, /args\+=\(--progress\)/);
   assert.match(action, /GITHUB_STEP_SUMMARY/);
 });
 
