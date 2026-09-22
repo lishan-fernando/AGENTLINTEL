@@ -970,7 +970,7 @@ function runExternalRules(root, rulesDoc, { run = true, rules = null, timing = n
     if (commandStartedAt) {
       const commandStatus = spawned.status === null
         ? "timeout"
-        : outcome.status === "ran" ? "passed" : "failed";
+        : outcome.status !== "ran" ? "failed" : outcome.violations.length ? "findings" : "passed";
       timing.complete("external", rule.id, commandStartedAt, commandStatus);
     }
     violations.push(...outcome.violations);

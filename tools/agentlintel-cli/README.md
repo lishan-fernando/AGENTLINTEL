@@ -111,11 +111,9 @@ Common flags: `--dir <root>`, `--json`, `--strict`, `--no-run`,
 `--skip-fixtures`, `--diff`, `--quiet`, `--bail`, `--workspace`,
 `--mode warn`, `--timing`, `--progress`.
 
-Use `agentlintel verify --timing --progress` to locate expensive command facts
-and external rules. `--timing` adds `timing.totalMs` and stable-ID entries in
-`timing.dynamic` to the result; `--progress` writes JSONL `started` and
-`completed` events to stderr. Neither output includes command text, command
-output, or environment values.
+`--timing` adds `timing.totalMs` and stable-ID command fact/external rule
+entries in `timing.dynamic`. `--progress` writes JSONL `started`/`completed`
+events to stderr. Neither logs commands, output, or environment values.
 
 Explain flags: `--path <file>`, optional `--shape <shape>`, and `--compact` for
 the measured context frontier.

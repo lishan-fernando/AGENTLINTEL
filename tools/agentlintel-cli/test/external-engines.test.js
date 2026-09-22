@@ -295,7 +295,8 @@ test('external engine exit 1 WITH parsed findings is findings, not engine failur
     '    message: "dependency rule"',
   ].join('\n'));
   commitAll(root);
-  const result = verify(root, { skipFixtures: true });
+  const result = verify(root, { skipFixtures: true, timing: true });
+  assert.strictEqual(result.timing.dynamic[0].status, 'findings');
   assert.ok(result.errors.some((e) => e.includes('a.ts:1')), 'findings reported');
   assert.ok(!result.errors.some((e) => e.includes('did not run cleanly')), 'no engine-failure error');
 });
