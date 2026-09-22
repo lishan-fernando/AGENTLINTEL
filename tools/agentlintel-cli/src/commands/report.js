@@ -52,6 +52,18 @@ function renderReport(result) {
   lines.push(
     `| Exemplars | ${presentExemplars}/${result.exemplars.length} present |`,
   );
+  if (result.timing)
+    lines.push(`| Timing | ${result.timing.totalMs}ms total |`);
+
+  if (result.timing && result.timing.dynamic.length) {
+    lines.push("");
+    lines.push("## Command Timing");
+    lines.push("");
+    lines.push("| Kind | ID | Elapsed | Result |");
+    lines.push("|---|---|---:|---|");
+    for (const entry of result.timing.dynamic)
+      lines.push(`| ${entry.kind} | ${entry.id} | ${entry.elapsedMs}ms | ${entry.status} |`);
+  }
 
   const steps = nextSteps(result);
   if (steps.length) {

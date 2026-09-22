@@ -7,6 +7,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
+const YAML = require('yaml');
 
 const BIN = path.join(__dirname, '..', 'bin', 'agentlintel.js');
 const REPO = path.join(__dirname, '..', '..', '..');
@@ -225,4 +226,40 @@ test('report --json emits parseable JSON and preserves gate exit code', () => {
   assert.strictEqual(r.status, 0);
   const parsed = JSON.parse(r.stdout);
   assert.strictEqual(parsed.ok, true);
+});
+
+test('timing stays opt-in while progress remains structured stderr JSONL', () => {
+  const root = tmpDir();
+  spawnSync('git', ['init', '-q'], { cwd: root });
+  spawnSync('git', ['config', 'user.email', 't@t.t'], { cwd: root });
+  spawnSync('git', ['config', 'user.name', 't'], { cwd: root });
+  write(root, '.agentlintel/facts.yaml', YAML.stringify({
+    version: 2,
+    facts: [{
+      id: 'command.safe-id',
+      claim: 'command is visible by ID only',
+      check: {
+        type: 'command',
+        run: 'node -e "const secret = \'TOP_SECRET\'; process.exit(secret ? 0 : 1)"',
+      },
+    }],
+  }));
+  spawnSync('git', ['add', '-A'], { cwd: root });
+  spawnSync('git', ['commit', '-q', '-m', 'fixture'], { cwd: root });
+
+  const normal = run(['verify', '--dir', root, '--base', 'HEAD', '--json', '--skip-fixtures']);
+  assert.strictEqual(normal.status, 0, normal.stderr);
+  assert.ok(!Object.hasOwn(JSON.parse(normal.stdout), 'timing'));
+  assert.strictEqual(normal.stderr, '');
+
+  const timed = run(['verify', '--dir', root, '--base', 'HEAD', '--json', '--skip-fixtures', '--timing', '--progress']);
+  assert.strictEqual(timed.status, 0, timed.stderr);
+  const result = JSON.parse(timed.stdout);
+  assert.deepStrictEqual(result.timing.dynamic.map(({ kind, id, status }) => ({ kind, id, status })), [
+    { kind: 'fact', id: 'command.safe-id', status: 'passed' },
+  ]);
+  const events = timed.stderr.trim().split(/\r?\n/).map((line) => JSON.parse(line));
+  assert.deepStrictEqual(events.map((event) => event.event), ['started', 'completed']);
+  assert.ok(events.every((event) => event.id === 'command.safe-id'));
+  assert.doesNotMatch(timed.stderr, /TOP_SECRET|console\.log/);
 });

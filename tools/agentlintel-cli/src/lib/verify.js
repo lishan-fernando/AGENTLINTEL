@@ -50,6 +50,39 @@ function validEntryId(value) {
   return typeof value === "string" && ENTRY_ID.test(value) && !WINDOWS_DEVICE.test(value);
 }
 
+function elapsedMs(startedAt) {
+  return Number((process.hrtime.bigint() - startedAt) / 1000000n);
+}
+
+function createTiming(options) {
+  if (!options.timing && typeof options.onProgress !== "function") return null;
+  const startedAt = process.hrtime.bigint();
+  const dynamic = [];
+  const onProgress = typeof options.onProgress === "function" ? options.onProgress : null;
+  return {
+    start(kind, id) {
+      const commandStartedAt = process.hrtime.bigint();
+      if (onProgress) onProgress({ event: "started", kind, id });
+      return commandStartedAt;
+    },
+    complete(kind, id, commandStartedAt, status) {
+      const commandElapsedMs = elapsedMs(commandStartedAt);
+      if (options.timing) dynamic.push({ kind, id, elapsedMs: commandElapsedMs, status });
+      if (onProgress)
+        onProgress({
+          event: "completed",
+          kind,
+          id,
+          elapsedMs: commandElapsedMs,
+          status,
+        });
+    },
+    result() {
+      return { totalMs: elapsedMs(startedAt), dynamic };
+    },
+  };
+}
+
 function kernelShape(doc, label, collection) {
   const problems = [];
   if (!doc || typeof doc !== "object" || Array.isArray(doc)) {
@@ -296,7 +329,7 @@ function factConfigProblem(fact) {
 function verifyFacts(
   root,
   factsDoc,
-  { run = true, treeFiles = null, nonRegularPaths = new Map() } = {},
+  { run = true, treeFiles = null, nonRegularPaths = new Map(), timing = null } = {},
 ) {
   const results = [];
   const facts = Array.isArray(factsDoc && factsDoc.facts) ? factsDoc.facts : [];
@@ -491,17 +524,27 @@ function verifyFacts(
           if (check.timeout_ms != null &&
               (!Number.isSafeInteger(check.timeout_ms) || check.timeout_ms < 1))
             throw new Error("command timeout_ms must be a positive integer");
-          const spawned = spawnSync(check.run, {
-            cwd: root,
-            shell: true,
-            timeout: check.timeout_ms || 120000,
-            encoding: "utf8",
-          });
-          const expected = check.expect_exit ?? 0;
-          ok = spawned.status === expected;
-          detail = ok
-            ? ""
-            : `'${check.run}' exited ${spawned.status}, expected ${expected}`;
+          const commandStartedAt = timing && timing.start("fact", fact.id);
+          let commandStatus = "failed";
+          try {
+            const spawned = spawnSync(check.run, {
+              cwd: root,
+              shell: true,
+              timeout: check.timeout_ms || 120000,
+              encoding: "utf8",
+            });
+            const expected = check.expect_exit ?? 0;
+            ok = spawned.status === expected;
+            commandStatus = spawned.status === null
+              ? "timeout"
+              : ok ? "passed" : "failed";
+            detail = ok
+              ? ""
+              : `'${check.run}' exited ${spawned.status}, expected ${expected}`;
+          } finally {
+            if (commandStartedAt)
+              timing.complete("fact", fact.id, commandStartedAt, commandStatus);
+          }
         } else {
           ok = true;
           skipped = true;
@@ -893,7 +936,7 @@ function runRulesOnFiles(root, rulesDoc, files, options = {}) {
   return scanned;
 }
 
-function runExternalRules(root, rulesDoc, { run = true, rules = null } = {}) {
+function runExternalRules(root, rulesDoc, { run = true, rules = null, timing = null } = {}) {
   const violations = [];
   const statuses = [];
   const externalRules = rules || preparedRuleSet(rulesDoc).externalRules;
@@ -904,6 +947,7 @@ function runExternalRules(root, rulesDoc, { run = true, rules = null } = {}) {
       continue;
     }
 
+    const commandStartedAt = timing && timing.start("external", rule.id);
     let spawned;
     try {
       spawned = spawnSync(rule.run, {
@@ -923,6 +967,12 @@ function runExternalRules(root, rulesDoc, { run = true, rules = null } = {}) {
       error: spawned.error,
       root,
     });
+    if (commandStartedAt) {
+      const commandStatus = spawned.status === null
+        ? "timeout"
+        : outcome.status !== "ran" ? "failed" : outcome.violations.length ? "findings" : "passed";
+      timing.complete("external", rule.id, commandStartedAt, commandStatus);
+    }
     violations.push(...outcome.violations);
     statuses.push({ rule: rule.id, status: outcome.status });
   }
@@ -2466,6 +2516,7 @@ function ruleViolationMessage(violation) {
 }
 
 function verify(root, options = {}) {
+  const timing = createTiming(options);
   clearGitStateCaches();
   const trackedNonRegular = trackedNonRegularFiles(root);
   const nonRegularPaths = new Map(
@@ -2500,6 +2551,7 @@ function verify(root, options = {}) {
       run: canRun,
       treeFiles: inventory.files,
       nonRegularPaths,
+      timing,
     });
     bailFacts = facts;
     const stale = facts.filter((fact) => !fact.ok && !fact.pending);
@@ -2533,6 +2585,7 @@ function verify(root, options = {}) {
         ok: advisory,
       };
       if (advisory) bail.advisory_mode = "warn";
+      if (options.timing) bail.timing = timing.result();
       return bail;
     }
   }
@@ -2592,6 +2645,7 @@ function verify(root, options = {}) {
       ? runExternalRules(root, kernel.rules, {
           run: canRun,
           rules: ruleSet.externalRules,
+          timing,
         })
       : {
           violations: [],
@@ -2636,6 +2690,7 @@ function verify(root, options = {}) {
             run: canRun,
             treeFiles: inventory.files,
             nonRegularPaths,
+            timing,
           })
         : []),
     rule_violations: allViolations,
@@ -2871,6 +2926,7 @@ function verify(root, options = {}) {
   result.ok =
     errors.length === 0 &&
     (options.mode === "warn" || !options.strict || warnings.length === 0);
+  if (options.timing) result.timing = timing.result();
   return result;
 }
 

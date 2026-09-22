@@ -19,7 +19,7 @@ init options:
 
 verify/report options:
   --dir <root>  --base <ref>  --diff  --quiet  --bail  --workspace
-  --json  --strict  --no-run  --skip-fixtures  --mode warn
+  --json  --strict  --no-run  --skip-fixtures  --mode warn  --timing  --progress
 
 explain options:
   --dir <root>  --path <file>  --shape <shape>  --compact  --json
@@ -49,11 +49,13 @@ const BOOLEAN_FLAGS = {
   "--hooks": "hooks",
   "--engine-adapters": "engineAdapters",
   "--compact": "compact",
+  "--timing": "timing",
+  "--progress": "progress",
 };
 const COMMAND_OPTIONS = {
   init: new Set(["dir", "pattern", "fromV1", "adapters", "hooks", "engineAdapters", "force"]),
-  verify: new Set(["dir", "base", "diff", "quiet", "bail", "workspace", "json", "strict", "noRun", "skipFixtures", "mode"]),
-  report: new Set(["dir", "base", "diff", "quiet", "bail", "workspace", "json", "strict", "noRun", "skipFixtures", "mode"]),
+  verify: new Set(["dir", "base", "diff", "quiet", "bail", "workspace", "json", "strict", "noRun", "skipFixtures", "mode", "timing", "progress"]),
+  report: new Set(["dir", "base", "diff", "quiet", "bail", "workspace", "json", "strict", "noRun", "skipFixtures", "mode", "timing", "progress"]),
   explain: new Set(["dir", "path", "shape", "compact", "json"]),
   gate: new Set(["dir", "config", "plan", "bundle", "output", "workers", "heartbeatMs", "json"]),
 };
@@ -100,7 +102,13 @@ function verifyOpts(options) {
     diff: options.diff,
     bail: options.bail,
     mode: options.mode,
+    timing: options.timing,
+    onProgress: options.progress ? printProgress : undefined,
   };
+}
+
+function printProgress(event) {
+  process.stderr.write(`${JSON.stringify(event)}\n`);
 }
 
 function hasKernel(root) {
@@ -325,6 +333,11 @@ function printVerify(result) {
   console.log(
     `  exemplars ${result.exemplars.filter((exemplar) => exemplar.ok).length}/${result.exemplars.length} present`,
   );
+  if (result.timing) {
+    console.log(`  timing    ${result.timing.totalMs}ms total`);
+    for (const entry of result.timing.dynamic)
+      console.log(`    ${entry.kind} [${entry.id}] ${entry.elapsedMs}ms ${entry.status}`);
+  }
 
   for (const error of result.errors) console.log(`  FAIL ${error}`);
   for (const warning of result.warnings) console.log(`  warn ${warning}`);

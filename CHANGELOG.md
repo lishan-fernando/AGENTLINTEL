@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## v2.0.0-alpha.17 - 2026-09-22
+
+- Adds opt-in `--timing` and `--progress` to the CLI and GitHub Action.
+- Preserves all strict checks, fixtures, and default output.
+
 ## v2.0.0-alpha.16 - 2026-09-21
 
 - Publishes the fully integrated `main` branch after verifying every remote
